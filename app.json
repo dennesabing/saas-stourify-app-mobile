@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "mobile",
+    "slug": "mobile",
+    "version": "1.0.0",
+    "plugins": [
+      "expo-secure-store",
+      "expo-video"
+    ]
+  }
+}
