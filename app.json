@@ -3,7 +3,7 @@
     "name": "Stourify",
     "slug": "stourify",
     "description": "Discover your next adventure — local spots, shared by explorers who actually go there.",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "stourify",
@@ -15,7 +15,7 @@
     ],
     "ios": {
       "bundleIdentifier": "app.stourify.mobile",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "supportsTablet": false,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Stourify uses your location to find spots near you and to place the spots you share.",
@@ -25,7 +25,7 @@
     },
     "android": {
       "package": "app.stourify.mobile",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#F3F7FB"
       },
