@@ -4,13 +4,13 @@ import MapView, { Marker } from 'react-native-maps'
 import { useQuery } from '@tanstack/react-query'
 import * as Location from 'expo-location'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import type { NearbyStackParamList } from '@/shared/navigation/types'
+import type { DiscoverStackParamList } from '@/shared/navigation/types'
 import { getNearbyFeed } from '@/shared/api/feed'
 import PostCard from '@/shared/components/PostCard'
 import EmptyState from '@/shared/components/EmptyState'
 import type { Post } from '@/shared/api/types'
 
-type Props = NativeStackScreenProps<NearbyStackParamList, 'Nearby'>
+type Props = NativeStackScreenProps<DiscoverStackParamList, 'Nearby'>
 
 export default function NearbyScreen({ navigation }: Props) {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)

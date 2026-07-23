@@ -2,13 +2,13 @@ import { useCallback } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { FlatList, View, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import type { FeedStackParamList } from '@/shared/navigation/types'
+import type { HomeStackParamList } from '@/shared/navigation/types'
 import PostCard from '@/shared/components/PostCard'
 import EmptyState from '@/shared/components/EmptyState'
 import { getFollowingFeed } from '@/shared/api/feed'
 import type { Post } from '@/shared/api/types'
 
-type Props = NativeStackScreenProps<FeedStackParamList, 'Feed'>
+type Props = NativeStackScreenProps<HomeStackParamList, 'Home'>
 
 export default function FeedScreen({ navigation }: Props) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, refetch, isRefetching } =

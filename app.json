@@ -1,11 +1,40 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
-    "version": "1.0.0",
+    "name": "Stourify",
+    "slug": "stourify",
+    "description": "Discover your next adventure — local spots, shared by explorers who actually go there.",
+    "version": "0.2.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "stourify",
+    "backgroundColor": "#F3F7FB",
     "plugins": [
       "expo-secure-store",
-      "expo-video"
-    ]
+      "expo-video",
+      "expo-font"
+    ],
+    "ios": {
+      "bundleIdentifier": "app.stourify.mobile",
+      "buildNumber": "2",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Stourify uses your location to find spots near you and to place the spots you share.",
+        "NSCameraUsageDescription": "Stourify uses your camera to capture the spots you share.",
+        "NSPhotoLibraryUsageDescription": "Stourify needs your photo library to attach photos to the spots you share."
+      }
+    },
+    "android": {
+      "package": "app.stourify.mobile",
+      "versionCode": 2,
+      "adaptiveIcon": {
+        "backgroundColor": "#F3F7FB"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ]
+    }
   }
 }

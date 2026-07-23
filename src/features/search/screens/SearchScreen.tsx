@@ -2,13 +2,13 @@ import { useState, useCallback } from 'react'
 import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet } from 'react-native'
 import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import type { SearchStackParamList } from '@/shared/navigation/types'
+import type { DiscoverStackParamList } from '@/shared/navigation/types'
 import { getSpots } from '@/shared/api/spots'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 import EmptyState from '@/shared/components/EmptyState'
 import type { Spot } from '@/shared/api/types'
 
-type Props = NativeStackScreenProps<SearchStackParamList, 'Search'>
+type Props = NativeStackScreenProps<DiscoverStackParamList, 'Search'>
 
 const CATEGORIES = ['All', 'Nature', 'Food', 'History', 'Art', 'Beach']
 
