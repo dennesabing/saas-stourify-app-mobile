@@ -3,7 +3,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, Dimensions }
 import { useQuery } from '@tanstack/react-query'
 import type { CompositeNavigationProp } from '@react-navigation/native'
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack'
-import type { NearbyStackParamList, SearchStackParamList } from '@/shared/navigation/types'
+import type { DiscoverStackParamList } from '@/shared/navigation/types'
 import { getSpot, getSpotPosts } from '@/shared/api/spots'
 import type { Post } from '@/shared/api/types'
 
@@ -11,13 +11,13 @@ const { width } = Dimensions.get('window')
 const THUMB = (width - 4) / 3
 
 type SpotDetailNavProp = CompositeNavigationProp<
-  NativeStackNavigationProp<SearchStackParamList, 'SpotDetail'>,
-  NativeStackNavigationProp<NearbyStackParamList>
+  NativeStackNavigationProp<DiscoverStackParamList, 'SpotDetail'>,
+  NativeStackNavigationProp<DiscoverStackParamList>
 >
 
 type Props = {
   navigation: SpotDetailNavProp
-  route: NativeStackScreenProps<SearchStackParamList, 'SpotDetail'>['route']
+  route: NativeStackScreenProps<DiscoverStackParamList, 'SpotDetail'>['route']
 }
 
 export default function SpotDetailScreen({ route, navigation }: Props) {

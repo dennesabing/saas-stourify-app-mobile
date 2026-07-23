@@ -5,7 +5,7 @@ import {
 } from 'react-native'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import type { FeedStackParamList } from '@/shared/navigation/types'
+import type { HomeStackParamList } from '@/shared/navigation/types'
 import { getPost, toggleLike } from '@/shared/api/posts'
 import { getComments, createComment } from '@/shared/api/comments'
 import { useAuthStore } from '@/shared/store/auth'
@@ -13,7 +13,7 @@ import type { Comment } from '@/shared/api/types'
 
 const { width } = Dimensions.get('window')
 
-type Props = NativeStackScreenProps<FeedStackParamList, 'PostDetail'>
+type Props = NativeStackScreenProps<HomeStackParamList, 'PostDetail'>
 
 export default function PostDetailScreen({ route, navigation }: Props) {
   const { postId } = route.params
