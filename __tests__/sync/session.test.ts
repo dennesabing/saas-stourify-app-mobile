@@ -1,30 +1,18 @@
+import type { Database } from '@nozbe/watermelondb'
+import { QueryClient } from '@tanstack/react-query'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import { useAuthStore } from '@/shared/store/auth'
 import { onLogin, signOut } from '@/sync/session'
 import { resetSyncStatus, useSyncStatusStore } from '@/sync/status'
 import { syncHttpClient } from '@/sync/httpClient'
-import { createTestDatabase, seedSpot } from '../support/testDatabase'
-import type Spot from '@/db/models/Spot'
+import { createTestDatabase, seedSpot, seedCity } from '../support/testDatabase'
+import { SYNCED_TABLES } from '@/db/schema'
 
-jest.mock('@react-native-async-storage/async-storage', () => {
-  const store = new Map<string, string>()
-  return {
-    __esModule: true,
-    default: {
-      getItem: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
-      setItem: jest.fn((k: string, v: string) => {
-        store.set(k, v)
-        return Promise.resolve()
-      }),
-      removeItem: jest.fn((k: string) => {
-        store.delete(k)
-        return Promise.resolve()
-      }),
-    },
-  }
-})
-
+// No inline AsyncStorage mock: the root `__mocks__/@react-native-async-storage/
+// async-storage.js` (Task 12) auto-applies to every test that imports it, and
+// is a real stateful in-memory store — a hand-rolled `Map`-based mock here
+// would just duplicate it.
 jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn(() => Promise.resolve()),
   deleteItemAsync: jest.fn(() => Promise.resolve()),
@@ -55,8 +43,71 @@ beforeEach(async () => {
   jest.clearAllMocks()
   resetSyncStatus()
   useAuthStore.setState({ token: null, user: null })
-  await AsyncStorage.removeItem('stourify_user')
+  // The AsyncStorage mock is a module-level singleton shared by every test in
+  // this file (per the established pattern in `cycle.test.ts`) — clear it
+  // fully rather than one key at a time.
+  await AsyncStorage.clear()
 })
+
+/**
+ * One row in every synced table, plus a `sync_failures` row — the residue
+ * test needs proof that `wipeDatabase()` empties ALL of them, not just
+ * `sto_spots`.
+ */
+async function seedEverySyncedTableAndFailure(database: Database): Promise<void> {
+  await seedSpot(database, { uuid: 'spot-previous-user' })
+  await seedCity(database, { uuid: 'city-previous-user' })
+
+  await database.write(async () => {
+    await database.get('sto_reviews').create((row: any) => {
+      row._raw.id = 'review-previous-user'
+      row._raw.uuid = 'review-previous-user'
+      row._raw.rating = 5
+      row._raw.helpful_count = 0
+      row._raw.created_at = 1_700_000_000_000
+      row._raw.updated_at = 1_700_000_000_000
+    })
+
+    await database.get('sto_wishlist_items').create((row: any) => {
+      row._raw.id = 'wishlist-previous-user'
+      row._raw.uuid = 'wishlist-previous-user'
+      row._raw.is_downloaded_offline = false
+      row._raw.created_at = 1_700_000_000_000
+      row._raw.updated_at = 1_700_000_000_000
+    })
+
+    await database.get('sto_follows').create((row: any) => {
+      row._raw.id = 'follow-previous-user'
+      row._raw.uuid = 'follow-previous-user'
+      row._raw.status = 'accepted'
+      row._raw.created_at = 1_700_000_000_000
+      row._raw.updated_at = 1_700_000_000_000
+    })
+
+    await database.get('sto_explorer_profiles').create((row: any) => {
+      row._raw.id = 'explorer-previous-user'
+      row._raw.uuid = 'explorer-previous-user'
+      row._raw.username = 'previous-user'
+      row._raw.spots_count = 0
+      row._raw.followers_count = 0
+      row._raw.following_count = 0
+      row._raw.is_private = false
+      row._raw.shows_location_on_spots = true
+      row._raw.created_at = 1_700_000_000_000
+      row._raw.updated_at = 1_700_000_000_000
+    })
+
+    await database.get('sync_failures').create((row: any) => {
+      row._raw.id = 'failure-previous-user'
+      row._raw.record_id = 'spot-previous-user'
+      row._raw.table_name = 'sto_spots'
+      row._raw.reason = 'validation'
+      row._raw.attempts = 1
+      row._raw.last_error = 'stale test residue'
+      row._raw.failed_at = 1_700_000_000_000
+    })
+  })
+}
 
 describe('the auth store', () => {
   it('persists the user to AsyncStorage while the token stays in SecureStore', async () => {
@@ -98,16 +149,31 @@ describe('the auth store', () => {
 })
 
 describe('signOut', () => {
-  it('wipes the local database so the next account inherits nothing', async () => {
+  it('wipes every synced table and sync_failures, so the next account inherits nothing', async () => {
     const database = createTestDatabase()
-    await seedSpot(database, { uuid: 'spot-previous-user' })
+    await seedEverySyncedTableAndFailure(database)
     useAuthStore.setState({ token: 'tok', user: ANA })
 
     await signOut(database)
 
-    expect(await database.get<Spot>('sto_spots').query().fetchCount()).toBe(0)
+    for (const table of SYNCED_TABLES) {
+      expect(await database.get(table).query().fetchCount()).toBe(0)
+    }
+    expect(await database.get('sync_failures').query().fetchCount()).toBe(0)
     expect(useAuthStore.getState().token).toBeNull()
     expect(useAuthStore.getState().user).toBeNull()
+  })
+
+  it('clears the React Query cache so the next account does not see stale screens', async () => {
+    const database = createTestDatabase()
+    const qc = new QueryClient()
+    qc.setQueryData(['account-settings'], { account_visibility: 'public' })
+    expect(qc.getQueryData(['account-settings'])).toEqual({ account_visibility: 'public' })
+
+    await signOut(database, qc)
+
+    expect(qc.getQueryData(['account-settings'])).toBeUndefined()
+    expect(qc.getQueryCache().getAll()).toHaveLength(0)
   })
 
   it('removes the module cursor, so the next user gets a full backfill', async () => {

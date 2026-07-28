@@ -1,7 +1,9 @@
 import type { Database } from '@nozbe/watermelondb'
+import type { QueryClient } from '@tanstack/react-query'
 import { getDatabase, wipeDatabase } from '@/db'
 import { useAuthStore } from '@/shared/store/auth'
 import { navigateTo } from '@/shared/navigation/ref'
+import { queryClient as defaultQueryClient } from '@/shared/queryClient'
 import { createStourifySyncEngine } from './engine'
 import { resetSyncAuthGuard, setSyncAuthRejectionHandler, setSyncReachabilityHandler, syncHttpClient } from './httpClient'
 import { syncNow } from './scheduler'
@@ -22,7 +24,11 @@ export async function onLogin(database: Database = getDatabase()): Promise<void>
 
 /**
  * Called on logout and on a 401 from either client — the ONE teardown path
- * (see `httpClient.ts:39-61`).
+ * (see `httpClient.ts:39-61`). This is also the ONLY function the app's
+ * user-facing Logout button (`SettingsScreen.tsx`) may call — it must never
+ * call `clearAuth()` directly, or the database/cursor/cache residue this task
+ * exists to remove comes right back for the one path a real user actually
+ * exercises.
  *
  * Order, and why:
  *  1. `clearAuth()` first — the token dies immediately, so nothing racing this
@@ -36,28 +42,54 @@ export async function onLogin(database: Database = getDatabase()): Promise<void>
  *     reason to make the slower wipe block it.
  *  3. `wipeDatabase()` — drops every local row so the next account inherits
  *     nothing.
- *  4. `resetSyncStatus()` — clears the UI-facing pending count / lastSyncedAt
+ *  4. `queryClient.clear()` — drops every cached query/mutation (feed, profile,
+ *     settings, etc.) so a screen that renders before its `useQuery` refetches
+ *     cannot flash the previous account's data. Placed after the database wipe
+ *     and before the status reset: it has no ordering dependency on either
+ *     (React Query's cache is independent of both), so it sits with the other
+ *     "erase residual state" steps rather than racing anything.
+ *  5. `resetSyncStatus()` — clears the UI-facing pending count / lastSyncedAt
  *     / failures so the Offline screens do not flash the previous user's
  *     numbers for a frame after navigation.
- *  5. `navigateTo('Login')` last — only once the device is actually clean does
+ *  6. `navigateTo('Login')` last — only once the device is actually clean does
  *     the user get moved off the authenticated stack.
  *
  * Task 13's cycle is fire-and-forget: its mutex prevents a *second* cycle from
  * overlapping this teardown, but it does NOT cancel a cycle already in flight
  * when `signOut` is called. A cycle that started a moment earlier can still be
  * mid-write when `wipeDatabase()` runs. This is accepted, not fixed here: the
- * wipe (`unsafeResetDatabase`) is a full reset regardless of what a concurrent
- * writer just did, so the end state after both settle is still "no local
- * rows" — the residue this task exists to prevent. A separate cancellation
+ * wipe (`unsafeResetDatabase`) runs inside WatermelonDB's serialized
+ * `WorkQueue`, which aborts queued work, so the rows end up empty either way —
+ * the residue this task exists to prevent, gone. A separate cancellation
  * mechanism for in-flight cycles is out of this task's scope (no such hook
  * exists on `runSyncCycle`).
+ *
+ * KNOWN GAP, disclosed and NOT fixed here (out of scope — no cancellation hook
+ * exists to build it on): the sync CURSOR is not inside that same WorkQueue.
+ * `packages/offline-sync-core/src/syncEngine.ts:67-81` writes the cursor via
+ * `kv.setItem` AFTER `db.write()` resolves, unsynchronized with anything here.
+ * A pull cycle in flight when `signOut` runs can therefore land its cursor
+ * write AFTER `resetSyncState()` has cleared it — even after `signOut()` has
+ * already returned — leaving the next account with a stale cursor and a
+ * partial backfill instead of a full one. The rows are still safe (wiped
+ * either way, per the paragraph above); only the cursor can end up wrong.
+ * Fixing this needs a session/generation token that `pullModule` checks
+ * immediately before its `kv.setItem` write (bump the generation in
+ * `signOut`/`onLogin`, drop the write if the generation that started the pull
+ * is stale by the time it would land) — that hook does not exist in
+ * `offline-sync-core` today and adding it is a package-level change outside
+ * this task's file list.
  */
-export async function signOut(database: Database = getDatabase()): Promise<void> {
+export async function signOut(
+  database: Database = getDatabase(),
+  qc: QueryClient = defaultQueryClient,
+): Promise<void> {
   useAuthStore.getState().clearAuth()
 
   await createStourifySyncEngine(database, syncHttpClient).resetSyncState()
   await wipeDatabase(database)
 
+  qc.clear()
   resetSyncStatus()
   navigateTo('Login')
 }

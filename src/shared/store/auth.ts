@@ -18,9 +18,13 @@ interface AuthState {
 /**
  * The token lives in SecureStore because it is a credential. The user does NOT:
  * it is not a secret, and a local database keyed to an owner needs a stable
- * identity AT BOOT, before the first render — SecureStore's per-item keychain
- * round-trip is the wrong tool for that, and nothing calls `getMe()` early
- * enough to substitute for persistence.
+ * identity restored as early in boot as possible — `RootNavigator` calls
+ * `loadFromStorage()` in a `useEffect`, so restoration lands shortly AFTER
+ * first paint, not before it, but the token and user are seeded atomically in
+ * one `set()` call here, so there is never a frame where a restored token is
+ * paired with a still-null user. SecureStore's per-item keychain round-trip is
+ * the wrong tool for the user object regardless, and nothing calls `getMe()`
+ * early enough to substitute for persistence.
  */
 export const useAuthStore = create<AuthState>((set) => ({
   token: null,

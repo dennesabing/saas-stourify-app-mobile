@@ -18,6 +18,14 @@ export async function syncNow(database: Database, trigger: SyncTrigger = 'manual
  * Wires the two ambient triggers. Returns the stop function; `App.tsx` owns its
  * lifetime.
  *
+ * NOT YET WIRED into `App.tsx` (no call site exists in this app today). When it
+ * is wired, `signOut` (`src/sync/session.ts`) MUST be given this stop function
+ * and call it FIRST, before `resetSyncState()`/`wipeDatabase()` — a scheduler
+ * left running after logout will fire connectivity/foreground cycles against a
+ * wiped database with a cleared token. Route the stop function through
+ * `installSyncSessionHandlers` (e.g. capture it there, close over it in the
+ * handlers) rather than adding a second logout path.
+ *
  * Only the transitions matter. Losing connectivity is recorded but never starts
  * a cycle, and `active → active` (which AppState emits on some Android
  * transitions) must not re-trigger, or a user tabbing through the app switcher

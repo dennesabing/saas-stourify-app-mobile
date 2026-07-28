@@ -3,13 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { ProfileStackParamList } from '@/shared/navigation/types'
 import { getAccountSettings, updateAccountSettings } from '@/shared/api/settings'
-import { useAuthStore } from '@/shared/store/auth'
 import * as authApi from '@/shared/api/auth'
+import { signOut } from '@/sync/session'
 
 type Props = NativeStackScreenProps<ProfileStackParamList, 'Settings'>
 
 export default function SettingsScreen({ navigation }: Props) {
-  const { clearAuth } = useAuthStore()
   const qc = useQueryClient()
 
   const { data: settings } = useQuery({
@@ -24,7 +23,11 @@ export default function SettingsScreen({ navigation }: Props) {
 
   const handleLogout = async () => {
     try { await authApi.logout() } catch {}
-    clearAuth()
+    // signOut() already clears the token/user — no separate clearAuth() call.
+    // This is the app's only user-facing logout affordance; it MUST go through
+    // the same teardown as the 401 paths (client.ts, sync/httpClient.ts), or
+    // the local database and sync cursor survive a real logout.
+    await signOut()
   }
 
   return (
