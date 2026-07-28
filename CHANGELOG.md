@@ -41,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tests: token transcription guards, `ThemeProvider` scheme resolution, and primitive behaviour
   including touch-target size and the offline `Queued ↑` affordance. 34 tests total.
 - `eas.json` with development / preview / production profiles.
+- `src/sync/pushService.ts`: per-op push result handling and the outbox drain.
+  `applyPushResults()` writes the server-canonical `record` back and marks a row synced on `ok`;
+  upserts a `sync_failures` row on `rejected` — `validation`/`forbidden` excludes the row from the
+  next drain, `error` bumps `attempts` and stays eligible for retry. `drainOutbox()` runs one
+  drain cycle end to end and reports whether it fully acked. `normalizeRejectionReason()` coerces
+  any reason `SyncController::rejected()` emits outside `validation`/`forbidden`/`error` — i.e.
+  `unsupported` and `conflict` — to `error` rather than dropping the op.
 
 ### Changed
 
