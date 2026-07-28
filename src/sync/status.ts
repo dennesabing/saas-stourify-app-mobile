@@ -15,7 +15,12 @@ interface SyncStatusState {
   offline: boolean
   /** Epoch ms of the last fully successful cycle. */
   lastSyncedAt: number | null
-  /** Rows currently dirty in the local database — the queue depth. */
+  /**
+   * Rows currently dirty in the local database — the queue depth, and the
+   * source of truth for "un-acked writes exist". `failures` is a diagnostic
+   * subset of this (why some of them are stuck); Task 13's skip-pull gate
+   * must read `pendingCount`, not `failures.length`.
+   */
   pendingCount: number
   failures: SyncFailureSummary[]
   lastError: string | null
@@ -27,6 +32,12 @@ interface SyncStatusState {
   setFailures: (failures: SyncFailureSummary[]) => void
   setLastError: (message: string | null) => void
   recordPull: (rows: number) => void
+  /**
+   * Marks that a cycle completed cleanly — clears any stale `lastError` so
+   * the UI can never show a fresh `lastSyncedAt` beside a past failure. If a
+   * future cycle can complete partially (some rows pulled, some failed),
+   * give that its own named action rather than overloading this one.
+   */
   markSynced: (at: number) => void
 }
 
@@ -63,7 +74,7 @@ export const useSyncStatusStore = create<SyncStatusState>((set) => ({
   setFailures: (failures) => set({ failures }),
   setLastError: (lastError) => set({ lastError }),
   recordPull: (lastPulledRows) => set({ lastPulledRows }),
-  markSynced: (lastSyncedAt) => set({ lastSyncedAt }),
+  markSynced: (lastSyncedAt) => set({ lastSyncedAt, lastError: null }),
 }))
 
 /** Called on logout, alongside wiping the database and resetting the cursors. */

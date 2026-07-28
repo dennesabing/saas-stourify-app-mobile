@@ -91,13 +91,11 @@ it('a failed cycle records lastError without clobbering pendingCount from a prio
   expect(state.lastError).toBe('network unreachable')
 })
 
-it('a later successful markSynced does not implicitly clear a previously recorded lastError', () => {
+it('markSynced clears a stale lastError so the UI cannot show success beside a past failure', () => {
   useSyncStatusStore.getState().setLastError('HTTP 500')
   useSyncStatusStore.getState().markSynced(123)
 
-  // markSynced only records the timestamp — callers are responsible for
-  // clearing lastError explicitly once they know the cycle succeeded.
-  expect(useSyncStatusStore.getState().lastError).toBe('HTTP 500')
+  expect(useSyncStatusStore.getState().lastError).toBeNull()
   expect(useSyncStatusStore.getState().lastSyncedAt).toBe(123)
 })
 
