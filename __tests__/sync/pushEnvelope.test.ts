@@ -9,8 +9,11 @@ import {
   upsertSyncFailure,
 } from '@/sync/pushService'
 import { createTestDatabase, markSynced, seedCity, seedSpot } from '../support/testDatabase'
+import type ExplorerProfile from '@/db/models/ExplorerProfile'
+import type Follow from '@/db/models/Follow'
 import type Review from '@/db/models/Review'
 import type Spot from '@/db/models/Spot'
+import type WishlistItem from '@/db/models/WishlistItem'
 
 describe('resolveUuidByServerId', () => {
   it('maps a numeric server id to the referenced row uuid', async () => {
@@ -99,6 +102,109 @@ describe('serializeForPush', () => {
 
     expect(row).toEqual({ uuid: 'review-1', spot_uuid: 'spot-reviewed', rating: 5, body: 'Worth the hike.' })
   })
+
+  it('omits a cleared nullable field on a created row (nothing to clear yet)', async () => {
+    const database = createTestDatabase()
+    const spot = await seedSpot(database, { uuid: 'spot-blank-description' })
+
+    const row = await serializeForPush(database, 'sto_spots', spot, 'created')
+
+    expect('description' in row).toBe(false)
+  })
+
+  it('sends an explicit null for a cleared nullable field on an updated row, so SpotUpdateRequest\'s sometimes|nullable rule actually clears the column', async () => {
+    const database = createTestDatabase()
+    const spot = await seedSpot(database, { uuid: 'spot-cleared-description' })
+    await markSynced(database, spot)
+    await database.write(async () => {
+      await spot.update((row: any) => {
+        row._raw.description = null
+      })
+    })
+
+    const row = await serializeForPush(database, 'sto_spots', spot, 'updated')
+
+    expect(row.description).toBeNull()
+  })
+
+  it('sends spot_uuid for a wishlist item, resolved from the numeric spot_id (WishlistStoreRequest.php:34)', async () => {
+    const database = createTestDatabase()
+    await seedSpot(database, { uuid: 'spot-wishlisted', serverId: 21 })
+    const item = await database.write(async () =>
+      database.get<WishlistItem>('sto_wishlist_items').create((row: any) => {
+        row._raw.id = 'wishlist-1'
+        row._raw.uuid = 'wishlist-1'
+        row._raw.spot_id = 21
+        row._raw.note = 'Bring water'
+        row._raw.is_downloaded_offline = true
+        row._raw.created_at = 1
+        row._raw.updated_at = 1
+      }),
+    )
+
+    const row = await serializeForPush(database, 'sto_wishlist_items', item)
+
+    expect(row).toEqual({
+      uuid: 'wishlist-1',
+      spot_uuid: 'spot-wishlisted',
+      note: 'Bring water',
+      is_downloaded_offline: true,
+    })
+  })
+
+  it('sends user_uuid for a follow, from the local-only followee_uuid column (FollowStoreRequest.php:34)', async () => {
+    const database = createTestDatabase()
+    const follow = await database.write(async () =>
+      database.get<Follow>('sto_follows').create((row: any) => {
+        row._raw.id = 'follow-1'
+        row._raw.uuid = 'follow-1'
+        row._raw.followee_uuid = 'user-followed'
+        row._raw.status = 'active'
+        row._raw.created_at = 1
+        row._raw.updated_at = 1
+      }),
+    )
+
+    const row = await serializeForPush(database, 'sto_follows', follow)
+
+    expect(row).toEqual({ uuid: 'follow-1', user_uuid: 'user-followed' })
+  })
+
+  it('sends every field ProfileUpdateRequest accepts for an explorer profile', async () => {
+    const database = createTestDatabase()
+    await seedCity(database, { uuid: 'city-home', serverId: 5 })
+    const profile = await database.write(async () =>
+      database.get<ExplorerProfile>('sto_explorer_profiles').create((row: any) => {
+        row._raw.id = 'profile-1'
+        row._raw.uuid = 'profile-1'
+        row._raw.home_city_id = 5
+        row._raw.username = 'trailblazer'
+        row._raw.bio = 'I hike.'
+        row._raw.website = 'https://example.com'
+        row._raw.interests = JSON.stringify(['hiking', 'coffee'])
+        row._raw.spots_count = 0
+        row._raw.followers_count = 0
+        row._raw.following_count = 0
+        row._raw.is_private = false
+        row._raw.shows_location_on_spots = true
+        row._raw.created_at = 1
+        row._raw.updated_at = 1
+      }),
+    )
+
+    const row = await serializeForPush(database, 'sto_explorer_profiles', profile)
+
+    expect(row).toEqual({
+      uuid: 'profile-1',
+      username: 'trailblazer',
+      bio: 'I hike.',
+      website: 'https://example.com',
+      interests: ['hiking', 'coffee'],
+      is_private: false,
+      shows_location_on_spots: true,
+      home_city_uuid: 'city-home',
+    })
+  })
 })
 
 describe('collectDirtyBatch', () => {
@@ -138,6 +244,11 @@ describe('collectDirtyBatch', () => {
 
     expect(batch.envelope.sto_spots.deleted).toEqual(['spot-doomed'])
     expect(batch.deletedByTable.sto_spots).toEqual(['spot-doomed'])
+    // The highest-stakes case in this task: a deleted row must not ALSO
+    // appear in `created`/`updated` with a serialized payload — deletes are
+    // uuid-only, nothing else.
+    expect(batch.envelope.sto_spots.created).toEqual([])
+    expect(batch.envelope.sto_spots.updated).toEqual([])
   })
 
   it('never drains sto_cities, which is not pushable', async () => {

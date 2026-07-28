@@ -51,30 +51,62 @@ export async function resolveUuidByServerId(
   return rows.length > 0 ? rows[0].id : null
 }
 
+/** Omits a key entirely when its value is null/undefined — for fields with no `nullable` rule. */
 function put(row: Record<string, unknown>, key: string, value: unknown): void {
   if (value !== null && value !== undefined) row[key] = value
 }
 
 /**
+ * For fields the server's `*UpdateRequest` marks `sometimes|nullable` (spot
+ * `description`/`address`/`city_uuid`/`categories`/`hours`, review `body`,
+ * wishlist `note`, profile `bio`/`website`/`interests`/`home_city_uuid`).
+ *
+ * On an **update**, `sometimes` means "absent key leaves the column
+ * unchanged" — so clearing a nullable field locally MUST send an explicit
+ * `null`, or the server keeps the stale value forever while the local row
+ * flips to `synced` and looks successful. On a **create** there is no prior
+ * value to preserve, so a null field is simply omitted (absent and null are
+ * equivalent there, and omitting keeps the payload smaller).
+ */
+function putNullable(row: Record<string, unknown>, key: string, value: unknown, op: PushOp): void {
+  if (value !== null && value !== undefined) {
+    row[key] = value
+    return
+  }
+  if (op === 'updated') row[key] = null
+}
+
+/**
  * Builds one push row from a local record — the fields the server's FormRequests
  * actually accept, and nothing else.
+ *
+ * `op` defaults to `'created'` (omit-null semantics) for callers — like
+ * ad-hoc test calls — that don't care about the update-clears-a-field case;
+ * `collectDirtyBatch` always passes the record's real `_status`.
  */
 export async function serializeForPush(
   database: Database,
   table: string,
   record: Model,
+  op: PushOp = 'created',
 ): Promise<Record<string, unknown>> {
   if (table === 'sto_spots') {
     const spot = record as Spot
     const row: Record<string, unknown> = { uuid: spot.uuid, title: spot.title }
-    put(row, 'description', spot.description)
+    putNullable(row, 'description', spot.description, op)
     row.latitude = spot.latitude
     row.longitude = spot.longitude
-    put(row, 'address', spot.address)
-    // SpotStoreRequest.php:40 validates `city_uuid`; `city_id` is never accepted.
-    put(row, 'city_uuid', (await resolveUuidByServerId(database, 'sto_cities', spot.cityId)) ?? spot.cityUuid)
-    put(row, 'categories', spot.categories.length > 0 ? spot.categories : null)
-    put(row, 'hours', spot.hours)
+    putNullable(row, 'address', spot.address, op)
+    // SpotStoreRequest.php:40 / SpotUpdateRequest.php:40 validate `city_uuid`;
+    // `city_id` is never accepted.
+    putNullable(
+      row,
+      'city_uuid',
+      (await resolveUuidByServerId(database, 'sto_cities', spot.cityId)) ?? spot.cityUuid,
+      op,
+    )
+    putNullable(row, 'categories', spot.categories.length > 0 ? spot.categories : null, op)
+    putNullable(row, 'hours', spot.hours, op)
     put(row, 'status', spot.status)
     return row
   }
@@ -84,7 +116,7 @@ export async function serializeForPush(
     const row: Record<string, unknown> = { uuid: review.uuid }
     put(row, 'spot_uuid', (await resolveUuidByServerId(database, 'sto_spots', review.spotId)) ?? review.spotUuid)
     row.rating = review.rating
-    put(row, 'body', review.body)
+    putNullable(row, 'body', review.body, op)
     return row
   }
 
@@ -92,7 +124,7 @@ export async function serializeForPush(
     const item = record as WishlistItem
     const row: Record<string, unknown> = { uuid: item.uuid }
     put(row, 'spot_uuid', (await resolveUuidByServerId(database, 'sto_spots', item.spotId)) ?? item.spotUuid)
-    put(row, 'note', item.note)
+    putNullable(row, 'note', item.note, op)
     row.is_downloaded_offline = item.isDownloadedOffline
     return row
   }
@@ -107,11 +139,19 @@ export async function serializeForPush(
   if (table === 'sto_explorer_profiles') {
     const profile = record as ExplorerProfile
     const row: Record<string, unknown> = { uuid: profile.uuid, username: profile.username }
-    put(row, 'bio', profile.bio)
-    put(row, 'website', profile.website)
-    put(row, 'interests', profile.interests.length > 0 ? profile.interests : null)
+    putNullable(row, 'bio', profile.bio, op)
+    putNullable(row, 'website', profile.website, op)
+    putNullable(row, 'interests', profile.interests.length > 0 ? profile.interests : null, op)
     row.is_private = profile.isPrivate
-    put(row, 'home_city_uuid', await resolveUuidByServerId(database, 'sto_cities', profile.homeCityId))
+    // ProfileUpdateRequest.php:58 — `sometimes|boolean`, never nullable, so it
+    // is always sent, like `is_private`.
+    row.shows_location_on_spots = profile.showsLocationOnSpots
+    putNullable(
+      row,
+      'home_city_uuid',
+      await resolveUuidByServerId(database, 'sto_cities', profile.homeCityId),
+      op,
+    )
     return row
   }
 
@@ -227,8 +267,8 @@ export async function collectDirtyBatch(
     for (const record of dirty) {
       if (excluded.has(record.id)) continue
 
-      const status = (record._raw as Record<string, unknown>)._status as string
-      const row = await serializeForPush(database, table, record)
+      const status = (record._raw as Record<string, unknown>)._status as PushOp
+      const row = await serializeForPush(database, table, record, status)
 
       if (status === 'created') created.push(row)
       else updated.push(row)

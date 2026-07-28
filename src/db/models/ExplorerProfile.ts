@@ -41,6 +41,10 @@ export default class ExplorerProfile extends Model {
     return this._getRaw('is_private') as boolean
   }
 
+  get showsLocationOnSpots(): boolean {
+    return this._getRaw('shows_location_on_spots') as boolean
+  }
+
   get isQueued(): boolean {
     return this.syncStatus !== 'synced'
   }
