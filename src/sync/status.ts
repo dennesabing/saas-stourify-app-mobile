@@ -56,8 +56,9 @@ const INITIAL = {
  *
  * It exists because `runPullSync()` resolves `void` and swallows every error
  * into a `console.warn` (`syncEngine.ts:88-90`) — at the call site, total
- * failure is indistinguishable from success. The observed-client wrapper in
- * `engine.ts` (Task 10) writes here; M2c's Offline & Sync screens read here.
+ * failure is indistinguishable from success. Task 13 wires the observed-client
+ * wrapper in `engine.ts` (Task 10) to write here; M2c's Offline & Sync screens
+ * read here.
  * Those screens are out of scope for M2b: this store gives them real data to
  * render, it does not render it.
  *
