@@ -2,6 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import ActivityScreen from '@/features/activity/screens/ActivityScreen'
 import CreateMenuScreen from '@/features/create/screens/CreateMenuScreen'
+import CreateSpotScreen from '@/features/create/screens/CreateSpotScreen'
 import ThemeGalleryScreen from '@/features/dev/screens/ThemeGalleryScreen'
 import DiscoverScreen from '@/features/discover/screens/DiscoverScreen'
 import FeedScreen from '@/features/feed/screens/FeedScreen'
@@ -15,6 +16,7 @@ import SearchScreen from '@/features/search/screens/SearchScreen'
 import MediaPickerScreen from '@/features/social/screens/MediaPickerScreen'
 import PostComposeScreen from '@/features/social/screens/PostComposeScreen'
 import SpotPickerScreen from '@/features/social/screens/SpotPickerScreen'
+import MySpotsScreen from '@/features/spots/screens/MySpotsScreen'
 import SpotDetailScreen from '@/features/spots/screens/SpotDetailScreen'
 import TabBar from './TabBar'
 import type {
@@ -66,6 +68,8 @@ function CreateStackNav() {
       <CreateStack.Screen name="MediaPicker" component={MediaPickerScreen} />
       <CreateStack.Screen name="PostCompose" component={PostComposeScreen} />
       <CreateStack.Screen name="SpotPicker" component={SpotPickerScreen} />
+      <CreateStack.Screen name="CreateSpot" component={CreateSpotScreen} />
+      <CreateStack.Screen name="MySpots" component={MySpotsScreen} />
     </CreateStack.Navigator>
   )
 }
