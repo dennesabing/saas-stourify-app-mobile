@@ -1,4 +1,5 @@
 import { Model } from '@nozbe/watermelondb'
+import type { SyncStatus } from '@nozbe/watermelondb/Model'
 import { parseJsonArray } from './Spot'
 
 export default class ExplorerProfile extends Model {
@@ -44,7 +45,7 @@ export default class ExplorerProfile extends Model {
     return this.syncStatus !== 'synced'
   }
 
-  get syncStatus(): string {
-    return (this._raw as Record<string, unknown>)._status as string
+  get syncStatus(): SyncStatus {
+    return (this._raw as Record<string, unknown>)._status as SyncStatus
   }
 }

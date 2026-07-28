@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-07-23
+### Fixed
+
+- Corrected `syncStatus` getters on `Follow`, `Review`, `Spot`, `WishlistItem`, and
+  `ExplorerProfile` WatermelonDB models: typed as the package's own `SyncStatus`
+  (`@nozbe/watermelondb/Model`) instead of `string`, which illegally widened the base
+  `Model.syncStatus` and produced `tsc` errors (plus cascading `TS2344` errors anywhere a
+  model was used generically). Runtime behavior is unchanged.
+- Scoped `tsconfig.json` (`include`/`exclude`, plus a `paths` remap of
+  `@soxerp/offline-sync-core` to a new type-only `src/types/offline-sync-core.d.ts`) so
+  mobile's `tsc` gate no longer type-checks `../packages/offline-sync-core`'s
+  implementation, which cannot resolve its own `@nozbe/watermelondb` peer dependency
+  (it has no `node_modules` of its own — that package owns its own `npm run typecheck`).
+  Added `"node"` to `compilerOptions.types` so `global` (used by
+  `__tests__/sync/httpClient.test.ts`) resolves, and fixed one pre-existing unsafe cast in
+  that same test file. `npx tsc --noEmit` now exits 0; a clean `tsc` is now expected to
+  stay green per task from here on.
 
 ### Added
 

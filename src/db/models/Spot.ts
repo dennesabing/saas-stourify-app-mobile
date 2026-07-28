@@ -1,5 +1,6 @@
 import { Model, Q } from '@nozbe/watermelondb'
 import type { Query } from '@nozbe/watermelondb'
+import type { SyncStatus } from '@nozbe/watermelondb/Model'
 import type City from './City'
 
 /**
@@ -88,8 +89,8 @@ export default class Spot extends Model {
     return this.syncStatus !== 'synced'
   }
 
-  get syncStatus(): string {
-    return (this._raw as Record<string, unknown>)._status as string
+  get syncStatus(): SyncStatus {
+    return (this._raw as Record<string, unknown>)._status as SyncStatus
   }
 
   /**

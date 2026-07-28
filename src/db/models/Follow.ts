@@ -1,4 +1,5 @@
 import { Model } from '@nozbe/watermelondb'
+import type { SyncStatus } from '@nozbe/watermelondb/Model'
 
 export default class Follow extends Model {
   static table = 'sto_follows'
@@ -32,7 +33,7 @@ export default class Follow extends Model {
     return this.syncStatus !== 'synced'
   }
 
-  get syncStatus(): string {
-    return (this._raw as Record<string, unknown>)._status as string
+  get syncStatus(): SyncStatus {
+    return (this._raw as Record<string, unknown>)._status as SyncStatus
   }
 }

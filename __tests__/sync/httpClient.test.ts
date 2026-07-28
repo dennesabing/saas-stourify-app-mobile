@@ -57,7 +57,7 @@ describe('the sync client', () => {
 
     await syncHttpClient.get('/stourify/sync/delta')
 
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok-abc')
   })
 
