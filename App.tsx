@@ -22,8 +22,9 @@ export default function App() {
   // the four drain triggers. Both are process-level, so they mount once here
   // rather than on any screen.
   useEffect(() => {
-    installSyncSessionHandlers(database)
-    return startSyncScheduler(database)
+    const stop = startSyncScheduler(database)
+    installSyncSessionHandlers(database, stop)
+    return stop
   }, [database])
 
   return (

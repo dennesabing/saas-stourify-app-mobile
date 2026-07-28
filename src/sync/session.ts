@@ -10,6 +10,17 @@ import { syncNow } from './scheduler'
 import { resetSyncStatus, useSyncStatusStore } from './status'
 
 /**
+ * The scheduler's stop function, registered at app start.
+ *
+ * A module-level holder rather than a `signOut` parameter: `signOut` is called
+ * from three places (the Settings button, and the two 401 handlers in
+ * `client.ts` / `httpClient.ts`), none of which has a reference to the
+ * scheduler. Threading it through every call site would guarantee one of them
+ * forgets.
+ */
+let stopScheduler: (() => void) | null = null
+
+/**
  * Called on a fresh login.
  *
  * `resetAuthGuard()` matters: the auth latch (`authFired`, `httpClient.ts:57,
@@ -31,6 +42,11 @@ export async function onLogin(database: Database = getDatabase()): Promise<void>
  * exercises.
  *
  * Order, and why:
+ *  0. `stopScheduler?.()` first — kills the ambient triggers before anything
+ *     else. A scheduler left running fires connectivity/foreground cycles
+ *     against a database that is about to be wiped, with a token that is
+ *     about to be cleared — each one 401s, and each 401 calls straight back
+ *     into this function (`scheduler.ts:20-27`).
  *  1. `clearAuth()` first — the token dies immediately, so nothing racing this
  *     teardown (an in-flight request that hasn't landed yet, a retry timer)
  *     can complete an authenticated call against a database that is about to
@@ -84,6 +100,13 @@ export async function signOut(
   database: Database = getDatabase(),
   qc: QueryClient = defaultQueryClient,
 ): Promise<void> {
+  // Step 0: kill the ambient triggers FIRST. A scheduler left running fires
+  // connectivity/foreground cycles against a database that is about to be
+  // wiped, with a token that is about to be cleared — each one 401s, and each
+  // 401 calls straight back into this function.
+  stopScheduler?.()
+  stopScheduler = null
+
   useAuthStore.getState().clearAuth()
 
   await createStourifySyncEngine(database, syncHttpClient).resetSyncState()
@@ -100,7 +123,9 @@ export async function signOut(
  * A registered handler rather than a direct import because `session.ts` needs
  * the client and the client would then need `session.ts` — a cycle.
  */
-export function installSyncSessionHandlers(database: Database): void {
+export function installSyncSessionHandlers(database: Database, stop?: () => void): void {
+  stopScheduler = stop ?? null
+
   setSyncAuthRejectionHandler(() => {
     void signOut(database)
   })

@@ -3,7 +3,8 @@ import { QueryClient } from '@tanstack/react-query'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import { useAuthStore } from '@/shared/store/auth'
-import { onLogin, signOut } from '@/sync/session'
+import * as dbModule from '@/db'
+import { installSyncSessionHandlers, onLogin, signOut } from '@/sync/session'
 import { resetSyncStatus, useSyncStatusStore } from '@/sync/status'
 import { syncHttpClient } from '@/sync/httpClient'
 import { createTestDatabase, seedSpot, seedCity } from '../support/testDatabase'
@@ -194,6 +195,32 @@ describe('signOut', () => {
 
     expect(useSyncStatusStore.getState().pendingCount).toBe(0)
     expect(useSyncStatusStore.getState().lastSyncedAt).toBeNull()
+  })
+
+  it('stops the scheduler before wiping the database on logout', async () => {
+    const database = createTestDatabase()
+    const order: string[] = []
+    const stopScheduler = jest.fn(() => order.push('stop'))
+
+    const wipeSpy = jest.spyOn(dbModule, 'wipeDatabase').mockImplementation(async () => {
+      order.push('wipe')
+    })
+
+    installSyncSessionHandlers(database, stopScheduler)
+    await signOut(database)
+
+    expect(stopScheduler).toHaveBeenCalledTimes(1)
+    expect(order).toEqual(['stop', 'wipe'])
+
+    wipeSpy.mockRestore()
+  })
+
+  it('signs out cleanly when no scheduler was ever registered', async () => {
+    const database = createTestDatabase()
+
+    installSyncSessionHandlers(database)
+
+    await expect(signOut(database)).resolves.toBeUndefined()
   })
 })
 
