@@ -3,7 +3,7 @@
     "name": "Stourify",
     "slug": "stourify",
     "description": "Discover your next adventure — local spots, shared by explorers who actually go there.",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "stourify",
@@ -25,7 +25,7 @@
     },
     "android": {
       "package": "app.stourify.mobile",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#F3F7FB"
       },
