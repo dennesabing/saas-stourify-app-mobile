@@ -13,27 +13,6 @@ import type ExplorerProfile from '@/db/models/ExplorerProfile'
 import type Follow from '@/db/models/Follow'
 import type Review from '@/db/models/Review'
 import type Spot from '@/db/models/Spot'
-
-// `pushService.ts` now pulls in `createSanitizeRaw` from `./engine`, whose
-// `./seams/kv` imports the real AsyncStorage native module — unavailable
-// under jest. Mirrors the mock already used in `engine.test.ts`.
-jest.mock('@react-native-async-storage/async-storage', () => {
-  const store = new Map<string, string>()
-  return {
-    __esModule: true,
-    default: {
-      getItem: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
-      setItem: jest.fn((k: string, v: string) => {
-        store.set(k, v)
-        return Promise.resolve()
-      }),
-      removeItem: jest.fn((k: string) => {
-        store.delete(k)
-        return Promise.resolve()
-      }),
-    },
-  }
-})
 import type WishlistItem from '@/db/models/WishlistItem'
 
 describe('resolveUuidByServerId', () => {

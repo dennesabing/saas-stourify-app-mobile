@@ -5,15 +5,6 @@ import { authTokenStore } from '@/sync/seams/tokenStore'
 import { netInfoConnectivity } from '@/sync/seams/connectivity'
 import { useAuthStore } from '@/shared/store/auth'
 
-jest.mock('@react-native-async-storage/async-storage', () => ({
-  __esModule: true,
-  default: {
-    getItem: jest.fn(() => Promise.resolve(null)),
-    setItem: jest.fn(() => Promise.resolve()),
-    removeItem: jest.fn(() => Promise.resolve()),
-  },
-}))
-
 jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn(() => Promise.resolve()),
   deleteItemAsync: jest.fn(() => Promise.resolve()),

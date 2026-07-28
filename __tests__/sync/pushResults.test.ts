@@ -11,24 +11,6 @@ import { createTestDatabase, markSynced, seedSpot } from '../support/testDatabas
 import type Spot from '@/db/models/Spot'
 import pushResponse from '../fixtures/m2a-push-response.json'
 
-jest.mock('@react-native-async-storage/async-storage', () => {
-  const store = new Map<string, string>()
-  return {
-    __esModule: true,
-    default: {
-      getItem: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
-      setItem: jest.fn((k: string, v: string) => {
-        store.set(k, v)
-        return Promise.resolve()
-      }),
-      removeItem: jest.fn((k: string) => {
-        store.delete(k)
-        return Promise.resolve()
-      }),
-    },
-  }
-})
-
 const NETWORK_FAILURE_MARKER = Symbol.for('offline-sync-core.networkFailure')
 
 function networkError(message: string): Error {
