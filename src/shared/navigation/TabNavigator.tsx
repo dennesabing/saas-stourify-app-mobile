@@ -18,6 +18,7 @@ import PostComposeScreen from '@/features/social/screens/PostComposeScreen'
 import SpotPickerScreen from '@/features/social/screens/SpotPickerScreen'
 import MySpotsScreen from '@/features/spots/screens/MySpotsScreen'
 import SpotDetailScreen from '@/features/spots/screens/SpotDetailScreen'
+import SyncStatusScreen from '@/features/sync/screens/SyncStatusScreen'
 import TabBar from './TabBar'
 import type {
   ActivityStackParamList,
@@ -90,6 +91,7 @@ function ProfileStackNav() {
       <ProfileStack.Screen name="FollowList" component={FollowListScreen} />
       <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />
       <ProfileStack.Screen name="Settings" component={SettingsScreen} />
+      <ProfileStack.Screen name="SyncStatus" component={SyncStatusScreen} />
       <ProfileStack.Screen name="PostDetail" component={PostDetailScreen} />
       <ProfileStack.Screen name="SpotDetail" component={SpotDetailScreen} />
       <ProfileStack.Screen name="ThemeGallery" component={ThemeGalleryScreen} />

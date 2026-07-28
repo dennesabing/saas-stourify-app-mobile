@@ -64,6 +64,8 @@ export type ProfileStackParamList = {
   Settings: undefined
   PostDetail: { postId: string }
   SpotDetail: { spotId: string }
+  /** The M2c offline queue surface — reached from Settings. */
+  SyncStatus: undefined
   /** Development-only: renders every primitive for visual review. */
   ThemeGallery: undefined
 }

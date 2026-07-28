@@ -69,6 +69,14 @@ export default function SettingsScreen({ navigation }: Props) {
         <Text style={styles.rowValue}>{settings?.follow_mode ?? '–'} ›</Text>
       </TouchableOpacity>
 
+      <Text style={styles.section}>OFFLINE</Text>
+
+      <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('SyncStatus')}>
+        <Text style={styles.rowIcon}>🔄</Text>
+        <Text style={styles.rowLabel}>Offline & sync</Text>
+        <Text style={styles.rowValue}>›</Text>
+      </TouchableOpacity>
+
       <Text style={styles.section}>DANGER ZONE</Text>
 
       <TouchableOpacity style={styles.row} onPress={handleLogout}>
