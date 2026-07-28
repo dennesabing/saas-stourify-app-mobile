@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Sync Status screen (M2c)** — `Settings → Offline & sync`, the app's offline honesty surface and
+  the last open M2 exit criterion. It shows the real outbox queue read straight from the local
+  database, every server rejection with the server's own error text, and per-row **Retry** /
+  **Discard** plus **Retry all now**.
+
+  **Discard is the load-bearing control.** A `validation` or `forbidden` rejection is excluded from
+  every subsequent drain, and the skip-pull gate blocks the pull whenever anything is un-acked — so
+  one permanently-invalid row stalls *all* incoming data indefinitely, with no error and no log
+  line. Discard (`destroyPermanently`, never `markAsDeleted` — the server never accepted the row, so
+  a delete push would only be rejected in turn and keep the gate shut) is the only escape.
+  `__tests__/sync/discardUnblocksGate.integration.test.ts` proves the stall and the escape.
+
+  Queue rows come from the database via `withChangesForTables`, **not** from
+  `useSyncStatusStore.pendingCount` — that counter is only written inside a sync cycle, so a spot
+  created in airplane mode would otherwise render as "All changes synced" over unsent writes. Cycle
+  state (phase, offline, last-synced) still comes from the store, because only the cycle knows it.
+
+- `src/sync/queue.ts` (read models, `retryRecord`, `discardRecord`, `retryAllFailures`),
+  `src/sync/useSyncQueue.ts` (the live subscription), `src/features/sync/` (screen, banner, row) and
+  `src/shared/utils/relativeTime.ts`.
+
+### Fixed
+
+- **The sync scheduler is now stopped on logout, before the database wipe.** It was started in
+  `App.tsx` and only ever stopped on component unmount, which never runs on logout — so after a real
+  logout the connectivity and AppState listeners stayed live and fired sync cycles against a wiped
+  database with a cleared token, each one 401ing straight back into `signOut`. `scheduler.ts` had
+  documented this requirement since M2b; nothing implemented it. The stop function now goes through
+  `installSyncSessionHandlers` and runs as step 0 of `signOut`.
+
 ## [0.3.0] - 2026-07-29
 
 ### Fixed
