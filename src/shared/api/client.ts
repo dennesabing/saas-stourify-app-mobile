@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { useAuthStore } from '@/shared/store/auth'
-import { navigateTo } from '@/shared/navigation/ref'
+import { signOut } from '@/sync/session'
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:8000/api/v1'
 
@@ -22,8 +22,10 @@ client.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      useAuthStore.getState().clearAuth()
-      navigateTo('Login')
+      // ONE 401 path for both clients. `signOut` clears the token, wipes the
+      // local database, drops the sync cursor and navigates — none of which
+      // the old `clearAuth()` + `navigateTo()` pair did.
+      void signOut()
     }
     return Promise.reject(error)
   }
