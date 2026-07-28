@@ -81,13 +81,17 @@ export async function runSyncCycle(options: {
     const drain = await drainOutbox(options.database, client)
     await publishQueueState(options.database)
 
-    if (drain.networkFailure) status.setOffline(true)
+    // A drain that reaches the server at all — success or a non-network
+    // rejection — is itself proof of connectivity, independent of what the
+    // gate below then decides. Only a network failure may SET `offline`;
+    // anything else, including a gate trip on a validation/forbidden
+    // rejection, must CLEAR a stale `true` left by an earlier cycle.
+    status.setOffline(drain.networkFailure)
     if (drain.error !== null && !drain.networkFailure) {
       status.setLastError(drain.error instanceof Error ? drain.error.message : String(drain.error))
     }
 
     if (!drain.fullyAcked) {
-      status.setPhase('idle')
       return { trigger: options.trigger, skipped: null, drain, pulled: false, pulledRows: 0, error: drain.error }
     }
 
@@ -99,17 +103,22 @@ export async function runSyncCycle(options: {
 
     if (observed.error !== null) {
       status.setLastError(observed.error instanceof Error ? observed.error.message : String(observed.error))
-      status.setPhase('idle')
       return { trigger: options.trigger, skipped: null, drain, pulled: false, pulledRows: 0, error: observed.error }
     }
 
     status.recordPull(observed.rows)
     status.markSynced(Date.now())
     await publishQueueState(options.database)
-    status.setPhase('idle')
 
     return { trigger: options.trigger, skipped: null, drain, pulled: true, pulledRows: observed.rows, error: null }
   } finally {
+    // Idempotent, and covers every exit path — including an uncaught
+    // exception from `drainOutbox`/`publishQueueState` (e.g. a local DB read
+    // failure that is not one of the handled network-failure cases). Without
+    // this in `finally`, such an error frees the mutex but leaves `phase`
+    // stuck at `'draining'`/`'pulling'` until some later cycle happens to
+    // overwrite it — the UI would show a sync in progress indefinitely.
+    status.setPhase('idle')
     inFlight = false
   }
 }

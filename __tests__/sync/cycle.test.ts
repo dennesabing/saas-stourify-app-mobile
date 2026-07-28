@@ -155,3 +155,60 @@ it('stamps lastSyncedAt only when the cycle both drained and pulled', async () =
 
   expect(useSyncStatusStore.getState().lastSyncedAt).not.toBeNull()
 })
+
+it('resets phase to idle and releases the mutex when an ordinary error escapes the drain', async () => {
+  const database = createTestDatabase()
+  // Simulates a DB read failure inside `collectDirtyBatch` — not one of the
+  // handled network-failure cases — escaping `drainOutbox` uncaught.
+  jest.spyOn(database, 'get').mockImplementation(() => {
+    throw new Error('boom: local read failed')
+  })
+
+  await expect(
+    runSyncCycle({ database, client: { get: jest.fn(), post: jest.fn() } as any, trigger: 'manual' }),
+  ).rejects.toThrow('boom: local read failed')
+
+  expect(isSyncInFlight()).toBe(false)
+  expect(useSyncStatusStore.getState().phase).toBe('idle')
+
+  jest.spyOn(database, 'get').mockRestore()
+
+  // A subsequent cycle must be able to start — the mutex was not left held.
+  const get = jest.fn(async () => ({ data: { server_time: 'now' } }))
+  const outcome = await runSyncCycle({ database, client: { get, post: jest.fn() } as any, trigger: 'manual' })
+  expect(outcome.skipped).toBeNull()
+  expect(get).toHaveBeenCalledTimes(1)
+})
+
+it('clears a stale offline flag once a later drain succeeds over the network, even if the gate then trips', async () => {
+  const database = createTestDatabase()
+  await seedSpot(database, { uuid: 'spot-flaky' })
+
+  const marker = Symbol.for('offline-sync-core.networkFailure')
+  const failingPost = jest.fn(async () => {
+    const error = new Error('Network request failed')
+    Object.defineProperty(error, marker, { value: true, enumerable: false, configurable: true })
+    throw error
+  })
+
+  await runSyncCycle({ database, client: { get: jest.fn(), post: failingPost } as any, trigger: 'connectivity' })
+  expect(useSyncStatusStore.getState().offline).toBe(true)
+
+  // Cycle 2: the POST itself succeeds (proof of connectivity) but the row it
+  // carries is rejected for a non-network reason — the gate still trips and
+  // the pull is skipped, but `offline` must not stay stuck at `true`.
+  const post2 = jest.fn(async () => ({
+    data: {
+      results: [{ table: 'sto_spots', uuid: 'spot-flaky', op: 'created', status: 'rejected', reason: 'validation', errors: {} }],
+      server_time: 'now',
+    },
+  }))
+  const get2 = jest.fn()
+
+  const outcome = await runSyncCycle({ database, client: { get: get2, post: post2 } as any, trigger: 'manual' })
+
+  expect(post2).toHaveBeenCalledTimes(1)
+  expect(get2).not.toHaveBeenCalled()
+  expect(outcome.pulled).toBe(false)
+  expect(useSyncStatusStore.getState().offline).toBe(false)
+})
