@@ -1,4 +1,6 @@
 import { Q } from '@nozbe/watermelondb'
+import { render, screen, waitFor } from '@testing-library/react-native'
+import { Text } from 'react-native'
 import type Spot from '@/db/models/Spot'
 import type SyncFailure from '@/db/models/SyncFailure'
 import type ExplorerProfile from '@/db/models/ExplorerProfile'
@@ -10,7 +12,9 @@ import {
   retryRecord,
 } from '@/sync/queue'
 import { upsertSyncFailure } from '@/sync/pushService'
+import { useSyncQueue } from '@/sync/useSyncQueue'
 import { createTestDatabase, markSynced, seedSpot } from '../support/testDatabase'
+import { TestProviders } from '../support/TestProviders'
 
 it('lists a locally created spot as a pending create', async () => {
   const database = createTestDatabase()
@@ -228,4 +232,61 @@ it('sorts the pending queue newest first', async () => {
 
   const rows = await listPendingQueue(database)
   expect(rows.map((row) => row.id)).toEqual(['newer', 'older'])
+})
+
+function QueueProbe() {
+  const { pending, failed } = useSyncQueue()
+  return <Text testID="probe">{`${pending.length}/${failed.length}`}</Text>
+}
+
+it('emits when a row is written, with no sync cycle having run', async () => {
+  const database = createTestDatabase()
+
+  render(
+    <TestProviders database={database}>
+      <QueueProbe />
+    </TestProviders>,
+  )
+
+  await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('0/0'))
+
+  await seedSpot(database, { uuid: 'spot-live' })
+
+  await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('1/0'))
+})
+
+it('emits when a push ack flips _status, which no column change would signal', async () => {
+  const database = createTestDatabase()
+  const spot = await seedSpot(database, { uuid: 'spot-live' })
+
+  render(
+    <TestProviders database={database}>
+      <QueueProbe />
+    </TestProviders>,
+  )
+
+  await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('1/0'))
+
+  await markSynced(database, spot)
+
+  await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('0/0'))
+})
+
+it('emits when a failure row appears', async () => {
+  const database = createTestDatabase()
+  await seedSpot(database, { uuid: 'spot-live' })
+
+  render(
+    <TestProviders database={database}>
+      <QueueProbe />
+    </TestProviders>,
+  )
+
+  await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('1/0'))
+
+  await upsertSyncFailure(database, {
+    recordId: 'spot-live', tableName: 'sto_spots', reason: 'validation', lastError: '{}',
+  })
+
+  await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('1/1'))
 })
