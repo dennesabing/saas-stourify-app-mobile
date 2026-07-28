@@ -45,6 +45,9 @@ export type CreateStackParamList = {
   MediaPicker: undefined
   PostCompose: { mediaAssets: { uri: string; type?: string; fileName?: string }[] }
   SpotPicker: undefined
+  /** The offline-first slice: writes straight to WatermelonDB. */
+  CreateSpot: undefined
+  MySpots: undefined
 }
 
 export type ActivityStackParamList = {

@@ -25,7 +25,7 @@ export default function CreateMenuScreen({ navigation }: Props) {
           What would you like to add?
         </Text>
 
-        <Card onPress={() => navigation.navigate('MediaPicker')} accessibilityLabel="New Spot">
+        <Card onPress={() => navigation.navigate('CreateSpot')} accessibilityLabel="New Spot">
           <Text variant="h2">New Spot</Text>
           <Text variant="caption" color="muted">
             Share a place you discovered

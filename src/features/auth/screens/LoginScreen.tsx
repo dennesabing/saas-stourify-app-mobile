@@ -6,6 +6,7 @@ import type { RootStackParamList } from '@/shared/navigation/types'
 import { useAuthStore } from '@/shared/store/auth'
 import * as authApi from '@/shared/api/auth'
 import { extractApiError, extractValidationErrors } from '@/shared/api/client'
+import { onLogin } from '@/sync/session'
 
 type FormData = { email: string; password: string }
 
@@ -27,6 +28,7 @@ export default function LoginScreen({ navigation }: Props) {
       const res = await authApi.login(data.email, data.password)
       setToken(res.token)
       setUser(res.user)
+      await onLogin()
     } catch (err) {
       const validationErrors = extractValidationErrors(err)
       if (validationErrors.email) setError('email', { message: validationErrors.email[0] })
