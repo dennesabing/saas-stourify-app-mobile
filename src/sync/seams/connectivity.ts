@@ -21,12 +21,26 @@ function toOnline(state: NetInfoState): boolean {
 
 export const netInfoConnectivity: ConnectivityMonitor = {
   isOnline: () => online,
-  subscribe: (cb) =>
-    NetInfo.addEventListener((state) => {
+  subscribe: (cb) => {
+    // NetInfo emits on every connection-type/signal change, not only on a
+    // real online/offline transition — a flaky radio can fire several
+    // "still connected" events in a row. `online` is updated on every event
+    // (so `isOnline()` always reflects the latest reading, and a genuinely
+    // stale subscriber's own `previous` cannot desync from it), but `cb` is
+    // only invoked when the value actually changes. That is what turns a run
+    // of identical events into a single edge for callers like the scheduler,
+    // which fires a full sync cycle on regain — without this, a flaky
+    // connection would fire one sequential cycle per event.
+    let previous = online
+
+    return NetInfo.addEventListener((state) => {
       const next = toOnline(state)
       online = next
+      if (next === previous) return
+      previous = next
       cb(next)
-    }),
+    })
+  },
 }
 
 /**

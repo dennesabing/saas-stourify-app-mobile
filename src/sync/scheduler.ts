@@ -30,7 +30,17 @@ export async function syncNow(database: Database, trigger: SyncTrigger = 'manual
  * beyond what the mutex already guarantees, so it is left out.
  */
 export function startSyncScheduler(database: Database): () => void {
+  // Belt-and-braces alongside the two `unsubscribe`/`remove()` calls below: an
+  // underlying event source is free to have already queued a dispatch before
+  // it honours removal (or, in tests, a stray direct call to a captured
+  // listener). Neither handler is stateless — running one after `stop()` has
+  // been called would fire a sync cycle against a torn-down caller (e.g. post
+  // logout) — so both check this flag first, not only relying on the
+  // subscription actually being gone.
+  let stopped = false
+
   const unsubscribeNetInfo = netInfoConnectivity.subscribe((online) => {
+    if (stopped) return
     useSyncStatusStore.getState().setOffline(!online)
     if (online) void runSyncCycle({ database, trigger: 'connectivity' })
   })
@@ -38,6 +48,7 @@ export function startSyncScheduler(database: Database): () => void {
   let previousAppState: AppStateStatus = AppState.currentState
 
   const appStateSubscription = AppState.addEventListener('change', (next: AppStateStatus) => {
+    if (stopped) return
     const returningToForeground = previousAppState !== 'active' && next === 'active'
     previousAppState = next
 
@@ -45,6 +56,7 @@ export function startSyncScheduler(database: Database): () => void {
   })
 
   return () => {
+    stopped = true
     unsubscribeNetInfo()
     appStateSubscription.remove()
   }

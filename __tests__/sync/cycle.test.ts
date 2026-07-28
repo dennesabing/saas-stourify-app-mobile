@@ -180,6 +180,33 @@ it('resets phase to idle and releases the mutex when an ordinary error escapes t
   expect(get).toHaveBeenCalledTimes(1)
 })
 
+it('an empty outbox with an offline pull leaves lastError untouched — only offline flips', async () => {
+  const database = createTestDatabase()
+  // No seeded rows: `drainOutbox` returns `fullyAcked: true` on an empty
+  // outbox (pushService.ts:431-441), so the cycle proceeds past the gate and
+  // into the pull — which is where this scenario differs from a dirty outbox.
+  useSyncStatusStore.getState().setLastError('stale error from a previous cycle')
+
+  const marker = Symbol.for('offline-sync-core.networkFailure')
+  const get = jest.fn(async () => {
+    const error = new Error('Network request failed')
+    Object.defineProperty(error, marker, { value: true, enumerable: false, configurable: true })
+    throw error
+  })
+  const post = jest.fn()
+
+  const outcome = await runSyncCycle({ database, client: { get, post } as any, trigger: 'connectivity' })
+
+  expect(post).not.toHaveBeenCalled()
+  expect(get).toHaveBeenCalledTimes(1)
+  expect(outcome.pulled).toBe(false)
+  expect(useSyncStatusStore.getState().offline).toBe(true)
+  // A bare network failure must never surface as a user-visible error — it
+  // must leave whatever `lastError` already held alone, exactly like the
+  // symmetric drain-side branch at cycle.ts:90 already does.
+  expect(useSyncStatusStore.getState().lastError).toBe('stale error from a previous cycle')
+})
+
 it('clears a stale offline flag once a later drain succeeds over the network, even if the gate then trips', async () => {
   const database = createTestDatabase()
   await seedSpot(database, { uuid: 'spot-flaky' })

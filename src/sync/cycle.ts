@@ -102,7 +102,13 @@ export async function runSyncCycle(options: {
     else status.setOffline(false)
 
     if (observed.error !== null) {
-      status.setLastError(observed.error instanceof Error ? observed.error.message : String(observed.error))
+      // Mirrors the drain-side guard above: a network failure must never
+      // surface as a user-visible `lastError` — only a non-network pull error
+      // should. `setOffline(true)` a few lines up already recorded the real
+      // cause.
+      if (!observed.networkFailure) {
+        status.setLastError(observed.error instanceof Error ? observed.error.message : String(observed.error))
+      }
       return { trigger: options.trigger, skipped: null, drain, pulled: false, pulledRows: 0, error: observed.error }
     }
 
