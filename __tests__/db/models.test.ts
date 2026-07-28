@@ -1,33 +1,20 @@
 import { Database } from '@nozbe/watermelondb'
-import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs'
-import { createDatabase, modelClasses, wipeDatabase } from '@/db'
+import { modelClasses, wipeDatabase } from '@/db'
 import { stourifySchema } from '@/db/schema'
 import City from '@/db/models/City'
 import Spot from '@/db/models/Spot'
-
-function freshDatabase(): Database {
-  return createDatabase(
-    new LokiJSAdapter({
-      schema: stourifySchema,
-      useWebWorker: false,
-      useIncrementalIndexedDB: false,
-      // LokiJS defaults to `autosave: true` with a 500ms `setInterval`. In a
-      // throwaway in-memory test database there is nothing to persist, and the
-      // timer keeps Node's event loop alive forever — jest hangs after the
-      // suite finishes ("did not exit one second after the test run"). This is
-      // the one deliberate deviation from the brief's test code: the brief's
-      // literal `freshDatabase()` reproduces the hang, confirmed by isolating
-      // `new LokiJSAdapter(...)` alone in its own test file with nothing else
-      // imported.
-      extraLokiOptions: { autosave: false },
-    }),
-  )
-}
+import { createTestDatabase, seedCity, seedSpot, markSynced } from '../support/testDatabase'
 
 let database: Database
 
 beforeEach(() => {
-  database = freshDatabase()
+  // `createTestDatabase()` (Task 5's harness) is the sole place a
+  // `LokiJSAdapter` may be constructed — it is the only thing that sets
+  // `extraLokiOptions: { autosave: false }`, which prevents LokiJS's default
+  // 500ms autosave `setInterval` from keeping Node's event loop alive forever
+  // (jest would otherwise hang after the suite finishes). Do not hand-roll a
+  // local adapter here again.
+  database = createTestDatabase()
 })
 
 it('registers one model class per table in the schema', () => {
@@ -59,60 +46,22 @@ it('exposes typed accessors over the raw row', async () => {
 })
 
 it('reports isQueued for a locally-created row and not for a synced one', async () => {
-  const spot = await database.write(async () =>
-    database.get<Spot>('sto_spots').create((row: any) => {
-      row._raw.uuid = 'spot-uuid-2'
-      row._raw.title = 'Queued Spot'
-      row._raw.latitude = 1
-      row._raw.longitude = 1
-      row._raw.status = 'draft'
-      row._raw.is_verified = false
-      row._raw.reviews_count = 0
-      row._raw.saves_count = 0
-      row._raw.created_at = 1
-      row._raw.updated_at = 1
-    }),
-  )
+  const spot = await seedSpot(database, { uuid: 'spot-uuid-2', title: 'Queued Spot' })
 
   expect(spot.isQueued).toBe(true)
 
-  await database.write(async () => {
-    await spot.update((row: any) => {
-      row._raw._status = 'synced'
-      row._raw._changed = ''
-    })
-  })
+  await markSynced(database, spot)
 
   expect(spot.isQueued).toBe(false)
 })
 
 it('resolves a numeric FK by server_id rather than by local record id', async () => {
-  await database.write(async () => {
-    await database.get<City>('sto_cities').create((row: any) => {
-      row._raw.id = 'city-uuid-1'
-      row._raw.uuid = 'city-uuid-1'
-      row._raw.server_id = 7
-      row._raw.name = 'General Santos'
-      row._raw.slug = 'general-santos'
-      row._raw.spot_count = 0
-      row._raw.is_featured = false
-      row._raw.created_at = 1
-      row._raw.updated_at = 1
-    })
-    await database.get<Spot>('sto_spots').create((row: any) => {
-      row._raw.id = 'spot-uuid-3'
-      row._raw.uuid = 'spot-uuid-3'
-      row._raw.city_id = 7
-      row._raw.title = 'Kalaklan Point'
-      row._raw.latitude = 1
-      row._raw.longitude = 1
-      row._raw.status = 'published'
-      row._raw.is_verified = false
-      row._raw.reviews_count = 0
-      row._raw.saves_count = 0
-      row._raw.created_at = 1
-      row._raw.updated_at = 1
-    })
+  await seedCity(database, { uuid: 'city-uuid-1', serverId: 7, name: 'General Santos' })
+  await seedSpot(database, {
+    uuid: 'spot-uuid-3',
+    cityId: 7,
+    title: 'Kalaklan Point',
+    status: 'published',
   })
 
   const spot = await database.get<Spot>('sto_spots').find('spot-uuid-3')
@@ -123,17 +72,7 @@ it('resolves a numeric FK by server_id rather than by local record id', async ()
 })
 
 it('wipeDatabase leaves no rows behind', async () => {
-  await database.write(async () => {
-    await database.get<City>('sto_cities').create((row: any) => {
-      row._raw.uuid = 'city-uuid-2'
-      row._raw.name = 'Davao'
-      row._raw.slug = 'davao'
-      row._raw.spot_count = 0
-      row._raw.is_featured = false
-      row._raw.created_at = 1
-      row._raw.updated_at = 1
-    })
-  })
+  await seedCity(database, { uuid: 'city-uuid-2', name: 'Davao', slug: 'davao' })
 
   await wipeDatabase(database)
 
