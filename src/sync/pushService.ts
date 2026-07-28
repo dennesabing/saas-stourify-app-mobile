@@ -1,18 +1,24 @@
 import { Q, type Database, type Model } from '@nozbe/watermelondb'
+import { isNetworkFailure, type HttpClient } from '@soxerp/offline-sync-core'
 import type ExplorerProfile from '@/db/models/ExplorerProfile'
 import type Follow from '@/db/models/Follow'
 import type Review from '@/db/models/Review'
 import type Spot from '@/db/models/Spot'
 import type SyncFailure from '@/db/models/SyncFailure'
 import type WishlistItem from '@/db/models/WishlistItem'
+import { createSanitizeRaw } from './engine'
 import type { SyncFailureSummary } from './status'
-import { PUSHABLE_TABLES } from './syncConfig'
+import { PUSHABLE_TABLES, PUSH_ENDPOINT } from './syncConfig'
 
 export type PushOp = 'created' | 'updated' | 'deleted'
 
 /**
- * Exactly what `SyncController::rejected()` emits (`SyncController.php:190-210,
- * 550-557`). Any other value the server sends is treated as `'error'`.
+ * The three reasons the client treats specially. `SyncController::rejected()`
+ * (`modules/Stourify/src/Http/Controllers/Api/V1/SyncController.php:550-557`)
+ * also emits `'unsupported'` (an update op `pushFollow` doesn't support, and
+ * `pushUpsert`'s `default` branch) and `'conflict'` (`pushExplorerProfile` on a
+ * duplicate username) — both of those, and anything else the server sends, are
+ * normalized to `'error'` by `normalizeRejectionReason` below, never dropped.
  */
 export type PushRejectionReason = 'validation' | 'forbidden' | 'error'
 
@@ -299,4 +305,167 @@ export async function countPending(database: Database): Promise<number> {
   }
 
   return total
+}
+
+// -----------------------------------------------------------------------------
+// Per-op result handling and the drain
+// -----------------------------------------------------------------------------
+
+export interface PushResult {
+  table: string
+  uuid: string | null
+  op: PushOp
+  status: 'ok' | 'rejected'
+  reason?: string
+  errors?: Record<string, string[]>
+  record?: Record<string, unknown>
+}
+
+export interface PushResponse {
+  results: PushResult[]
+  server_time: string
+}
+
+/**
+ * `SyncController::rejected()` emits `validation`, `forbidden` and `error`
+ * (`SyncController.php:190-210, 550-557`) — plus `unsupported` and `conflict` on
+ * two narrow paths. Anything that is not one of the three documented reasons is
+ * treated as `error`, which keeps the row retryable rather than silently
+ * stranding it in the excluded set forever.
+ */
+export function normalizeRejectionReason(reason: string | undefined): PushRejectionReason {
+  if (reason === 'validation' || reason === 'forbidden') return reason
+  return 'error'
+}
+
+export interface ApplyOutcome {
+  acked: number
+  rejected: number
+}
+
+export async function applyPushResults(
+  database: Database,
+  results: PushResult[],
+  batch: DirtyBatch,
+): Promise<ApplyOutcome> {
+  const sanitize = createSanitizeRaw()
+  let acked = 0
+  let rejected = 0
+
+  for (const result of results) {
+    const uuid = result.uuid
+    if (uuid === null || uuid === undefined) continue
+
+    if (result.status === 'rejected') {
+      rejected += 1
+      await upsertSyncFailure(database, {
+        recordId: uuid,
+        tableName: result.table,
+        reason: normalizeRejectionReason(result.reason),
+        lastError: JSON.stringify(result.errors ?? {}),
+      })
+      continue
+    }
+
+    acked += 1
+
+    if (result.op === 'deleted') {
+      // Idempotent on the server too: a uuid already gone is a successful no-op.
+      await database.adapter.destroyDeletedRecords(result.table, [uuid])
+      await clearSyncFailure(database, uuid)
+      continue
+    }
+
+    const record = batch.records.get(uuid)
+    if (record === undefined) continue
+
+    const raw = (result.record ?? {}) as Record<string, unknown>
+    const fields = sanitize(result.table, raw)
+    const serverId = typeof raw.id === 'number' ? raw.id : null
+
+    await database.write(async () => {
+      await record.update((row: any) => {
+        // Assigning `_raw` directly is what the engine itself does
+        // (syncEngine.ts:55): it bypasses `_setRaw`, so no per-field change
+        // marking runs and the synced status below sticks.
+        Object.assign(row._raw, fields)
+        if (serverId !== null) row._raw.server_id = serverId
+        row._raw._status = 'synced'
+        row._raw._changed = ''
+      })
+    })
+
+    await clearSyncFailure(database, uuid)
+  }
+
+  return { acked, rejected }
+}
+
+export interface DrainOutcome {
+  attempted: number
+  acked: number
+  rejected: number
+  /** Dirty rows deliberately held back because a previous validation/forbidden rejection blocks them. */
+  excluded: number
+  /** True only when nothing at all is left un-acked. The pull is skipped otherwise. */
+  fullyAcked: boolean
+  networkFailure: boolean
+  error: unknown | null
+}
+
+/**
+ * Drains the outbox once.
+ *
+ * A network failure produces no failure row, no attempt bump and no state
+ * change — the row simply retries next cycle. That distinction matters: bumping
+ * `attempts` on a dropped radio would eventually look like a bad row.
+ */
+export async function drainOutbox(
+  database: Database,
+  client: Pick<HttpClient, 'post'>,
+): Promise<DrainOutcome> {
+  const excludedIds = await loadExcludedRecordIds(database)
+  const batch = await collectDirtyBatch(database, excludedIds)
+  const excluded = excludedIds.size
+
+  if (batch.count === 0) {
+    return {
+      attempted: 0,
+      acked: 0,
+      rejected: 0,
+      excluded,
+      fullyAcked: excluded === 0,
+      networkFailure: false,
+      error: null,
+    }
+  }
+
+  let response: PushResponse
+
+  try {
+    const { data } = await client.post<PushResponse>(PUSH_ENDPOINT, batch.envelope)
+    response = data
+  } catch (error) {
+    return {
+      attempted: batch.count,
+      acked: 0,
+      rejected: 0,
+      excluded,
+      fullyAcked: false,
+      networkFailure: isNetworkFailure(error),
+      error,
+    }
+  }
+
+  const { acked, rejected } = await applyPushResults(database, response.results ?? [], batch)
+
+  return {
+    attempted: batch.count,
+    acked,
+    rejected,
+    excluded,
+    fullyAcked: acked === batch.count && excluded === 0,
+    networkFailure: false,
+    error: null,
+  }
 }
