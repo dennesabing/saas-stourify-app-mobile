@@ -25,11 +25,17 @@ export type TabParamList = {
   ProfileTab: undefined
 }
 
+/**
+ * `Likes` was cut, not just left unregistered: `GET /api/v1/reactions`
+ * (`ReactionController::index` / `respondWith()`) returns `{reacted, mine,
+ * counts}` — reaction *counts*, never the reacting users. There is no
+ * endpoint this screen could list from without fabricating data. Revisit if
+ * a reactions-listing endpoint is ever added.
+ */
 export type HomeStackParamList = {
   Home: undefined
   PostDetail: { postId: string }
   Comments: { postId: string }
-  Likes: { postId: string }
   SpotDetail: { spotId: string }
 }
 

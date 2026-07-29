@@ -8,6 +8,8 @@ import { ThemeProvider } from '@/theme/ThemeProvider'
 interface Props {
   database: Database
   children: ReactNode
+  /** Override the default throwaway client — lets a test seed or inspect the cache. */
+  queryClient?: QueryClient
 }
 
 /**
@@ -33,15 +35,15 @@ const TEST_SAFE_AREA_METRICS: Metrics = {
  * The theme is pinned to light so a snapshot never depends on the host OS
  * appearance.
  */
-export function TestProviders({ database, children }: Props) {
-  const queryClient = new QueryClient({
+export function TestProviders({ database, children, queryClient }: Props) {
+  const client = queryClient ?? new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   })
 
   return (
     <SafeAreaProvider initialMetrics={TEST_SAFE_AREA_METRICS}>
       <ThemeProvider scheme="light">
-        <QueryClientProvider client={queryClient}>
+        <QueryClientProvider client={client}>
           <DatabaseProvider database={database}>{children}</DatabaseProvider>
         </QueryClientProvider>
       </ThemeProvider>

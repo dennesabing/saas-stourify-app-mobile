@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **M3b — themed `PostCard` and the feed path.** `ui/PostCard` replaces the legacy
+  `shared/components/PostCard.tsx` (hardcoded palette, hand-rolled initials, and it read
+  `post.user`/`post.media`, fields `PostResource` never sends) — built on `Card`/`Avatar`/`Tag`/`Text`
+  against the real contract: a nested `author` object (`whenLoaded('user')`, genuinely absent on some
+  paths — the card renders "Unknown" rather than crash) and `is_liked` for a filled heart.
+  `FeedScreen` and `PostDetailScreen` are rebuilt on the design system; a new `CommentsScreen` lists a
+  post's comments threaded client-side off `parent_id` (the endpoint does not eager-load `replies`),
+  with an optimistic composer. `Comments` is registered in the Home stack.
+- **The like action is wired**, on both the feed and post detail — `PostCard` always accepted
+  `onLikePress`, but nothing ever passed it, so likes were read-only. Both mutations flip `is_liked`
+  and `likes_count` in the React Query cache immediately and roll back on failure, so a like never
+  waits on the network — the reason the persisted cache exists.
+- `__tests__/screens/FeedScreen.test.tsx` asserts the offline criterion the way
+  `queryPersistence.test.tsx` does: the feed renders posts from a seeded query cache while the
+  fetcher throws.
 - **M3a — auth entry flow.** Welcome, Forgot password and Reset password screens; Login and Register
   rebuilt on the Wander D4 design system behind a new `ui/Input` primitive. Register now reads
   `GET /auth/config` first, so the invitation-code field appears only when the server requires one
@@ -39,8 +54,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `src/sync/useSyncQueue.ts` (the live subscription), `src/features/sync/` (screen, banner, row) and
   `src/shared/utils/relativeTime.ts`.
 
+### Removed
+
+- **`Likes` cut from `HomeStackParamList` — no screen built.** Verified against
+  `ReactionController::index`/`respondWith()`: `GET /api/v1/reactions` returns `{reacted, mine,
+  counts}`, reaction *counts*, never the reacting users. Building a likes list would mean fabricating
+  a user list from a count. Revisit if a reactions-listing endpoint is ever added.
+
 ### Fixed
 
+- **The spot chip on `PostDetailScreen` was dead** — a `TouchableOpacity` with no `onPress`. It now
+  navigates to `SpotDetail`.
 - **Registering no longer leaves the sync session cold.** `RegisterScreen` never called `onLogin()`,
   which `LoginScreen` has always called — so a newly registered account had no primed local database
   and no sync cursor until its next sign-in.

@@ -5,6 +5,7 @@ import CreateMenuScreen from '@/features/create/screens/CreateMenuScreen'
 import CreateSpotScreen from '@/features/create/screens/CreateSpotScreen'
 import ThemeGalleryScreen from '@/features/dev/screens/ThemeGalleryScreen'
 import DiscoverScreen from '@/features/discover/screens/DiscoverScreen'
+import CommentsScreen from '@/features/feed/screens/CommentsScreen'
 import FeedScreen from '@/features/feed/screens/FeedScreen'
 import PostDetailScreen from '@/features/feed/screens/PostDetailScreen'
 import NearbyScreen from '@/features/nearby/screens/NearbyScreen'
@@ -45,6 +46,7 @@ function HomeStackNav() {
     <HomeStack.Navigator screenOptions={stackOptions}>
       <HomeStack.Screen name="Home" component={FeedScreen} />
       <HomeStack.Screen name="PostDetail" component={PostDetailScreen} />
+      <HomeStack.Screen name="Comments" component={CommentsScreen} />
       <HomeStack.Screen name="SpotDetail" component={SpotDetailScreen} />
     </HomeStack.Navigator>
   )
