@@ -11,11 +11,7 @@ import { useTheme } from '@/theme/ThemeProvider'
 
 type FormData = { email: string; token: string; password: string; password_confirmation: string }
 
-// `ResetPassword` is added to `RootStackParamList` by Task 3, out of scope
-// here. Extend it locally so this screen typechecks standalone.
-type ResetPasswordStackParamList = RootStackParamList & { ResetPassword: { email?: string } }
-
-type Props = NativeStackScreenProps<ResetPasswordStackParamList, 'ResetPassword'>
+type Props = NativeStackScreenProps<RootStackParamList, 'ResetPassword'>
 
 /**
  * `/reset-password` returns no token — the user must sign in again after this

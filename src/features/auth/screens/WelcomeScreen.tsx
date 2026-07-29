@@ -5,12 +5,7 @@ import { Button, Text } from '@/shared/components/ui'
 import type { RootStackParamList } from '@/shared/navigation/types'
 import { useTheme } from '@/theme/ThemeProvider'
 
-// `Welcome` is added to `RootStackParamList` by the splash-gate task (Task 3),
-// which is not in scope here. Extend it locally so this screen typechecks
-// standalone; the intersection is harmless once that key lands for real.
-type WelcomeStackParamList = RootStackParamList & { Welcome: undefined }
-
-type Props = NativeStackScreenProps<WelcomeStackParamList, 'Welcome'>
+type Props = NativeStackScreenProps<RootStackParamList, 'Welcome'>
 
 /**
  * Brand entry, before the user has chosen sign-in vs. sign-up.

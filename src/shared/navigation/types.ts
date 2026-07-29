@@ -7,10 +7,12 @@
  */
 
 export type RootStackParamList = {
+  Welcome: undefined
   Login: undefined
   Register: undefined
   ForgotPassword: undefined
-  VerifyEmail: { email: string }
+  /** `email` is prefilled from the Forgot-password step; the token is pasted (spec §6.2). */
+  ResetPassword: { email?: string }
   Onboarding: undefined
   MainTabs: undefined
 }
