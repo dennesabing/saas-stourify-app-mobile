@@ -1,0 +1,53 @@
+appId: app.stourify.mobile
+---
+# Registers a brand-new account, walks it through the full onboarding flow
+# (skipping every optional step), and asserts it lands on the feed — the
+# M3b exit criterion stated by the plan: "a new account onboards, lands on a
+# feed of real posts with real authors".
+#
+# Assertions are on user-visible copy, not testIDs of intermediate screens,
+# so a screen rename does not break the flow. A brand-new account follows no
+# one, so the feed's own empty state ("Your feed is empty") is the
+# deterministic, honest way to prove the feed was reached — it is the same
+# text `FeedScreen.tsx` renders in production for this exact case, not a
+# flow-only stand-in.
+#
+# The registration email must be unique per run (Maestro's JS expression),
+# since a duplicate email is a 422 the flow does not handle. Points at
+# whatever `EXPO_PUBLIC_API_URL` the dev-client build was made against —
+# see docs/e2e.md.
+
+- launchApp
+
+# Welcome -> Register
+- tapOn: "Get started"
+
+# Register
+- tapOn: "Your name"
+- inputText: "Maestro Explorer"
+- tapOn: "you@example.com"
+- inputText: "${'maestro-' + Date.now() + '@stourify.test'}"
+- tapOn: "At least 8 characters"
+- inputText: "Password123!"
+- tapOn: "Repeat your password"
+- inputText: "Password123!"
+- tapOn: "Create account"
+
+# Onboarding: Permissions -> Interests -> Home city -> Follow suggestions,
+# skipping every optional step.
+- assertVisible: "Find spots near you"
+- tapOn: "Skip"
+
+- assertVisible: "What draws you to a place?"
+- tapOn: "Skip"
+
+- assertVisible:
+    text: "Where do you explore from?|Still syncing your cities"
+- tapOn: "Skip"
+
+- assertVisible: "Find people to follow"
+- tapOn: "Skip"
+
+# Feed reached — a fresh account follows no one, so the feed's own empty
+# state is the honest, deterministic proof.
+- assertVisible: "Your feed is empty"

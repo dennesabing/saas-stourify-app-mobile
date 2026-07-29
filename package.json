@@ -8,7 +8,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "e2e": "maestro test .maestro/register-onboard-feed.yaml"
   },
   "dependencies": {
     "@expo-google-fonts/fraunces": "^0.4.1",
