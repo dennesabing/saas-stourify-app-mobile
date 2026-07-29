@@ -99,9 +99,26 @@ export default function ProfileScreen({ route, navigation }: Props) {
             ))}
           </View>
           {isOwn ? (
-            <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('EditProfile')}>
-              <Text style={styles.editBtnText}>Edit Profile</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={[styles.editBtn, { flex: 1 }]}
+                onPress={() => navigation.navigate('EditProfile')}
+              >
+                <Text style={styles.editBtnText}>Edit Profile</Text>
+              </TouchableOpacity>
+              {/* Until 2026-07-29 nothing in the app navigated to `Settings`.
+                  It was registered in the stack and orphaned, which also
+                  orphaned everything reachable only through it — the M2c Sync
+                  Status screen and Logout included. */}
+              <TouchableOpacity
+                style={[styles.editBtn, { flex: 1 }]}
+                accessibilityRole="button"
+                accessibilityLabel="Settings"
+                onPress={() => navigation.navigate('Settings')}
+              >
+                <Text style={styles.editBtnText}>Settings</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
             <TouchableOpacity
               style={[styles.followBtn, isFollowing && styles.followingBtn]}

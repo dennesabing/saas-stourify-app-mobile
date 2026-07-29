@@ -1,6 +1,7 @@
 import type { Database } from '@nozbe/watermelondb'
 import type { QueryClient } from '@tanstack/react-query'
 import { getDatabase, wipeDatabase } from '@/db'
+import { setApiAuthRejectionHandler } from '@/shared/api/client'
 import { useAuthStore } from '@/shared/store/auth'
 import { navigateTo } from '@/shared/navigation/ref'
 import { queryClient as defaultQueryClient } from '@/shared/queryClient'
@@ -125,6 +126,13 @@ export async function signOut(
  */
 export function installSyncSessionHandlers(database: Database, stop?: () => void): void {
   stopScheduler = stop ?? null
+
+  // The app-wide API client's 401 path. Registered rather than imported by
+  // `client.ts`, which would close a require cycle through the media drain —
+  // see the comment on `setApiAuthRejectionHandler`.
+  setApiAuthRejectionHandler(() => {
+    void signOut(database)
+  })
 
   setSyncAuthRejectionHandler(() => {
     void signOut(database)

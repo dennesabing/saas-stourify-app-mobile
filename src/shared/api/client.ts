@@ -1,6 +1,5 @@
 import axios from 'axios'
 import { useAuthStore } from '@/shared/store/auth'
-import { signOut } from '@/sync/session'
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:8000/api/v1'
 
@@ -18,14 +17,36 @@ client.interceptors.request.use((config) => {
   return config
 })
 
+/**
+ * Set by `installSyncSessionHandlers` at app start.
+ *
+ * A registered handler rather than `import { signOut } from '@/sync/session'`
+ * — the same seam `sync/httpClient.ts` uses, and for the same reason. Importing
+ * it directly created a require cycle:
+ *
+ *   client.ts → sync/session.ts → sync/scheduler.ts → sync/cycle.ts
+ *             → sync/mediaDrain.ts → shared/api/media.ts → client.ts
+ *
+ * M4a closed that loop when `mediaDrain` began using the API client. Metro
+ * warns about it but still evaluates the modules, so one of them observes its
+ * dependency as `undefined` mid-initialisation — a failure that surfaces as a
+ * sync layer that silently does nothing rather than as an error.
+ */
+let authRejectionHandler: (() => void) | null = null
+
+export function setApiAuthRejectionHandler(fn: () => void): void {
+  authRejectionHandler = fn
+}
+
 client.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // ONE 401 path for both clients. `signOut` clears the token, wipes the
-      // local database, drops the sync cursor and navigates — none of which
-      // the old `clearAuth()` + `navigateTo()` pair did.
-      void signOut()
+      // ONE 401 path for both clients. The handler runs `signOut`, which clears
+      // the token, wipes the local database, drops the sync cursor and
+      // navigates — none of which the old `clearAuth()` + `navigateTo()` pair
+      // did.
+      authRejectionHandler?.()
     }
     return Promise.reject(error)
   }
