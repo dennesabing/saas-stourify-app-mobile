@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { DatabaseProvider } from '@nozbe/watermelondb/react'
-import { QueryClientProvider } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { getDatabase } from '@/db'
@@ -9,7 +9,7 @@ import { startSyncScheduler } from '@/sync/scheduler'
 import { installSyncSessionHandlers } from '@/sync/session'
 import { ThemeProvider } from '@/theme/ThemeProvider'
 import { useAppFonts } from '@/theme/useAppFonts'
-import { queryClient } from '@/shared/queryClient'
+import { asyncStoragePersister, PERSIST_BUSTER, PERSIST_MAX_AGE_MS, queryClient } from '@/shared/queryClient'
 
 export default function App() {
   const [database] = useState(() => getDatabase())
@@ -31,10 +31,17 @@ export default function App() {
     <SafeAreaProvider>
       <DatabaseProvider database={database}>
         <ThemeProvider>
-          <QueryClientProvider client={queryClient}>
+          <PersistQueryClientProvider
+            client={queryClient}
+            persistOptions={{
+              persister: asyncStoragePersister,
+              maxAge: PERSIST_MAX_AGE_MS,
+              buster: PERSIST_BUSTER,
+            }}
+          >
             <StatusBar style="auto" />
             <RootNavigator />
-          </QueryClientProvider>
+          </PersistQueryClientProvider>
         </ThemeProvider>
       </DatabaseProvider>
     </SafeAreaProvider>
