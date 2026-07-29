@@ -8,14 +8,17 @@ function renderThemed(ui: React.ReactElement) {
 }
 
 const mockPost: Post = {
-  id: '1',
   uuid: 'uuid-1',
   caption: 'Beautiful sunset',
   visibility: 'public',
+  is_published: true,
+  published_at: new Date().toISOString(),
   likes_count: 42,
   comments_count: 5,
   is_liked: false,
   created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  can: {},
   author: { uuid: 'u1', name: 'Ana Martinez', username: 'ana', avatar_url: null },
 }
 

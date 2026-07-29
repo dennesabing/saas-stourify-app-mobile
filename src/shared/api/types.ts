@@ -20,14 +20,6 @@ export interface Spot {
   category?: { id: string; name: string; slug: string }
 }
 
-export interface PostMedia {
-  id: string
-  url: string
-  type: 'photo' | 'video'
-  order: number
-  duration?: number
-}
-
 /**
  * The identity `PostResource` nests under `author`, `whenLoaded('user')`.
  * Absent (not just falsy) on paths that never loaded the relation — a post
@@ -40,11 +32,17 @@ export interface PostAuthor {
   avatar_url: string | null
 }
 
+/**
+ * Mirrors `Modules\Stourify\Http\Resources\PostResource::toArray()` exactly.
+ * There is no `id` (only `uuid`) and no `media` key — the server has never
+ * sent either.
+ */
 export interface Post {
-  id: string
   uuid: string
   caption?: string
   visibility: 'public' | 'followers' | 'private'
+  is_published: boolean
+  published_at: string | null
   likes_count: number
   comments_count: number
   /**
@@ -52,14 +50,12 @@ export interface Post {
    * "not evaluated", not "not liked". See `PostResource::toArray()`.
    */
   is_liked?: boolean
-  /** @deprecated legacy field, no longer sent by `PostResource` — kept so unmigrated screens still typecheck. */
-  user?: User
-  author?: PostAuthor
-  author_uuid?: string
   spot?: Spot
-  /** @deprecated legacy field, `PostResource` has no media key — kept so unmigrated screens still typecheck. */
-  media?: PostMedia[]
+  author_uuid?: string
+  author?: PostAuthor
   created_at: string
+  updated_at: string
+  can: Record<string, boolean>
 }
 
 export interface CommentAuthor {
@@ -67,12 +63,19 @@ export interface CommentAuthor {
   name: string
 }
 
+/** Mirrors `App\Http\Resources\CommentResource::toArray()` exactly. */
 export interface Comment {
   id: string
   body: string
+  visibility_type: string
   user?: CommentAuthor
-  parent_id?: string | null
+  commentable_type: string
+  commentable_id: number
+  parent_id: string | null
+  replies: Comment[]
   created_at: string
+  updated_at: string
+  can: Record<string, boolean>
 }
 
 export interface Follow {

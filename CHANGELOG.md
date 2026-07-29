@@ -63,6 +63,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The comments client called routes that did not exist**, and the `Post`/`Comment` types
+  described fields the server never returned. `GET|POST /api/v1/posts/{post}/comments` now exist
+  module-side (uuid-addressed, mirroring every other Stourify route); `comments.ts` was already
+  pointed at them and needed no route change. `Post` dropped the deprecated `user`/`media` fields
+  (`PostResource` never sent either) and gained `is_published`, `published_at`, `updated_at` and
+  `can`, mirroring `PostResource` exactly. `Comment` now mirrors `CommentResource` exactly
+  (`visibility_type`, `commentable_type`/`commentable_id`, `replies`, `can`). `ProfileScreen`'s and
+  `SpotDetailScreen`'s post-grid thumbnails read `item.media?.[0]`, a field that has never existed
+  on the wire and so rendered nothing in production; both now render an honest placeholder tile
+  instead of a silently-broken image.
 - **The spot chip on `PostDetailScreen` was dead** — a `TouchableOpacity` with no `onPress`. It now
   navigates to `SpotDetail`.
 - **Registering no longer leaves the sync session cold.** `RegisterScreen` never called `onLogin()`,

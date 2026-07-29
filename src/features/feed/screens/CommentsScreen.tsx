@@ -69,12 +69,19 @@ export default function CommentsScreen({ route }: Props) {
       await queryClient.cancelQueries({ queryKey: COMMENTS_QUERY_KEY(postId) })
       const previous = queryClient.getQueryData<PaginatedResponse<Comment>>(COMMENTS_QUERY_KEY(postId))
 
+      const now = new Date().toISOString()
       const optimistic: Comment = {
         id: `optimistic-${Date.now()}`,
         body,
+        visibility_type: 'org_member',
         user: user ? { id: user.uuid, name: user.name } : undefined,
+        commentable_type: 'stourify_post',
+        commentable_id: 0,
         parent_id: null,
-        created_at: new Date().toISOString(),
+        replies: [],
+        created_at: now,
+        updated_at: now,
+        can: {},
       }
 
       queryClient.setQueryData<PaginatedResponse<Comment>>(COMMENTS_QUERY_KEY(postId), (old) => ({

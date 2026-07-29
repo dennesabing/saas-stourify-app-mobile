@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, Dimensions } from 'react-native'
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Dimensions } from 'react-native'
 import { useQuery } from '@tanstack/react-query'
 import type { CompositeNavigationProp } from '@react-navigation/native'
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack'
@@ -36,16 +36,15 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
 
   const posts = postsData?.data ?? []
 
+  // `PostResource` has no media key — never has. This grid used to read
+  // `item.media?.[0]` and render nothing in production; it now renders an
+  // honest placeholder tile instead of pretending a thumbnail exists.
   const renderThumb = useCallback(
     ({ item }: { item: Post }) => (
       <TouchableOpacity
         onPress={() => navigation.navigate('PostDetail', { postId: item.uuid })}
       >
-        <View style={[styles.thumb, { backgroundColor: '#1a3040' }]}>
-          {item.media?.[0] && (
-            <Image source={{ uri: item.media[0].url }} style={styles.thumbImg} />
-          )}
-        </View>
+        <View style={[styles.thumb, { backgroundColor: '#1a3040' }]} />
       </TouchableOpacity>
     ),
     [navigation],

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image } from 'react-native'
+import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { ProfileStackParamList } from '@/shared/navigation/types'
@@ -59,15 +59,14 @@ export default function ProfileScreen({ route, navigation }: Props) {
     : '?'
 
   const renderThumb = useCallback(
+    // `PostResource` has no media key — never has. This grid used to read
+    // `item.media?.[0]` and render nothing in production; it now renders an
+    // honest placeholder tile instead of pretending a thumbnail exists.
     ({ item }: { item: Post }) => (
       <TouchableOpacity
         style={styles.thumb}
         onPress={() => navigation.navigate('PostDetail', { postId: item.uuid })}
-      >
-        {item.media?.[0] && (
-          <Image source={{ uri: item.media[0].url }} style={styles.thumbImg} />
-        )}
-      </TouchableOpacity>
+      />
     ),
     [navigation],
   )
