@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native'
-import { Button, Chip, EmptyState, SpotCard, Tag } from '@/shared/components/ui'
+import { Button, Chip, EmptyState, Input, SpotCard, Tag } from '@/shared/components/ui'
 import { ThemeProvider } from '@/theme/ThemeProvider'
 import { minTouchTarget } from '@/theme/tokens'
 
@@ -100,6 +100,45 @@ describe('SpotCard', () => {
     renderThemed(<SpotCard title="Hidden Cove" />)
 
     expect(screen.queryByText('Queued ↑')).toBeNull()
+  })
+})
+
+describe('Input', () => {
+  it('renders its label and value', () => {
+    renderThemed(<Input label="Email" value="a@b.com" onChangeText={() => {}} />)
+
+    expect(screen.getByText('Email')).toBeTruthy()
+    expect(screen.getByDisplayValue('a@b.com')).toBeTruthy()
+  })
+
+  it('surfaces an error message and marks itself invalid', () => {
+    renderThemed(
+      <Input label="Email" value="" onChangeText={() => {}} error="Email is required" />,
+    )
+
+    expect(screen.getByText('Email is required')).toBeTruthy()
+  })
+
+  it('reports typing back to the caller', () => {
+    const onChangeText = jest.fn()
+
+    renderThemed(
+      <Input
+        label="Email"
+        placeholder="you@example.com"
+        value=""
+        onChangeText={onChangeText}
+      />,
+    )
+
+    fireEvent.changeText(screen.getByPlaceholderText('you@example.com'), 'typed')
+    expect(onChangeText).toHaveBeenCalledWith('typed')
+  })
+
+  it('meets the minimum touch target', () => {
+    renderThemed(<Input label="Email" value="" onChangeText={() => {}} />)
+
+    expect(styleOf(screen.getByDisplayValue('')).minHeight).toBe(minTouchTarget)
   })
 })
 
