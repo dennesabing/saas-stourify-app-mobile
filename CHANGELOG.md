@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A production APK pointed at the Android emulator loopback.** `eas.json` set
+  `EXPO_PUBLIC_API_URL` only on the `development` profile, and `mobile/.env` is gitignored so it
+  never reaches an EAS builder — a `preview` or `production` build therefore fell through to the
+  hardcoded `http://10.0.2.2:8000/api/v1`, which resolves to nothing on a real phone. Every request
+  would have failed: login, feed, sync. Both build profiles now set the live API URL explicitly, and
+  the fallback in `client.ts` / `sync/httpClient.ts` is `__DEV__`-gated so a release binary can
+  never silently use the emulator address.
+
 ### Added
 
 - **M4a — the offline media pipeline.** Photos captured offline now survive an app kill and attach

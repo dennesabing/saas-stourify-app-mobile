@@ -16,12 +16,18 @@ export function splitApiUrl(url: string): { baseUrl: string; apiPath: string } {
   return { baseUrl: trimmed, apiPath: 'api/v1' }
 }
 
-// Same env var the axios client reads (`src/shared/api/client.ts:5`) — one source
-// of truth for the host. `eas.json`'s `preview`/`production` build profiles do not
-// currently set EXPO_PUBLIC_API_URL and fall through to the emulator default below;
-// that is a pre-existing gap in this app's env wiring, not something this client
-// papers over or fixes.
-const RAW_API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:8000/api/v1'
+// Same env var the axios client reads (`src/shared/api/client.ts`) — one source
+// of truth for the host. `eas.json` now sets it explicitly on every profile.
+//
+// The fallback is deliberately `__DEV__`-gated. `10.0.2.2` is the Android
+// emulator's alias for the host machine's loopback and resolves to nothing on a
+// real phone, so a release binary that fell through to it would fail every
+// request — login, feed and sync alike — with no clue why. `mobile/.env` is
+// gitignored and never reaches an EAS builder, so that fallback was the ONLY
+// thing a production APK would have used before this.
+const RAW_API_URL =
+  process.env.EXPO_PUBLIC_API_URL ??
+  (__DEV__ ? 'http://10.0.2.2:8000/api/v1' : 'https://stourify.zivsluck.com/api/v1')
 const { baseUrl, apiPath } = splitApiUrl(RAW_API_URL)
 
 /**

@@ -1,7 +1,13 @@
 import axios from 'axios'
 import { useAuthStore } from '@/shared/store/auth'
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:8000/api/v1'
+// `__DEV__`-gated fallback: `10.0.2.2` is the Android emulator's alias for the
+// host loopback and resolves to nothing on a real phone. `mobile/.env` is
+// gitignored so it never reaches an EAS builder — see `src/sync/httpClient.ts`
+// for the full note. `eas.json` sets this explicitly on every build profile.
+const API_URL =
+  process.env.EXPO_PUBLIC_API_URL ??
+  (__DEV__ ? 'http://10.0.2.2:8000/api/v1' : 'https://stourify.zivsluck.com/api/v1')
 
 export const client = axios.create({
   baseURL: API_URL,
