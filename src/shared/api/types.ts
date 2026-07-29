@@ -28,6 +28,18 @@ export interface PostMedia {
   duration?: number
 }
 
+/**
+ * The identity `PostResource` nests under `author`, `whenLoaded('user')`.
+ * Absent (not just falsy) on paths that never loaded the relation — a post
+ * row must render without crashing when this is missing.
+ */
+export interface PostAuthor {
+  uuid: string
+  name: string
+  username: string | null
+  avatar_url: string | null
+}
+
 export interface Post {
   id: string
   uuid: string
@@ -35,16 +47,31 @@ export interface Post {
   visibility: 'public' | 'followers' | 'private'
   likes_count: number
   comments_count: number
+  /**
+   * Present only when the viewer's reaction was eager-loaded — absent means
+   * "not evaluated", not "not liked". See `PostResource::toArray()`.
+   */
+  is_liked?: boolean
+  /** @deprecated legacy field, no longer sent by `PostResource` — kept so unmigrated screens still typecheck. */
   user?: User
+  author?: PostAuthor
+  author_uuid?: string
   spot?: Spot
+  /** @deprecated legacy field, `PostResource` has no media key — kept so unmigrated screens still typecheck. */
   media?: PostMedia[]
   created_at: string
+}
+
+export interface CommentAuthor {
+  id: string
+  name: string
 }
 
 export interface Comment {
   id: string
   body: string
-  user?: User
+  user?: CommentAuthor
+  parent_id?: string | null
   created_at: string
 }
 

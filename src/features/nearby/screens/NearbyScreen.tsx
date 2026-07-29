@@ -6,7 +6,7 @@ import * as Location from 'expo-location'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { DiscoverStackParamList } from '@/shared/navigation/types'
 import { getNearbyFeed } from '@/shared/api/feed'
-import PostCard from '@/shared/components/PostCard'
+import { PostCard } from '@/shared/components/ui'
 import EmptyState from '@/shared/components/EmptyState'
 import type { Post } from '@/shared/api/types'
 
