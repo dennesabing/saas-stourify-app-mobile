@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { RootStackParamList } from '@/shared/navigation/types'
 import { useAuthStore } from '@/shared/store/auth'
+import { useOnboardingStore } from '@/shared/store/onboarding'
 import * as authApi from '@/shared/api/auth'
 import { extractApiError, extractValidationErrors } from '@/shared/api/client'
 import { onLogin } from '@/sync/session'
@@ -52,6 +53,9 @@ export default function RegisterScreen({ navigation }: Props) {
       setToken(res.token)
       setUser(res.user)
       await onLogin()
+      // A login never sets this — only a successful registration routes into
+      // onboarding (`RootNavigator`).
+      useOnboardingStore.getState().markRegistered()
     } catch (err) {
       const ve = extractValidationErrors(err)
       const knownFields: (keyof FormData)[] = ['name', 'email', 'password', 'password_confirmation', 'code']

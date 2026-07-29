@@ -107,6 +107,20 @@ export interface ApiError {
   status?: number
 }
 
+/**
+ * A search hit from `GET /discover/search?type=people` — the profile-sourced
+ * card `PersonResource` returns. No follower counts (a search fan-out the
+ * server does not pay) and no email, ever.
+ */
+export interface Person {
+  uuid: string
+  user_uuid: string | null
+  username: string
+  name: string | null
+  bio: string | null
+  is_private: boolean
+}
+
 export interface AuthConfig {
   invitation_only: boolean
   registration_enabled: boolean

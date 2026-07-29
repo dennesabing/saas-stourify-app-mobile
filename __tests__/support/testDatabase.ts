@@ -3,6 +3,7 @@ import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs'
 import { createDatabase } from '@/db'
 import { stourifySchema } from '@/db/schema'
 import type City from '@/db/models/City'
+import type ExplorerProfile from '@/db/models/ExplorerProfile'
 import type Spot from '@/db/models/Spot'
 
 /**
@@ -103,6 +104,51 @@ export async function seedCity(database: Database, overrides: Partial<CitySeed> 
       row._raw.slug = seed.slug
       row._raw.spot_count = 0
       row._raw.is_featured = false
+      row._raw.created_at = 1_700_000_000_000
+      row._raw.updated_at = 1_700_000_000_000
+    }),
+  )
+}
+
+export interface ExplorerProfileSeed {
+  uuid: string
+  serverId: number
+  userId: number
+  username: string
+  interests: string[]
+  homeCityId: number | null
+}
+
+const EXPLORER_PROFILE_DEFAULTS: ExplorerProfileSeed = {
+  uuid: 'profile-uuid',
+  serverId: 1,
+  userId: 1,
+  username: 'ana',
+  interests: [],
+  homeCityId: null,
+}
+
+/** Seeds the caller's own explorer profile — the local table pulls scope to exactly one row. */
+export async function seedExplorerProfile(
+  database: Database,
+  overrides: Partial<ExplorerProfileSeed> = {},
+): Promise<ExplorerProfile> {
+  const seed: ExplorerProfileSeed = { ...EXPLORER_PROFILE_DEFAULTS, ...overrides }
+
+  return database.write(async () =>
+    database.get<ExplorerProfile>('sto_explorer_profiles').create((row: any) => {
+      row._raw.id = seed.uuid
+      row._raw.uuid = seed.uuid
+      row._raw.server_id = seed.serverId
+      row._raw.user_id = seed.userId
+      row._raw.home_city_id = seed.homeCityId
+      row._raw.username = seed.username
+      row._raw.interests = JSON.stringify(seed.interests)
+      row._raw.spots_count = 0
+      row._raw.followers_count = 0
+      row._raw.following_count = 0
+      row._raw.is_private = false
+      row._raw.shows_location_on_spots = true
       row._raw.created_at = 1_700_000_000_000
       row._raw.updated_at = 1_700_000_000_000
     }),

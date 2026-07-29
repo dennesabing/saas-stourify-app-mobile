@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import RegisterScreen from '@/features/auth/screens/RegisterScreen'
 import * as authApi from '@/shared/api/auth'
 import { onLogin } from '@/sync/session'
+import { useOnboardingStore } from '@/shared/store/onboarding'
 import { createTestDatabase } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
 
@@ -32,6 +33,7 @@ function renderScreen() {
 
 beforeEach(() => {
   jest.clearAllMocks()
+  useOnboardingStore.setState({ shouldOnboard: false, completed: null })
 })
 
 async function fillValidForm() {
@@ -49,6 +51,16 @@ it('primes the sync session after registering — the regression this test exist
   await waitFor(() => {
     expect(authApi.register).toHaveBeenCalledWith('Ada', 'a@b.com', 'password123', 'password123', undefined)
     expect(onLogin).toHaveBeenCalled()
+  })
+})
+
+it('routes into onboarding after a successful registration — never after an ordinary login', async () => {
+  renderScreen()
+  await fillValidForm()
+  fireEvent.press(screen.getByText('Create account'))
+
+  await waitFor(() => {
+    expect(useOnboardingStore.getState().shouldOnboard).toBe(true)
   })
 })
 

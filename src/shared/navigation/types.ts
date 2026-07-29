@@ -17,6 +17,19 @@ export type RootStackParamList = {
   MainTabs: undefined
 }
 
+/**
+ * Reached only right after registration, never after an ordinary login — see
+ * `useOnboardingStore`. Each step has a visible Skip; `FollowSuggestions` is
+ * the last step and finishing it (Skip or otherwise) marks onboarding
+ * complete.
+ */
+export type OnboardingStackParamList = {
+  Permissions: undefined
+  Interests: undefined
+  HomeCity: undefined
+  FollowSuggestions: undefined
+}
+
 export type TabParamList = {
   HomeTab: undefined
   DiscoverTab: undefined

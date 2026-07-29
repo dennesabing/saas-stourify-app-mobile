@@ -4,11 +4,13 @@ import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { navigationRef } from './ref'
 import { useAuthStore } from '@/shared/store/auth'
+import { useOnboardingStore } from '@/shared/store/onboarding'
 import ForgotPasswordScreen from '@/features/auth/screens/ForgotPasswordScreen'
 import LoginScreen from '@/features/auth/screens/LoginScreen'
 import RegisterScreen from '@/features/auth/screens/RegisterScreen'
 import ResetPasswordScreen from '@/features/auth/screens/ResetPasswordScreen'
 import WelcomeScreen from '@/features/auth/screens/WelcomeScreen'
+import OnboardingNavigator from '@/features/onboarding/OnboardingNavigator'
 import { useTheme } from '@/theme/ThemeProvider'
 import TabNavigator from './TabNavigator'
 import type { RootStackParamList } from './types'
@@ -38,27 +40,40 @@ function Splash() {
 export default function RootNavigator() {
   const token = useAuthStore((state) => state.token)
   const loadFromStorage = useAuthStore((state) => state.loadFromStorage)
+  const shouldOnboard = useOnboardingStore((state) => state.shouldOnboard)
+  const onboardingCompleted = useOnboardingStore((state) => state.completed)
+  const loadOnboardingFromStorage = useOnboardingStore((state) => state.loadFromStorage)
   const [rehydrated, setRehydrated] = useState(false)
 
   useEffect(() => {
     let cancelled = false
 
-    void loadFromStorage().finally(() => {
+    void Promise.all([loadFromStorage(), loadOnboardingFromStorage()]).finally(() => {
       if (!cancelled) setRehydrated(true)
     })
 
     return () => {
       cancelled = true
     }
-  }, [loadFromStorage])
+  }, [loadFromStorage, loadOnboardingFromStorage])
 
   if (!rehydrated) return <Splash />
+
+  // Set only by a successful registration (`RegisterScreen`), never by a
+  // login — and cleared for good the instant the flag lands in storage, so a
+  // later launch never replays it even though `shouldOnboard` itself resets
+  // to `false` on every fresh boot regardless.
+  const needsOnboarding = shouldOnboard && onboardingCompleted !== true
 
   return (
     <NavigationContainer ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {token ? (
-          <Stack.Screen name="MainTabs" component={TabNavigator} />
+          needsOnboarding ? (
+            <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
+          ) : (
+            <Stack.Screen name="MainTabs" component={TabNavigator} />
+          )
         ) : (
           <>
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
