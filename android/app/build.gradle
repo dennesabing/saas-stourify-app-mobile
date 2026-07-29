@@ -89,7 +89,17 @@ android {
 
     namespace "com.mobile"
     defaultConfig {
-        applicationId "com.mobile"
+        // The Play Store identity, and it is PERMANENT after first publish —
+        // a wrong value cannot be corrected without a new listing and the loss
+        // of every install. It must match `expo.android.package` in app.json.
+        //
+        // This was left at the scaffold default `com.mobile` until 2026-07-29,
+        // when the first attempt to actually run the app on a device caught it.
+        // `namespace` deliberately stays `com.mobile`: that is the Java/Kotlin
+        // source package (android/app/src/main/java/com/mobile/), not the app
+        // identity, and renaming it would mean moving the source tree for no
+        // benefit.
+        applicationId "app.stourify.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
