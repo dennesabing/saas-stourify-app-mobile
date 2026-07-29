@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **M3c Task 4 — Spot Hub: profile, gallery and reviews.** `SpotDetailScreen` rebuilt on the
+  design system (was raw `StyleSheet`, hex literals, an empty grey `View` as the hero): a real hero
+  from `media[0].url` with a design-system placeholder when a spot has no photos (never a bare grey
+  box), the `Rating` primitive against `rating_average`/`reviews_count`, and category chips from the
+  real `categories` array. Tapping the hero opens the new `PhotoGalleryScreen` — full-bleed swipeable
+  images, a counter, a back affordance, and its own empty state.
+  - **Save to wishlist is a genuine offline-first write**, not a React Query mutation:
+    `createLocalWishlistItem` writes straight to WatermelonDB, same shape as `createLocalReview`
+    (Task 3) — `sto_wishlist_items` is a synced, pushable table, so a save survives a bad connection
+    and drains through the M2 queue. `useIsSpotSaved` observes it with `withChangesForTables`, not
+    `observeWithColumns`, so the "Saved ↑" queued badge actually clears once the push acks (the same
+    reasoning as `useMySpots`/`useSpotReviews`).
+  - **New `ReviewsScreen`** merges the local, possibly-still-queued `sto_reviews` rows
+    (`useSpotReviews`, Task 3) with the server list (`GET /reviews?spot_uuid=`), newest first, each
+    row showing the reviewer's name from `ReviewResource`'s new nested `author` (Task 2) and a
+    queued badge for un-drained local rows. "Helpful" votes are **online-only** — a reaction is not
+    a synced table, so there is deliberately no offline path for it here.
+  - **New `WriteReviewScreen`** — rating + body, local write only (`createLocalReview`, Task 3), no
+    spinner and no network error path, since a local write cannot fail for network reasons. Saving
+    navigates back immediately; the row appears in `ReviewsScreen` queued.
+  - `PhotoGallery`, `Reviews` and `WriteReview` are registered wherever `SpotDetail` already is
+    (Home, Discover, Profile stacks).
+  - **Out of scope, per the milestone's pre-agreed cut list**: Contributors and Directions — not
+    built, not stubbed.
+  - `Spot.title`/`categories`/`media`/`rating_average`/`reviews_count` were added to the shared API
+    type to match `SpotResource::toArray()`'s real field list. `Spot.name`/`category` stay required
+    for the existing consumers that already depend on them (`PostCard`, `PostComposeScreen`,
+    `SearchScreen`, `NearbyScreen`) — that mismatch (the server has never actually sent `name` or a
+    singular `category`) predates this change and is out of scope here.
 - **M3b — post-registration onboarding (4 screens).** `Onboarding` stack (`Permissions` →
   `Interests` → `HomeCity` → `FollowSuggestions`), wired into `RootStackParamList` and entered
   only after registration, never on every login — an AsyncStorage completion flag stops it from

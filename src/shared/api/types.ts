@@ -7,17 +7,75 @@ export interface User {
   avatar?: string
 }
 
+/**
+ * A media entry from `SpotResource`/`PostResource`'s `media` array.
+ *
+ * `thumb_url` is ALWAYS `null` today — neither `Spot` nor `Post` registers a
+ * `thumb` media conversion (only `User` does, for avatars). Render `url` and
+ * scale it client-side; do not build a thumbnail affordance around this field.
+ */
+export interface SpotMedia {
+  uuid: string
+  url: string
+  thumb_url: string | null
+}
+
 export interface Spot {
   id: string
   uuid: string
+  /**
+   * Kept required for the existing consumers that already depend on it
+   * (`PostCard`, `PostComposeScreen`, `SearchScreen`, `NearbyScreen`) — but
+   * `SpotResource::toArray()` has never actually sent a `name` key, only
+   * `title`. That mismatch predates this change and is out of scope here;
+   * `title` below is the field the server genuinely returns.
+   */
   name: string
+  /** `SpotResource::toArray()`'s real field. No numeric id, ever — join on `uuid`. */
+  title?: string
   slug: string
   description?: string
   latitude: number
   longitude: number
   address?: string
   status: 'active' | 'pending'
+  /** Legacy alias — the server has never actually sent a singular `category` object. */
   category?: { id: string; name: string; slug: string }
+  /** `SpotResource::toArray()`'s real field — a flat array of category names. */
+  categories?: string[]
+  /** Always an array, never null — an unattached spot still returns `[]`. */
+  media?: SpotMedia[]
+  rating_average?: number
+  reviews_count?: number
+  saves_count?: number
+}
+
+/** Mirrors `ReviewResource::toArray()`'s nested `author` — present on index/show only. */
+export interface ReviewAuthor {
+  uuid: string
+  name: string
+  username: string | null
+  avatar_url: string | null
+}
+
+/**
+ * Mirrors `Modules\Stourify\Http\Resources\ReviewResource::toArray()`.
+ * `author` is present on index/show; on store/update responses `author.username`
+ * is `null` even when a profile exists (a known, documented backend
+ * inconsistency) — do not depend on it from a write response.
+ */
+export interface Review {
+  uuid: string
+  rating: number
+  body: string | null
+  helpful_count: number
+  marked_helpful?: boolean
+  spot_uuid?: string
+  author_uuid?: string
+  author?: ReviewAuthor
+  created_at: string
+  updated_at: string
+  can: Record<string, boolean>
 }
 
 /**
@@ -53,6 +111,8 @@ export interface Post {
   spot?: Spot
   author_uuid?: string
   author?: PostAuthor
+  /** Always an array, never null — mirrors `PostResource::toArray()`'s `media` key (M3c Task 1). */
+  media?: SpotMedia[]
   created_at: string
   updated_at: string
   can: Record<string, boolean>

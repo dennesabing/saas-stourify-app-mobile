@@ -1,30 +1,38 @@
-import { useState, useCallback } from 'react'
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Dimensions } from 'react-native'
+import { useCallback, useState } from 'react'
+import { Dimensions, FlatList, Pressable, ScrollView, View } from 'react-native'
+import { Image } from 'expo-image'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery } from '@tanstack/react-query'
-import type { CompositeNavigationProp } from '@react-navigation/native'
-import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack'
-import type { DiscoverStackParamList } from '@/shared/navigation/types'
+import { useDatabase } from '@nozbe/watermelondb/react'
+import type { NativeStackScreenProps } from '@react-navigation/native-stack'
+import type { HomeStackParamList } from '@/shared/navigation/types'
 import { getSpot, getSpotPosts } from '@/shared/api/spots'
+import { Button, Rating, Skeleton, Tag, Text } from '@/shared/components/ui'
 import type { Post } from '@/shared/api/types'
+import { createLocalWishlistItem } from '@/features/spots/api/createLocalWishlistItem'
+import { useIsSpotSaved } from '@/features/spots/hooks/useIsSpotSaved'
+import { useTheme } from '@/theme/ThemeProvider'
 
 const { width } = Dimensions.get('window')
 const THUMB = (width - 4) / 3
+const HERO_HEIGHT = 240
 
-type SpotDetailNavProp = CompositeNavigationProp<
-  NativeStackNavigationProp<DiscoverStackParamList, 'SpotDetail'>,
-  NativeStackNavigationProp<DiscoverStackParamList>
->
+type Props = NativeStackScreenProps<HomeStackParamList, 'SpotDetail'>
 
-type Props = {
-  navigation: SpotDetailNavProp
-  route: NativeStackScreenProps<DiscoverStackParamList, 'SpotDetail'>['route']
-}
-
+/**
+ * The Spot Hub landing screen — rebuilt on the design system.
+ *
+ * Wishlist save is a genuine offline-first WatermelonDB write
+ * (`createLocalWishlistItem`), NOT a React Query mutation: `sto_wishlist_items`
+ * is a synced pushable table, same pattern as `createLocalReview`.
+ */
 export default function SpotDetailScreen({ route, navigation }: Props) {
   const { spotId } = route.params
+  const theme = useTheme()
+  const database = useDatabase()
   const [tab, setTab] = useState<'Posts' | 'About'>('Posts')
 
-  const { data: spot } = useQuery({
+  const { data: spot, isLoading } = useQuery({
     queryKey: ['spot', spotId],
     queryFn: () => getSpot(spotId),
   })
@@ -34,93 +42,188 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
     queryFn: () => getSpotPosts(spotId),
   })
 
-  const posts = postsData?.data ?? []
+  const { isSaved, isQueued } = useIsSpotSaved(spotId)
 
-  // `PostResource` has no media key — never has. This grid used to read
-  // `item.media?.[0]` and render nothing in production; it now renders an
-  // honest placeholder tile instead of pretending a thumbnail exists.
+  const posts = postsData?.data ?? []
+  const media = spot?.media ?? []
+  const categories = spot?.categories ?? []
+  const title = spot?.title ?? spot?.name ?? '...'
+
+  const onSave = useCallback(async () => {
+    if (isSaved) return
+    await createLocalWishlistItem(database, { spotId: null, spotUuid: spotId })
+  }, [database, isSaved, spotId])
+
   const renderThumb = useCallback(
     ({ item }: { item: Post }) => (
-      <TouchableOpacity
+      <Pressable
+        accessibilityRole="button"
         onPress={() => navigation.navigate('PostDetail', { postId: item.uuid })}
       >
-        <View style={[styles.thumb, { backgroundColor: '#1a3040' }]} />
-      </TouchableOpacity>
+        {item.media?.[0]?.url ? (
+          <Image source={{ uri: item.media[0].url }} style={{ width: THUMB, height: THUMB }} contentFit="cover" />
+        ) : (
+          <View style={{ width: THUMB, height: THUMB, backgroundColor: theme.colors.surfaceAlt }} />
+        )}
+      </Pressable>
     ),
-    [navigation],
+    [navigation, theme.colors.surfaceAlt],
   )
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity style={styles.back} onPress={() => navigation.goBack()}>
-        <Text style={styles.backText}>← Back</Text>
-      </TouchableOpacity>
-
-      <View style={styles.hero} />
-
-      <View style={styles.info}>
-        <View style={styles.titleRow}>
-          <Text style={styles.name}>{spot?.name ?? '...'}</Text>
-          {spot?.status === 'active' && (
-            <View style={styles.verified}><Text style={styles.verifiedText}>✓ Verified</Text></View>
-          )}
-        </View>
-        {spot?.category && (
-          <View style={styles.chip}><Text style={styles.chipText}>📍 {spot.category.name}</Text></View>
-        )}
-      </View>
-
-      <View style={styles.tabs}>
-        {(['Posts', 'About'] as const).map((t) => (
-          <TouchableOpacity key={t} style={[styles.tab, tab === t && styles.tabActive]} onPress={() => setTab(t)}>
-            <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {tab === 'Posts' ? (
-        <FlatList
-          data={posts}
-          numColumns={3}
-          keyExtractor={(p) => p.uuid}
-          renderItem={renderThumb}
-          contentContainerStyle={{ gap: 2 }}
-          columnWrapperStyle={{ gap: 2 }}
-        />
-      ) : (
-        <View style={styles.about}>
-          {spot?.description ? <Text style={styles.desc}>{spot.description}</Text> : null}
-          {spot?.address ? <Text style={styles.addr}>📍 {spot.address}</Text> : null}
-          <Text style={styles.coords}>
-            {spot?.latitude?.toFixed(4)}, {spot?.longitude?.toFixed(4)}
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
+      <ScrollView contentContainerStyle={{ paddingBottom: theme.spacing[7] }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          onPress={() => navigation.goBack()}
+          style={{
+            position: 'absolute',
+            top: theme.spacing[3],
+            left: theme.spacing[3],
+            zIndex: 10,
+            minWidth: theme.minTouchTarget,
+            minHeight: theme.minTouchTarget,
+            borderRadius: theme.radius.chip,
+            backgroundColor: theme.colors.card,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: theme.spacing[3],
+          }}
+        >
+          <Text variant="body" color="ink">
+            ← Back
           </Text>
+        </Pressable>
+
+        <Pressable
+          testID="spot-hero"
+          accessibilityRole="button"
+          accessibilityLabel="View photos"
+          onPress={() => navigation.navigate('PhotoGallery', { spotId })}
+          disabled={media.length === 0}
+        >
+          {media.length > 0 ? (
+            <Image
+              testID="spot-hero-image"
+              source={{ uri: media[0].url }}
+              style={{ width: '100%', height: HERO_HEIGHT, backgroundColor: theme.colors.surfaceAlt }}
+              contentFit="cover"
+              transition={theme.motion.fast}
+            />
+          ) : (
+            <View
+              style={{
+                width: '100%',
+                height: HERO_HEIGHT,
+                backgroundColor: theme.colors.surfaceAlt,
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: theme.spacing[1],
+              }}
+            >
+              <Text variant="h2" color="muted">
+                🖼
+              </Text>
+              <Text variant="body" color="muted">
+                No photos yet
+              </Text>
+            </View>
+          )}
+        </Pressable>
+
+        <View style={{ padding: theme.gutter, gap: theme.spacing[2] }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2] }}>
+            <Text variant="h1" style={{ flex: 1 }} numberOfLines={2}>
+              {title}
+            </Text>
+            {spot?.status === 'active' && <Tag label="✓ Verified" />}
+          </View>
+
+          {categories.length > 0 && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing[1] }}>
+              {categories.map((category) => (
+                <Tag key={category} label={category} />
+              ))}
+            </View>
+          )}
+
+          {isLoading || !spot ? (
+            <Skeleton height={20} width="40%" />
+          ) : (
+            <Rating value={spot.rating_average ?? 0} reviewCount={spot.reviews_count ?? 0} />
+          )}
+
+          <View style={{ flexDirection: 'row', gap: theme.spacing[3] }}>
+            <Button
+              label={`See all ${spot?.reviews_count ?? 0} reviews`}
+              variant="secondary"
+              onPress={() => navigation.navigate('Reviews', { spotId })}
+              style={{ flex: 1 }}
+            />
+            <Button
+              label="Write a review"
+              variant="secondary"
+              onPress={() => navigation.navigate('WriteReview', { spotId })}
+              style={{ flex: 1 }}
+            />
+          </View>
+
+          <Button
+            label={isSaved ? (isQueued ? 'Saved ↑' : 'Saved') : 'Save'}
+            variant={isSaved ? 'secondary' : 'accent'}
+            disabled={isSaved}
+            onPress={onSave}
+          />
         </View>
-      )}
-    </View>
+
+        <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: theme.colors.hairline }}>
+          {(['Posts', 'About'] as const).map((t) => (
+            <Pressable
+              key={t}
+              accessibilityRole="button"
+              accessibilityState={{ selected: tab === t }}
+              onPress={() => setTab(t)}
+              style={{
+                flex: 1,
+                minHeight: theme.minTouchTarget,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderBottomWidth: tab === t ? 2 : 0,
+                borderBottomColor: theme.colors.primary,
+              }}
+            >
+              <Text variant="body" color={tab === t ? 'primary' : 'muted'}>
+                {t}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {tab === 'Posts' ? (
+          <FlatList
+            data={posts}
+            numColumns={3}
+            keyExtractor={(p) => p.uuid}
+            renderItem={renderThumb}
+            contentContainerStyle={{ gap: 2 }}
+            columnWrapperStyle={{ gap: 2 }}
+            scrollEnabled={false}
+          />
+        ) : (
+          <View style={{ padding: theme.gutter, gap: theme.spacing[2] }}>
+            {spot?.description ? <Text variant="body">{spot.description}</Text> : null}
+            {spot?.address ? (
+              <Text variant="caption" color="muted">
+                📍 {spot.address}
+              </Text>
+            ) : null}
+            <Text variant="caption" color="muted">
+              {spot?.latitude?.toFixed(4)}, {spot?.longitude?.toFixed(4)}
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   )
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f1923' },
-  back: { position: 'absolute', top: 48, left: 16, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: 8 },
-  backText: { color: '#fff' },
-  hero: { height: 220, backgroundColor: '#1a3040' },
-  info: { padding: 16 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  name: { fontSize: 22, fontWeight: 'bold', color: '#fff', flex: 1 },
-  verified: { backgroundColor: 'rgba(0,200,100,0.2)', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3 },
-  verifiedText: { color: '#0c6', fontSize: 12 },
-  chip: { alignSelf: 'flex-start', backgroundColor: 'rgba(0,180,216,0.15)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  chipText: { color: '#00b4d8', fontSize: 13 },
-  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' },
-  tab: { flex: 1, paddingVertical: 12, alignItems: 'center' },
-  tabActive: { borderBottomWidth: 2, borderBottomColor: '#00b4d8' },
-  tabText: { color: '#888', fontWeight: '600' },
-  tabTextActive: { color: '#00b4d8' },
-  thumb: { width: THUMB, height: THUMB },
-  thumbImg: { width: THUMB, height: THUMB },
-  about: { padding: 16, gap: 8 },
-  desc: { color: '#eee', fontSize: 15, lineHeight: 22 },
-  addr: { color: '#aaa', fontSize: 14 },
-  coords: { color: '#555', fontSize: 12 },
-})

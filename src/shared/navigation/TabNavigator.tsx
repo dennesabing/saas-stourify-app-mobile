@@ -13,11 +13,14 @@ import EditProfileScreen from '@/features/profile/screens/EditProfileScreen'
 import FollowListScreen from '@/features/profile/screens/FollowListScreen'
 import ProfileScreen from '@/features/profile/screens/ProfileScreen'
 import SettingsScreen from '@/features/profile/screens/SettingsScreen'
+import ReviewsScreen from '@/features/reviews/screens/ReviewsScreen'
+import WriteReviewScreen from '@/features/reviews/screens/WriteReviewScreen'
 import SearchScreen from '@/features/search/screens/SearchScreen'
 import MediaPickerScreen from '@/features/social/screens/MediaPickerScreen'
 import PostComposeScreen from '@/features/social/screens/PostComposeScreen'
 import SpotPickerScreen from '@/features/social/screens/SpotPickerScreen'
 import MySpotsScreen from '@/features/spots/screens/MySpotsScreen'
+import PhotoGalleryScreen from '@/features/spots/screens/PhotoGalleryScreen'
 import SpotDetailScreen from '@/features/spots/screens/SpotDetailScreen'
 import SyncStatusScreen from '@/features/sync/screens/SyncStatusScreen'
 import TabBar from './TabBar'
@@ -48,6 +51,9 @@ function HomeStackNav() {
       <HomeStack.Screen name="PostDetail" component={PostDetailScreen} />
       <HomeStack.Screen name="Comments" component={CommentsScreen} />
       <HomeStack.Screen name="SpotDetail" component={SpotDetailScreen} />
+      <HomeStack.Screen name="PhotoGallery" component={PhotoGalleryScreen} />
+      <HomeStack.Screen name="Reviews" component={ReviewsScreen} />
+      <HomeStack.Screen name="WriteReview" component={WriteReviewScreen} />
     </HomeStack.Navigator>
   )
 }
@@ -60,6 +66,9 @@ function DiscoverStackNav() {
       <DiscoverStack.Screen name="Nearby" component={NearbyScreen} />
       <DiscoverStack.Screen name="SpotDetail" component={SpotDetailScreen} />
       <DiscoverStack.Screen name="PostDetail" component={PostDetailScreen} />
+      <DiscoverStack.Screen name="PhotoGallery" component={PhotoGalleryScreen} />
+      <DiscoverStack.Screen name="Reviews" component={ReviewsScreen} />
+      <DiscoverStack.Screen name="WriteReview" component={WriteReviewScreen} />
     </DiscoverStack.Navigator>
   )
 }
@@ -97,6 +106,9 @@ function ProfileStackNav() {
       <ProfileStack.Screen name="SyncStatus" component={SyncStatusScreen} />
       <ProfileStack.Screen name="PostDetail" component={PostDetailScreen} />
       <ProfileStack.Screen name="SpotDetail" component={SpotDetailScreen} />
+      <ProfileStack.Screen name="PhotoGallery" component={PhotoGalleryScreen} />
+      <ProfileStack.Screen name="Reviews" component={ReviewsScreen} />
+      <ProfileStack.Screen name="WriteReview" component={WriteReviewScreen} />
       <ProfileStack.Screen name="ThemeGallery" component={ThemeGalleryScreen} />
     </ProfileStack.Navigator>
   )

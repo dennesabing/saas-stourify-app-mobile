@@ -50,6 +50,9 @@ export type HomeStackParamList = {
   PostDetail: { postId: string }
   Comments: { postId: string }
   SpotDetail: { spotId: string }
+  PhotoGallery: { spotId: string }
+  Reviews: { spotId: string }
+  WriteReview: { spotId: string }
 }
 
 export type DiscoverStackParamList = {
@@ -59,6 +62,9 @@ export type DiscoverStackParamList = {
   Map: undefined
   SpotDetail: { spotId: string }
   PostDetail: { postId: string }
+  PhotoGallery: { spotId: string }
+  Reviews: { spotId: string }
+  WriteReview: { spotId: string }
 }
 
 export type CreateStackParamList = {
@@ -85,6 +91,9 @@ export type ProfileStackParamList = {
   Settings: undefined
   PostDetail: { postId: string }
   SpotDetail: { spotId: string }
+  PhotoGallery: { spotId: string }
+  Reviews: { spotId: string }
+  WriteReview: { spotId: string }
   /** The M2c offline queue surface — reached from Settings. */
   SyncStatus: undefined
   /** Development-only: renders every primitive for visual review. */
