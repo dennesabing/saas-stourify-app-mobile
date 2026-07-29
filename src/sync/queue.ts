@@ -1,5 +1,7 @@
 import { Q, type Database, type Model } from '@nozbe/watermelondb'
+import { File } from 'expo-file-system'
 import type ExplorerProfile from '@/db/models/ExplorerProfile'
+import type PendingMedia from '@/db/models/PendingMedia'
 import type Review from '@/db/models/Review'
 import type Spot from '@/db/models/Spot'
 import type SyncFailure from '@/db/models/SyncFailure'
@@ -34,7 +36,7 @@ export interface FailedQueueRow {
  * local-only failure table. `sto_cities` is excluded — it is pull-only
  * reference data and can never be queued (`syncConfig.ts:24-34`).
  */
-export const QUEUE_TABLES: readonly string[] = [...PUSHABLE_TABLES, 'sync_failures']
+export const QUEUE_TABLES: readonly string[] = [...PUSHABLE_TABLES, 'sync_failures', 'pending_media']
 
 interface TableCopy {
   icon: string
@@ -252,4 +254,82 @@ export async function retryAllFailures(database: Database): Promise<void> {
       await failure.destroyPermanently()
     }
   })
+}
+
+// -----------------------------------------------------------------------------
+// pending_media — the M2c Sync Status screen's own section (design spec §2.4)
+// -----------------------------------------------------------------------------
+
+/**
+ * Shaped to fit `SyncQueueRow`'s existing `pending`/`failed` props exactly, so
+ * the screen reuses the component rather than growing a media-specific one.
+ * `tableName` is always `'pending_media'` — never one of `PUSHABLE_TABLES` —
+ * which is how the screen's action handlers tell a photo row apart from a
+ * row-edit row and route to `retryMediaRow`/`discardMediaRow` instead of
+ * `retryRecord`/`discardRecord`.
+ */
+export async function listPendingMediaQueue(database: Database): Promise<PendingQueueRow[]> {
+  const rows = await database.get<PendingMedia>('pending_media').query(Q.where('state', 'pending')).fetch()
+
+  return rows
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map((row) => ({
+      id: row.id,
+      tableName: 'pending_media',
+      op: 'created' as QueueOp,
+      icon: '📷',
+      title: `Photo · ${row.filename}`,
+      meta: 'Queued to upload',
+    }))
+}
+
+export async function listFailedMediaQueue(database: Database): Promise<FailedQueueRow[]> {
+  const rows = await database.get<PendingMedia>('pending_media').query(Q.where('state', 'failed')).fetch()
+
+  return rows.map((row) => ({
+    id: row.id,
+    tableName: 'pending_media',
+    reason: row.lastError ?? 'The server rejected this photo.',
+    attempts: row.attempts,
+    lastError: row.lastError ?? '',
+    icon: '📷',
+    title: `Photo · ${row.filename}`,
+    meta: `Rejected: ${row.lastError ?? 'The server rejected this photo.'} · ${row.attempts} attempt${
+      row.attempts === 1 ? '' : 's'
+    }`,
+  }))
+}
+
+/** Resets a failed photo back to `pending` so the next media drain retries it. */
+export async function retryMediaRow(database: Database, id: string): Promise<void> {
+  const row = await database.get<PendingMedia>('pending_media').find(id)
+
+  await database.write(async () => {
+    await row.update((r: any) => {
+      r._setRaw('state', 'pending')
+      r._setRaw('last_error', null)
+    })
+  })
+}
+
+/**
+ * Deletes BOTH the row and its local file. The row alone is not enough — the
+ * server never received these bytes, so leaving the copy in `media-outbox/`
+ * behind is a storage leak nothing else will ever clean up (design spec §2.4).
+ */
+export async function discardMediaRow(database: Database, id: string): Promise<void> {
+  const row = await database.get<PendingMedia>('pending_media').find(id)
+  const path = row.localPath
+
+  await database.write(async () => {
+    await row.destroyPermanently()
+  })
+
+  try {
+    const file = new File(path)
+    if (file.exists) file.delete()
+  } catch {
+    // Already gone — nothing left to clean up.
+  }
 }

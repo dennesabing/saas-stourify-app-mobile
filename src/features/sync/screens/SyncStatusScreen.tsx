@@ -4,13 +4,22 @@ import { useDatabase } from '@nozbe/watermelondb/react'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, EmptyState, Text } from '@/shared/components/ui'
 import type { ProfileStackParamList } from '@/shared/navigation/types'
-import { discardRecord, retryAllFailures, retryRecord } from '@/sync/queue'
+import {
+  discardMediaRow,
+  discardRecord,
+  retryAllFailures,
+  retryMediaRow,
+  retryRecord,
+} from '@/sync/queue'
 import { syncNow } from '@/sync/scheduler'
 import { useSyncQueue } from '@/sync/useSyncQueue'
 import { useSyncStatusStore } from '@/sync/status'
 import { useTheme } from '@/theme/ThemeProvider'
 import SyncBanner from '../components/SyncBanner'
 import SyncQueueRow from '../components/SyncQueueRow'
+
+/** `pending_media`'s `tableName` is always this — never one of `PUSHABLE_TABLES`. */
+const MEDIA_TABLE = 'pending_media'
 
 type Props = NativeStackScreenProps<ProfileStackParamList, 'SyncStatus'>
 
@@ -26,14 +35,19 @@ type Props = NativeStackScreenProps<ProfileStackParamList, 'SyncStatus'>
 export default function SyncStatusScreen({ navigation }: Props) {
   const theme = useTheme()
   const database = useDatabase()
-  const { pending, failed } = useSyncQueue()
+  const { pending, failed, mediaPending, mediaFailed } = useSyncQueue()
   const phase = useSyncStatusStore((state) => state.phase)
 
   const isBusy = phase !== 'idle'
-  const hasQueue = pending.length > 0 || failed.length > 0
+  const hasQueue =
+    pending.length > 0 || failed.length > 0 || mediaPending.length > 0 || mediaFailed.length > 0
 
-  const handleRetry = async (recordId: string) => {
-    await retryRecord(database, recordId)
+  const handleRetry = async (tableName: string, recordId: string) => {
+    if (tableName === MEDIA_TABLE) {
+      await retryMediaRow(database, recordId)
+    } else {
+      await retryRecord(database, recordId)
+    }
     await syncNow(database, 'manual')
   }
 
@@ -48,7 +62,11 @@ export default function SyncStatusScreen({ navigation }: Props) {
           style: 'destructive',
           onPress: () => {
             void (async () => {
-              await discardRecord(database, tableName, recordId)
+              if (tableName === MEDIA_TABLE) {
+                await discardMediaRow(database, recordId)
+              } else {
+                await discardRecord(database, tableName, recordId)
+              }
               // The gate may now be clear, and "I fixed it, sync now" is the
               // user's mental model.
               await syncNow(database, 'manual')
@@ -110,7 +128,7 @@ export default function SyncStatusScreen({ navigation }: Props) {
                 key={`failed-${row.tableName}-${row.id}`}
                 variant="failed"
                 row={row}
-                onRetry={() => void handleRetry(row.id)}
+                onRetry={() => void handleRetry(row.tableName, row.id)}
                 onDiscard={() => handleDiscard(row.tableName, row.id, row.title)}
               />
             ))}
@@ -124,6 +142,26 @@ export default function SyncStatusScreen({ navigation }: Props) {
             </Text>
             {pending.map((row) => (
               <SyncQueueRow key={`pending-${row.tableName}-${row.id}`} variant="pending" row={row} />
+            ))}
+          </View>
+        ) : null}
+
+        {mediaPending.length > 0 || mediaFailed.length > 0 ? (
+          <View style={{ gap: theme.spacing[3] }}>
+            <Text variant="micro" color="muted">
+              Photos
+            </Text>
+            {mediaFailed.map((row) => (
+              <SyncQueueRow
+                key={`media-failed-${row.id}`}
+                variant="failed"
+                row={row}
+                onRetry={() => void handleRetry(row.tableName, row.id)}
+                onDiscard={() => handleDiscard(row.tableName, row.id, row.title)}
+              />
+            ))}
+            {mediaPending.map((row) => (
+              <SyncQueueRow key={`media-pending-${row.id}`} variant="pending" row={row} />
             ))}
           </View>
         ) : null}

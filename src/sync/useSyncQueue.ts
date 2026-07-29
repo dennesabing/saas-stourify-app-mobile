@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useDatabase } from '@nozbe/watermelondb/react'
 import {
+  listFailedMediaQueue,
   listFailedQueue,
+  listPendingMediaQueue,
   listPendingQueue,
   QUEUE_TABLES,
   type FailedQueueRow,
@@ -11,9 +13,17 @@ import {
 export interface SyncQueue {
   pending: PendingQueueRow[]
   failed: FailedQueueRow[]
+  /**
+   * `pending_media` rows — its own section on the Sync Status screen (design
+   * spec §2.4), never merged into `pending`/`failed`: a photo isn't a row
+   * edit and never participates in the skip-pull gate `pending`/`failed` here
+   * are downstream of.
+   */
+  mediaPending: PendingQueueRow[]
+  mediaFailed: FailedQueueRow[]
 }
 
-const EMPTY: SyncQueue = { pending: [], failed: [] }
+const EMPTY: SyncQueue = { pending: [], failed: [], mediaPending: [], mediaFailed: [] }
 
 /**
  * The live queue, straight from the database.
@@ -35,12 +45,15 @@ export function useSyncQueue(): SyncQueue {
     let cancelled = false
 
     const subscription = database.withChangesForTables([...QUEUE_TABLES]).subscribe(() => {
-      void Promise.all([listPendingQueue(database), listFailedQueue(database)]).then(
-        ([pending, failed]) => {
-          if (cancelled) return
-          setQueue({ pending, failed })
-        },
-      )
+      void Promise.all([
+        listPendingQueue(database),
+        listFailedQueue(database),
+        listPendingMediaQueue(database),
+        listFailedMediaQueue(database),
+      ]).then(([pending, failed, mediaPending, mediaFailed]) => {
+        if (cancelled) return
+        setQueue({ pending, failed, mediaPending, mediaFailed })
+      })
     })
 
     return () => {

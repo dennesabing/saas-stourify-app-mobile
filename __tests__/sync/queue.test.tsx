@@ -1,20 +1,85 @@
-import { Q } from '@nozbe/watermelondb'
+import { Q, type Database } from '@nozbe/watermelondb'
 import { render, screen, waitFor } from '@testing-library/react-native'
 import { Text } from 'react-native'
+import type PendingMedia from '@/db/models/PendingMedia'
 import type Spot from '@/db/models/Spot'
 import type SyncFailure from '@/db/models/SyncFailure'
 import type ExplorerProfile from '@/db/models/ExplorerProfile'
 import {
+  discardMediaRow,
   discardRecord,
+  listFailedMediaQueue,
   listFailedQueue,
+  listPendingMediaQueue,
   listPendingQueue,
   retryAllFailures,
+  retryMediaRow,
   retryRecord,
 } from '@/sync/queue'
 import { upsertSyncFailure } from '@/sync/pushService'
 import { useSyncQueue } from '@/sync/useSyncQueue'
 import { createTestDatabase, markSynced, seedSpot } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
+
+const mockFileRegistry = new Map<string, boolean>()
+const fsDeletes: string[] = []
+
+jest.mock('expo-file-system', () => {
+  class MockFile {
+    uri: string
+    constructor(...uris: Array<string | { uri: string }>) {
+      this.uri = uris.map((u) => (typeof u === 'string' ? u : u.uri)).join('/')
+    }
+    get exists() {
+      return mockFileRegistry.get(this.uri) ?? true
+    }
+    delete() {
+      mockFileRegistry.set(this.uri, false)
+      fsDeletes.push(this.uri)
+    }
+  }
+  return { __esModule: true, File: MockFile }
+})
+
+async function seedPendingMedia(
+  database: Database,
+  overrides: Partial<{
+    id: string
+    hostUuid: string
+    localPath: string
+    filename: string
+    state: string
+    attempts: number
+    lastError: string | null
+  }> = {},
+): Promise<PendingMedia> {
+  const seed = {
+    id: 'media-1',
+    hostUuid: 'spot-uuid-1',
+    localPath: 'file:///document-dir/media-outbox/media-1.jpg',
+    filename: 'beach.jpg',
+    state: 'pending',
+    attempts: 0,
+    lastError: null as string | null,
+    ...overrides,
+  }
+
+  return database.write(async () =>
+    database.get<PendingMedia>('pending_media').create((row: any) => {
+      row._raw.id = seed.id
+      row._raw.host_type = 'stourify_spot'
+      row._raw.host_uuid = seed.hostUuid
+      row._raw.local_path = seed.localPath
+      row._raw.filename = seed.filename
+      row._raw.mime = 'image/jpeg'
+      row._raw.size = 100
+      row._raw.state = seed.state
+      row._raw.attempts = seed.attempts
+      row._raw.last_error = seed.lastError
+      row._raw.created_at = Date.now()
+    }),
+  )
+}
 
 it('lists a locally created spot as a pending create', async () => {
   const database = createTestDatabase()
@@ -232,6 +297,57 @@ it('sorts the pending queue newest first', async () => {
 
   const rows = await listPendingQueue(database)
   expect(rows.map((row) => row.id)).toEqual(['newer', 'older'])
+})
+
+it('lists a pending photo in the media queue, separate from row changes', async () => {
+  const database = createTestDatabase()
+  await seedPendingMedia(database, { filename: 'beach.jpg' })
+
+  const rows = await listPendingMediaQueue(database)
+
+  expect(rows).toHaveLength(1)
+  expect(rows[0]).toMatchObject({ id: 'media-1', tableName: 'pending_media' })
+  expect(rows[0].title).toContain('beach.jpg')
+  expect(await listPendingQueue(database)).toHaveLength(0)
+})
+
+it('lists a failed photo with the server message and attempts', async () => {
+  const database = createTestDatabase()
+  await seedPendingMedia(database, {
+    id: 'media-2',
+    filename: 'cove.png',
+    state: 'failed',
+    attempts: 1,
+    lastError: 'The file exceeds the maximum size.',
+  })
+
+  const rows = await listFailedMediaQueue(database)
+
+  expect(rows).toHaveLength(1)
+  expect(rows[0].id).toBe('media-2')
+  expect(rows[0].meta).toContain('The file exceeds the maximum size.')
+})
+
+it('retryMediaRow resets a failed photo to pending so the next drain picks it up', async () => {
+  const database = createTestDatabase()
+  await seedPendingMedia(database, { state: 'failed', attempts: 2, lastError: 'boom' })
+
+  await retryMediaRow(database, 'media-1')
+
+  const row = await database.get<PendingMedia>('pending_media').find('media-1')
+  expect(row.state).toBe('pending')
+  expect(await listPendingMediaQueue(database)).toHaveLength(1)
+  expect(await listFailedMediaQueue(database)).toHaveLength(0)
+})
+
+it('discardMediaRow deletes both the row AND the local file — a discard that leaks bytes is a storage leak nothing will ever clean up', async () => {
+  const database = createTestDatabase()
+  await seedPendingMedia(database, { localPath: 'file:///document-dir/media-outbox/media-1.jpg' })
+
+  await discardMediaRow(database, 'media-1')
+
+  await expect(database.get<PendingMedia>('pending_media').find('media-1')).rejects.toThrow()
+  expect(fsDeletes).toContain('file:///document-dir/media-outbox/media-1.jpg')
 })
 
 function QueueProbe() {

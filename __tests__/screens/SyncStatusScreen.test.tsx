@@ -1,5 +1,7 @@
+import type { Database } from '@nozbe/watermelondb'
 import { Alert } from 'react-native'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import type PendingMedia from '@/db/models/PendingMedia'
 import type Spot from '@/db/models/Spot'
 import SyncStatusScreen from '@/features/sync/screens/SyncStatusScreen'
 import { upsertSyncFailure } from '@/sync/pushService'
@@ -10,12 +12,65 @@ import { TestProviders } from '../support/TestProviders'
 
 jest.mock('@/sync/scheduler', () => ({ syncNow: jest.fn(async () => undefined) }))
 
+const mockFileRegistry = new Map<string, boolean>()
+const fsDeletes: string[] = []
+
+jest.mock('expo-file-system', () => {
+  class MockFile {
+    uri: string
+    constructor(...uris: Array<string | { uri: string }>) {
+      this.uri = uris.map((u) => (typeof u === 'string' ? u : u.uri)).join('/')
+    }
+    get exists() {
+      return mockFileRegistry.get(this.uri) ?? true
+    }
+    delete() {
+      mockFileRegistry.set(this.uri, false)
+      fsDeletes.push(this.uri)
+    }
+  }
+  return { __esModule: true, File: MockFile }
+})
+
+async function seedPendingMedia(
+  database: Database,
+  overrides: Partial<{ id: string; filename: string; state: string; attempts: number; lastError: string | null; localPath: string }> = {},
+): Promise<PendingMedia> {
+  const seed = {
+    id: 'media-1',
+    filename: 'beach.jpg',
+    state: 'pending',
+    attempts: 0,
+    lastError: null as string | null,
+    localPath: 'file:///document-dir/media-outbox/media-1.jpg',
+    ...overrides,
+  }
+
+  return database.write(async () =>
+    database.get<PendingMedia>('pending_media').create((row: any) => {
+      row._raw.id = seed.id
+      row._raw.host_type = 'stourify_spot'
+      row._raw.host_uuid = 'spot-uuid-1'
+      row._raw.local_path = seed.localPath
+      row._raw.filename = seed.filename
+      row._raw.mime = 'image/jpeg'
+      row._raw.size = 100
+      row._raw.state = seed.state
+      row._raw.attempts = seed.attempts
+      row._raw.last_error = seed.lastError
+      row._raw.created_at = Date.now()
+    }),
+  )
+}
+
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 const route = {} as any
 
 beforeEach(() => {
   jest.clearAllMocks()
   resetSyncStatus()
+  mockFileRegistry.clear()
+  fsDeletes.length = 0
 })
 
 it('shows an offline write in the queue with no sync cycle having run', async () => {
@@ -164,6 +219,74 @@ it('shows the empty state when the queue is clean', async () => {
     expect(screen.getByText('All changes synced')).toBeTruthy()
     expect(screen.getByText('Everything is synced')).toBeTruthy()
   })
+})
+
+it('shows a pending photo in its own Photos section', async () => {
+  const database = createTestDatabase()
+  await seedPendingMedia(database, { filename: 'beach.jpg' })
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() => {
+    expect(screen.getByText('Photos')).toBeTruthy()
+    expect(screen.getByText('Photo · beach.jpg')).toBeTruthy()
+  })
+})
+
+it('discarding a photo deletes the local file as well as the row', async () => {
+  const database = createTestDatabase()
+  await seedPendingMedia(database, {
+    filename: 'cove.png',
+    state: 'failed',
+    attempts: 1,
+    lastError: 'The file exceeds the maximum size.',
+    localPath: 'file:///document-dir/media-outbox/media-1.jpg',
+  })
+
+  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
+    const discard = (buttons ?? []).find((button) => button.text === 'Discard')
+    void discard?.onPress?.()
+  })
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() => expect(screen.getByText('Photo · cove.png')).toBeTruthy())
+  fireEvent.press(screen.getByLabelText('Discard Photo · cove.png'))
+
+  await waitFor(() => {
+    expect(fsDeletes).toContain('file:///document-dir/media-outbox/media-1.jpg')
+  })
+  await expect(database.get<PendingMedia>('pending_media').find('media-1')).rejects.toThrow()
+
+  alertSpy.mockRestore()
+})
+
+it('retrying a failed photo resets it to pending and runs a cycle', async () => {
+  const database = createTestDatabase()
+  await seedPendingMedia(database, { filename: 'cove.png', state: 'failed', attempts: 1, lastError: 'boom' })
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() => expect(screen.getByLabelText('Retry Photo · cove.png')).toBeTruthy())
+  fireEvent.press(screen.getByLabelText('Retry Photo · cove.png'))
+
+  await waitFor(async () => {
+    const row = await database.get<PendingMedia>('pending_media').find('media-1')
+    expect(row.state).toBe('pending')
+  })
+  expect(syncNow).toHaveBeenCalled()
 })
 
 it('goes back to Settings', async () => {
