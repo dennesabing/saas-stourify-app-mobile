@@ -184,6 +184,24 @@ export interface Person {
   is_private: boolean
 }
 
+/**
+ * Mirrors `App\Http\Resources\MediaResource::toArray()` — the shape
+ * `POST /media/attach` returns as its `data`.
+ */
+export interface Media {
+  id: number
+  uuid: string
+  name: string
+  file_name: string
+  mime_type: string
+  size: number
+  url: string
+  thumb_url: string | null
+  collection_name: string
+  created_at: string | null
+  can: Record<string, boolean>
+}
+
 export interface AuthConfig {
   invitation_only: boolean
   registration_enabled: boolean
