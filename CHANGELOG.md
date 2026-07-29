@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **M3a — auth entry flow.** Welcome, Forgot password and Reset password screens; Login and Register
+  rebuilt on the Wander D4 design system behind a new `ui/Input` primitive. Register now reads
+  `GET /auth/config` first, so the invitation-code field appears only when the server requires one
+  and a closed registration is stated up front instead of failing on submit.
+- **Persisted query cache.** `@tanstack/react-query-persist-client` over AsyncStorage, 24h max age,
+  busted by app version. This — not the sync registry — is how the feed and other read surfaces
+  render offline: the server's sync scope is per-user (`SyncRegistry::scope()`), and a feed is other
+  people's rows under a follow-graph audience rule, which the delta contract cannot express. The
+  backend states the same intent at `FeedApiController.php:33-39`.
 - **Sync Status screen (M2c)** — `Settings → Offline & sync`, the app's offline honesty surface and
   the last open M2 exit criterion. It shows the real outbox queue read straight from the local
   database, every server rejection with the server's own error text, and per-row **Retry** /
@@ -32,6 +41,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Registering no longer leaves the sync session cold.** `RegisterScreen` never called `onLogin()`,
+  which `LoginScreen` has always called — so a newly registered account had no primed local database
+  and no sync cursor until its next sign-in.
+- **No more Login flash on cold start.** `RootNavigator` rendered on a token that was still null for
+  one frame while `loadFromStorage()` resolved. Navigation is now gated on rehydration behind a
+  splash.
+- Removed the dead `VerifyEmail` route: there is no `/api/v1` email-verification endpoint (the only
+  verification routes are session/Inertia web routes), and verification is never enforced — `User`
+  does not implement `MustVerifyEmail` and no API route carries `verified`.
 - **The sync scheduler is now stopped on logout, before the database wipe.** It was started in
   `App.tsx` and only ever stopped on component unmount, which never runs on logout — so after a real
   logout the connectivity and AppState listeners stayed live and fired sync cycles against a wiped
