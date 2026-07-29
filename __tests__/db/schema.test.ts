@@ -100,6 +100,28 @@ describe('the local schema against the server allowlist', () => {
     )
   })
 
+  it('is at schema version 2, carrying the pending_media migration', () => {
+    expect(stourifySchema.version).toBe(2)
+  })
+
+  it('declares the local-only pending_media table, which is not synced', () => {
+    expect(SYNCED_TABLES).not.toContain('pending_media')
+    expect(columnNames('pending_media').sort()).toEqual(
+      [
+        'attempts',
+        'created_at',
+        'filename',
+        'host_type',
+        'host_uuid',
+        'last_error',
+        'local_path',
+        'mime',
+        'size',
+        'state',
+      ].sort(),
+    )
+  })
+
   it('can hold every row shape the real delta fixture actually returned', () => {
     for (const table of SYNCED_TABLES) {
       const rows = (delta as Record<string, any>)[table].created as Record<string, unknown>[]

@@ -1,9 +1,11 @@
 import { Database } from '@nozbe/watermelondb'
 import type { DatabaseAdapter } from '@nozbe/watermelondb/adapters/type'
 import { stourifySchema } from './schema'
+import { stourifyMigrations } from './migrations'
 import City from './models/City'
 import ExplorerProfile from './models/ExplorerProfile'
 import Follow from './models/Follow'
+import PendingMedia from './models/PendingMedia'
 import Review from './models/Review'
 import Spot from './models/Spot'
 import SyncFailure from './models/SyncFailure'
@@ -12,6 +14,7 @@ import WishlistItem from './models/WishlistItem'
 export { default as City } from './models/City'
 export { default as ExplorerProfile } from './models/ExplorerProfile'
 export { default as Follow } from './models/Follow'
+export { default as PendingMedia } from './models/PendingMedia'
 export { default as Review } from './models/Review'
 export { default as Spot } from './models/Spot'
 export { default as SyncFailure } from './models/SyncFailure'
@@ -25,6 +28,7 @@ export const modelClasses = [
   ExplorerProfile,
   City,
   SyncFailure,
+  PendingMedia,
 ]
 
 /**
@@ -55,7 +59,12 @@ export function getDatabase(): Database {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const SQLiteAdapter = require('@nozbe/watermelondb/adapters/sqlite').default
     nativeDatabase = createDatabase(
-      new SQLiteAdapter({ schema: stourifySchema, jsi: true, dbName: 'stourify' }),
+      new SQLiteAdapter({
+        schema: stourifySchema,
+        migrations: stourifyMigrations,
+        jsi: true,
+        dbName: 'stourify',
+      }),
     )
   }
   return nativeDatabase

@@ -2,6 +2,7 @@ import type { Database, Model } from '@nozbe/watermelondb'
 import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs'
 import { createDatabase } from '@/db'
 import { stourifySchema } from '@/db/schema'
+import { stourifyMigrations } from '@/db/migrations'
 import type City from '@/db/models/City'
 import type ExplorerProfile from '@/db/models/ExplorerProfile'
 import type Spot from '@/db/models/Spot'
@@ -25,6 +26,7 @@ export function createTestDatabase(): Database {
   return createDatabase(
     new LokiJSAdapter({
       schema: stourifySchema,
+      migrations: stourifyMigrations,
       useWebWorker: false,
       useIncrementalIndexedDB: false,
       extraLokiOptions: { autosave: false },

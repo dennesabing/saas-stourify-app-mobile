@@ -40,7 +40,7 @@ export type SyncedTable = (typeof SYNCED_TABLES)[number]
  *    clobbers them.
  */
 export const stourifySchema: AppSchema = appSchema({
-  version: 1,
+  version: 2,
   tables: [
     tableSchema({
       name: 'sto_spots',
@@ -170,6 +170,34 @@ export const stourifySchema: AppSchema = appSchema({
         { name: 'attempts', type: 'number' },
         { name: 'last_error', type: 'string' },
         { name: 'failed_at', type: 'number' },
+      ],
+    }),
+    // Local only — never in SYNCED_TABLES, never pushed, never pulled. The
+    // offline media outbox: bytes are copied into app-private storage at
+    // capture time (`queueLocalMedia`) and recorded here; a second drain
+    // phase presigns, PUTs and attaches them once their host row is acked.
+    // Added in schema v2 via a MIGRATION (`src/db/migrations.ts`), not a
+    // destructive reset — a reset would discard un-drained offline writes,
+    // exactly the data this project exists to protect.
+    tableSchema({
+      name: 'pending_media',
+      columns: [
+        // Morph alias (e.g. `stourify_spot`), not FQCN — `AllowedMorph` on
+        // the backend validates the alias.
+        { name: 'host_type', type: 'string' },
+        // The host row's uuid; `attach` resolves the host by it.
+        { name: 'host_uuid', type: 'string', isIndexed: true },
+        // App-private copy of the bytes — never the picker/camera URI.
+        { name: 'local_path', type: 'string' },
+        { name: 'filename', type: 'string' },
+        { name: 'mime', type: 'string' },
+        // Advisory only; the server enforces its own ceiling at attach.
+        { name: 'size', type: 'number' },
+        // 'pending' | 'uploading' | 'failed'
+        { name: 'state', type: 'string', isIndexed: true },
+        { name: 'attempts', type: 'number' },
+        { name: 'last_error', type: 'string', isOptional: true },
+        { name: 'created_at', type: 'number' },
       ],
     }),
   ],
