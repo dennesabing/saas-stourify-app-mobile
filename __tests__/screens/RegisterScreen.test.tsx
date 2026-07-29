@@ -13,12 +13,23 @@ jest.mock('@/shared/api/auth', () => ({
 
 jest.mock('@/sync/session', () => ({ onLogin: jest.fn(async () => undefined) }))
 
-jest.mock('@/shared/store/auth', () => ({
-  useAuthStore: () => ({
-    setToken: jest.fn(),
-    setUser: jest.fn(),
-  }),
-}))
+// Stable spies (not fresh ones per render) so a test can observe WHEN they ran
+// relative to the onboarding flag.
+jest.mock('@/shared/store/auth', () => {
+  const setToken = jest.fn()
+  const setUser = jest.fn()
+
+  return {
+    useAuthStore: () => ({ setToken, setUser }),
+    __authMocks: { setToken, setUser },
+  }
+})
+
+const { setToken: setTokenMock } = (
+  jest.requireMock('@/shared/store/auth') as {
+    __authMocks: { setToken: jest.Mock; setUser: jest.Mock }
+  }
+).__authMocks
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 const route = {} as any
@@ -34,6 +45,28 @@ function renderScreen() {
 beforeEach(() => {
   jest.clearAllMocks()
   useOnboardingStore.setState({ shouldOnboard: false, completed: null })
+})
+
+it('flags onboarding BEFORE the token flips, so the feed never mounts first', async () => {
+  // The invariant, and why it is not cosmetic: `setToken` is what makes
+  // `RootNavigator`'s `token` truthy, and the navigator picks its stack on that
+  // very render. If `shouldOnboard` is still false at that moment,
+  // `needsOnboarding` is false, MainTabs mounts, and the feed fires `/feed` and
+  // `/sync/delta` before onboarding is ever considered — which is exactly what
+  // was observed on device on 2026-07-29.
+  let shouldOnboardWhenTokenSet: boolean | null = null
+
+  setTokenMock.mockImplementation(() => {
+    shouldOnboardWhenTokenSet = useOnboardingStore.getState().shouldOnboard
+  })
+
+  renderScreen()
+  await fillValidForm()
+  fireEvent.press(screen.getByText('Create account'))
+
+  await waitFor(() => expect(setTokenMock).toHaveBeenCalled())
+
+  expect(shouldOnboardWhenTokenSet).toBe(true)
 })
 
 async function fillValidForm() {

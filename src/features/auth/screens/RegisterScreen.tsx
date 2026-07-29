@@ -50,12 +50,23 @@ export default function RegisterScreen({ navigation }: Props) {
     try {
       const code = invitationOnly ? data.code : undefined
       const res = await authApi.register(data.name, data.email, data.password, data.password_confirmation, code)
+      // MUST come before `setToken`. A login never sets this — only a
+      // successful registration routes into onboarding (`RootNavigator`).
+      //
+      // Ordering is load-bearing: `setToken` is what makes `RootNavigator`'s
+      // `token` truthy, and the navigator chooses its stack on that same
+      // render. Flagging onboarding afterwards left a window in which
+      // `needsOnboarding` was false, so MainTabs mounted and the feed fired
+      // `/feed` + `/sync/delta` before onboarding was ever considered. With
+      // `await onLogin()` in between — a full sync cycle — that window was
+      // seconds wide on a real network, and the user simply landed on the feed.
+      // Observed on device 2026-07-29; every jest test still passed, because
+      // none of them rendered the navigator.
+      useOnboardingStore.getState().markRegistered()
+
       setToken(res.token)
       setUser(res.user)
       await onLogin()
-      // A login never sets this — only a successful registration routes into
-      // onboarding (`RootNavigator`).
-      useOnboardingStore.getState().markRegistered()
     } catch (err) {
       const ve = extractValidationErrors(err)
       const knownFields: (keyof FormData)[] = ['name', 'email', 'password', 'password_confirmation', 'code']
