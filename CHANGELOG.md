@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **M4a — the offline media pipeline.** Photos captured offline now survive an app kill and attach
+  themselves to their host on reconnect. Before this, a picked photo existed only as an OS-owned
+  cache URI held in navigation state: nothing persisted it, nothing queued it, and it was lost the
+  moment the screen unmounted or Android reclaimed the cache. "Create a spot with 3 photos entirely
+  offline" was not achievable at any layer.
+  - `pending_media` — a **local-only** table (never in `SYNCED_TABLES`, never pushed as a row),
+    added in **schema v2 through a WatermelonDB migration**, not a destructive reset: a reset would
+    have discarded un-drained offline writes, which is exactly the data this project exists to
+    protect. A test proves a v1 database with rows survives the migration.
+  - `queueLocalMedia()` **copies the bytes** into app-private storage before recording the row. The
+    picker URI is an OS cache entry the system may reclaim; the copy is the difference between
+    "offline-capable" and "works if you reconnect fast enough".
+  - `src/shared/api/media.ts` — the presign client the backend has had since M1 and the app had
+    never called. The PUT goes through bare axios, never the shared client, so a presigned URL is
+    not rejected for carrying an unexpected `Authorization` header.
+  - `mediaDrain.ts` — **phase 2 of the sync cycle**, running after the pull. A pending row whose
+    host is still dirty is skipped, because `attach` resolves the host by `model_uuid` and the row
+    must exist server-side first. Presigning happens at drain time, never at capture time — the
+    signed URL lives 15 minutes and one minted while offline is dead on arrival.
+  - Pending photos get their own section in the M2c Sync Status screen, with Retry and Discard.
+    **Discard deletes the local file as well as the row** — a discard that leaks bytes is a storage
+    leak nothing would ever clean up.
+
+  **The load-bearing decision: the media drain is deliberately OUTSIDE the skip-pull gate.** That
+  gate exists because the pull applies deltas with unconditional server-wins and would silently
+  destroy an unpushed *row edit*. A pending photo is not a row edit — no incoming delta can destroy
+  it. Gating the pull on photo uploads would resurrect the exact indefinite stall M2c was built to
+  escape, for a failure class that cannot lose data. A regression test asserts that a permanently
+  failing upload leaves `fullyAcked` true and the pull still runs.
+
 - **M3c Task 4 — Spot Hub: profile, gallery and reviews.** `SpotDetailScreen` rebuilt on the
   design system (was raw `StyleSheet`, hex literals, an empty grey `View` as the hero): a real hero
   from `media[0].url` with a design-system placeholder when a spot has no photos (never a bare grey
