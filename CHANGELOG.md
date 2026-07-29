@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **M3b — post-registration onboarding (4 screens).** `Onboarding` stack (`Permissions` →
+  `Interests` → `HomeCity` → `FollowSuggestions`), wired into `RootStackParamList` and entered
+  only after registration, never on every login — an AsyncStorage completion flag stops it from
+  replaying.
+  - `PermissionsScreen` asks for location only, with copy explaining why (nearby spots) before the
+    OS prompt fires, and a visible Skip. `expo-notifications` is not installed and push is M5 work,
+    so no notification permission is requested here.
+  - `InterestsScreen` writes the chip selection to `ExplorerProfile.interests` through a local
+    WatermelonDB write, the same path `CreateSpotScreen` uses — `sto_explorer_profiles` is a
+    synced, pushable table, so the choice survives a bad connection and drains through the M2 queue
+    rather than blocking on the network.
+  - `HomeCityScreen` reads `sto_cities` from the local database, not the network — cities are
+    pull-only reference data M2 already syncs, so the screen works offline by construction. A
+    "still syncing" state covers the fresh-account case where the first delta has not landed yet.
+  - `FollowSuggestionsScreen` is search-backed (`GET /discover/search`) with Follow buttons and a
+    prominent Skip — see the scope decisions below; it is not a recommendations screen.
+- **M3b — Activity reshaped to the follow-request inbox.** `ActivityScreen` (was a 25-line stub)
+  now lists pending requests from `GET /api/v1/follows/requests` with Accept/Decline, and
+  `Profile` is registered in `ActivityStackParamList` so a row can push a profile. See the scope
+  decisions below.
+- **M3b — Maestro e2e**: `.maestro/register-onboard-feed.yaml` drives register → onboard (skip
+  every step) → feed, asserting on user-visible copy only. `npm run e2e`; see `docs/e2e.md`. Not
+  run in this environment — see that doc's Prerequisites and the task report for the observed
+  blockers.
 - **M3b — themed `PostCard` and the feed path.** `ui/PostCard` replaces the legacy
   `shared/components/PostCard.tsx` (hardcoded palette, hand-rolled initials, and it read
   `post.user`/`post.media`, fields `PostResource` never sends) — built on `Card`/`Avatar`/`Tag`/`Text`
@@ -60,6 +84,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ReactionController::index`/`respondWith()`: `GET /api/v1/reactions` returns `{reacted, mine,
   counts}`, reaction *counts*, never the reacting users. Building a likes list would mean fabricating
   a user list from a count. Revisit if a reactions-listing endpoint is ever added.
+- **Trail Stories shell — cut, not built.** It is a placeholder for Community, which is deferred
+  past the beta, and item 3 on the milestone doc's own pre-agreed cut list. Building a shell for a
+  deferred feature is the cheapest thing to not do.
+
+### M3b scope decisions
+
+Recorded here, with reasons, so a reviewer sees a decision rather than an omission:
+
+1. **Trail Stories shell — cut.** See Removed above.
+2. **Activity — reshaped to the follow-request inbox**, not a notifications feed. There is no
+   activity/notifications API anywhere in the module or the boilerplate — no endpoint, no table,
+   nothing to render. `GET /api/v1/follows/requests` (+ accept/decline) is what genuinely exists
+   and is actionable. A real activity feed needs a server-side notifications subsystem, out of
+   M3b's scope.
+3. **Likes list — cut.** See Removed above; `GET /api/v1/reactions` returns counts, not the
+   reacting users.
+4. **Follow suggestions (onboarding) — search-backed, not recommendations.** There is no
+   suggestions endpoint. `FollowSuggestionsScreen` offers people-search via `GET /discover/search`
+   with a prominent Skip; it does not pretend to be a recommendation feed, which needs a
+   server-side query this milestone does not build.
 
 ### Fixed
 
