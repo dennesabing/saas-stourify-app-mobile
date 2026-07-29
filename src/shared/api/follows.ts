@@ -11,6 +11,12 @@ export async function getFollowing(userUuid: string): Promise<PaginatedResponse<
   return res.data
 }
 
+/** Pending requests addressed to the caller — `follower` is the requester. */
+export async function getFollowRequests(): Promise<PaginatedResponse<Follow>> {
+  const res = await client.get('/follows/requests')
+  return res.data
+}
+
 export async function follow(userUuid: string): Promise<Follow> {
   const res = await client.post(`/users/${userUuid}/follow`)
   return res.data.data

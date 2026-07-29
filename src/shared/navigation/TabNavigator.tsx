@@ -82,6 +82,7 @@ function ActivityStackNav() {
     <ActivityStack.Navigator screenOptions={stackOptions}>
       <ActivityStack.Screen name="Activity" component={ActivityScreen} />
       <ActivityStack.Screen name="PostDetail" component={PostDetailScreen} />
+      <ActivityStack.Screen name="Profile" component={ProfileScreen} />
     </ActivityStack.Navigator>
   )
 }
