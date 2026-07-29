@@ -79,3 +79,8 @@ export interface ApiError {
   errors?: Record<string, string[]>
   status?: number
 }
+
+export interface AuthConfig {
+  invitation_only: boolean
+  registration_enabled: boolean
+}
