@@ -3,6 +3,32 @@ import { isSyncInFlight, runSyncCycle } from '@/sync/cycle'
 import { resetSyncStatus, useSyncStatusStore } from '@/sync/status'
 import { createTestDatabase, markSynced, seedSpot } from '../support/testDatabase'
 import type Spot from '@/db/models/Spot'
+import type PendingMedia from '@/db/models/PendingMedia'
+
+jest.mock('@/shared/api/media', () => ({
+  requestUploadUrl: jest.fn(async () => {
+    throw Object.assign(new Error('stuck upload'), { isAxiosError: true, response: { status: 500, data: {} } })
+  }),
+  putFile: jest.fn(),
+  attachMedia: jest.fn(),
+}))
+
+jest.mock('expo-file-system', () => {
+  class MockFile {
+    uri: string
+    constructor(...uris: Array<string | { uri: string }>) {
+      this.uri = uris.map((u) => (typeof u === 'string' ? u : u.uri)).join('/')
+    }
+    get exists() {
+      return true
+    }
+    async bytes() {
+      return new Uint8Array()
+    }
+    delete() {}
+  }
+  return { __esModule: true, File: MockFile }
+})
 
 const DELTA_THAT_WOULD_CLOBBER = {
   server_time: '2026-07-28T02:00:00+00:00',
@@ -238,4 +264,38 @@ it('clears a stale offline flag once a later drain succeeds over the network, ev
   expect(get2).not.toHaveBeenCalled()
   expect(outcome.pulled).toBe(false)
   expect(useSyncStatusStore.getState().offline).toBe(false)
+})
+
+it('a stuck upload never gates the pull — phase 2 runs after the pull and is not part of fullyAcked', async () => {
+  const database = createTestDatabase()
+  const spot = await seedSpot(database, { uuid: 'spot-media-host' })
+  await markSynced(database, spot)
+  await database.write(async () =>
+    database.get<PendingMedia>('pending_media').create((row: any) => {
+      row._raw.id = 'media-stuck'
+      row._raw.host_type = 'stourify_spot'
+      row._raw.host_uuid = 'spot-media-host'
+      row._raw.local_path = 'file:///document-dir/media-outbox/media-stuck.jpg'
+      row._raw.filename = 'stuck.jpg'
+      row._raw.mime = 'image/jpeg'
+      row._raw.size = 1
+      row._raw.state = 'pending'
+      row._raw.attempts = 0
+      row._raw.created_at = Date.now()
+    }),
+  )
+
+  const get = jest.fn(async () => ({ data: { server_time: 'now' } }))
+  const post = jest.fn()
+
+  const outcome = await runSyncCycle({ database, client: { get, post } as any, trigger: 'manual' })
+
+  expect(post).not.toHaveBeenCalled()
+  expect(get).toHaveBeenCalledTimes(1)
+  expect(outcome.drain.fullyAcked).toBe(true)
+  expect(outcome.pulled).toBe(true)
+
+  // The stuck media row is still there — its own failure, tracked separately.
+  const row = await database.get<PendingMedia>('pending_media').find('media-stuck')
+  expect(row.state === 'pending' || row.state === 'failed').toBe(true)
 })

@@ -10,6 +10,19 @@ export interface SyncFailureSummary {
   lastError: string
 }
 
+/**
+ * A `pending_media` row stuck at `state: 'failed'` — surfaced the same way
+ * `SyncFailureSummary` surfaces a row rejection, but kept as its own type
+ * because media rows carry no `reason`/`tableName` server rejection shape,
+ * only the attach error text.
+ */
+export interface PendingMediaFailureSummary {
+  id: string
+  filename: string
+  attempts: number
+  lastError: string
+}
+
 interface SyncStatusState {
   phase: SyncPhase
   offline: boolean
@@ -25,11 +38,21 @@ interface SyncStatusState {
   failures: SyncFailureSummary[]
   lastError: string | null
   lastPulledRows: number
+  /**
+   * `pending_media` rows still waiting to drain — a SEPARATE counter from
+   * `pendingCount`, deliberately: media never participates in the skip-pull
+   * gate (design spec §2.3 rule 3), so it must never be folded into the
+   * number that gate reads.
+   */
+  pendingMediaCount: number
+  mediaFailures: PendingMediaFailureSummary[]
 
   setPhase: (phase: SyncPhase) => void
   setOffline: (offline: boolean) => void
   setPendingCount: (count: number) => void
   setFailures: (failures: SyncFailureSummary[]) => void
+  setPendingMediaCount: (count: number) => void
+  setMediaFailures: (failures: PendingMediaFailureSummary[]) => void
   setLastError: (message: string | null) => void
   recordPull: (rows: number) => void
   /**
@@ -49,6 +72,8 @@ const INITIAL = {
   failures: [] as SyncFailureSummary[],
   lastError: null as string | null,
   lastPulledRows: 0,
+  pendingMediaCount: 0,
+  mediaFailures: [] as PendingMediaFailureSummary[],
 }
 
 /**
@@ -73,6 +98,8 @@ export const useSyncStatusStore = create<SyncStatusState>((set) => ({
   setOffline: (offline) => set({ offline }),
   setPendingCount: (pendingCount) => set({ pendingCount }),
   setFailures: (failures) => set({ failures }),
+  setPendingMediaCount: (pendingMediaCount) => set({ pendingMediaCount }),
+  setMediaFailures: (mediaFailures) => set({ mediaFailures }),
   setLastError: (lastError) => set({ lastError }),
   recordPull: (lastPulledRows) => set({ lastPulledRows }),
   markSynced: (lastSyncedAt) => set({ lastSyncedAt, lastError: null }),

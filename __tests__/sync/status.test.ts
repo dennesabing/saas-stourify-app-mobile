@@ -99,6 +99,30 @@ it('markSynced clears a stale lastError so the UI cannot show success beside a p
   expect(useSyncStatusStore.getState().lastSyncedAt).toBe(123)
 })
 
+it('surfaces the pending-media count and failures separately from the row queue', () => {
+  useSyncStatusStore.getState().setPendingMediaCount(2)
+  useSyncStatusStore.getState().setMediaFailures([
+    { id: 'media-1', filename: 'beach.jpg', attempts: 1, lastError: 'The file exceeds the maximum size.' },
+  ])
+
+  expect(useSyncStatusStore.getState().pendingMediaCount).toBe(2)
+  expect(useSyncStatusStore.getState().mediaFailures[0].filename).toBe('beach.jpg')
+  // Never folded into the row-queue counter that the skip-pull gate reads.
+  expect(useSyncStatusStore.getState().pendingCount).toBe(0)
+})
+
+it('resetSyncStatus also wipes the media counters', () => {
+  useSyncStatusStore.getState().setPendingMediaCount(4)
+  useSyncStatusStore.getState().setMediaFailures([
+    { id: 'media-1', filename: 'beach.jpg', attempts: 1, lastError: 'boom' },
+  ])
+
+  resetSyncStatus()
+
+  expect(useSyncStatusStore.getState().pendingMediaCount).toBe(0)
+  expect(useSyncStatusStore.getState().mediaFailures).toEqual([])
+})
+
 it('setFailures replaces the list rather than appending to it', () => {
   useSyncStatusStore.getState().setFailures([
     { recordId: 'spot-1', tableName: 'sto_spots', reason: 'validation', attempts: 1, lastError: 'title is required' },

@@ -1,7 +1,9 @@
-import type { Database } from '@nozbe/watermelondb'
+import { Q, type Database } from '@nozbe/watermelondb'
 import type { HttpClient } from '@soxerp/offline-sync-core'
+import type PendingMedia from '@/db/models/PendingMedia'
 import { createStourifySyncEngine } from './engine'
 import { syncHttpClient } from './httpClient'
+import { drainPendingMedia } from './mediaDrain'
 import { countPending, drainOutbox, listSyncFailures, type DrainOutcome } from './pushService'
 import { useSyncStatusStore } from './status'
 
@@ -42,6 +44,28 @@ export function isSyncInFlight(): boolean {
 async function publishQueueState(database: Database): Promise<void> {
   useSyncStatusStore.getState().setPendingCount(await countPending(database))
   useSyncStatusStore.getState().setFailures(await listSyncFailures(database))
+}
+
+async function publishMediaState(database: Database): Promise<void> {
+  const pendingMediaCount = await database
+    .get<PendingMedia>('pending_media')
+    .query(Q.where('state', 'pending'))
+    .fetchCount()
+
+  const failedRows = await database
+    .get<PendingMedia>('pending_media')
+    .query(Q.where('state', 'failed'))
+    .fetch()
+
+  useSyncStatusStore.getState().setPendingMediaCount(pendingMediaCount)
+  useSyncStatusStore.getState().setMediaFailures(
+    failedRows.map((row) => ({
+      id: row.id,
+      filename: row.filename,
+      attempts: row.attempts,
+      lastError: row.lastError ?? '',
+    })),
+  )
 }
 
 /**
@@ -115,6 +139,22 @@ export async function runSyncCycle(options: {
     status.recordPull(observed.rows)
     status.markSynced(Date.now())
     await publishQueueState(options.database)
+
+    // Phase 2, AFTER the pull, OUTSIDE the gate. This must never be moved
+    // ahead of the `return` below or folded into `drain`/`fullyAcked`: a
+    // pending photo is not a row edit, no incoming delta can destroy it, and
+    // wiring it into the gate would resurrect the exact indefinite stall
+    // M2c's Sync Status screen exists to escape (design spec §2.3 rule 3). A
+    // failure here — network or a rejected attach — is swallowed and
+    // surfaced only through `publishMediaState`, never through this cycle's
+    // `error`/`pulled` outcome.
+    try {
+      await drainPendingMedia(options.database)
+    } catch {
+      // A local read/write failure inside the media drain is still not
+      // allowed to make this cycle look like it failed to pull.
+    }
+    await publishMediaState(options.database)
 
     return { trigger: options.trigger, skipped: null, drain, pulled: true, pulledRows: observed.rows, error: null }
   } finally {
