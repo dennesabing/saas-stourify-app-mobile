@@ -23,7 +23,19 @@ function makePost(overrides: Partial<any> = {}) {
     is_liked: false,
     created_at: new Date().toISOString(),
     author: { uuid: 'u1', name: 'Ana Martinez', username: 'ana', avatar_url: null },
-    spot: { id: 's1', uuid: 'spot-1', name: 'Blue Cove', slug: 'blue-cove', latitude: 1, longitude: 1, status: 'active' },
+    // `title` is what SpotResource actually sends. This fixture carried only
+    // the legacy `name` alias, so it agreed with the screen's bug instead of
+    // with the server, and the blank spot chip on device passed here.
+    spot: {
+      id: 's1',
+      uuid: 'spot-1',
+      title: 'Blue Cove',
+      name: 'Blue Cove',
+      slug: 'blue-cove',
+      latitude: 1,
+      longitude: 1,
+      status: 'active',
+    },
     ...overrides,
   }
 }

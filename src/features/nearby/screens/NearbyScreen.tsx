@@ -89,7 +89,7 @@ export default function NearbyScreen({ navigation }: Props) {
               <Marker
                 key={post.uuid}
                 coordinate={{ latitude: post.spot.latitude, longitude: post.spot.longitude }}
-                title={post.spot.name}
+                title={post.spot.title}
               />
             ) : null
           )}

@@ -1,10 +1,17 @@
 import { client } from './client'
 import type { PaginatedResponse, Post, Spot } from './types'
 
-export async function getSpots(params?: {
-  category?: string
-  search?: string
-}): Promise<PaginatedResponse<Spot>> {
+/**
+ * `q` is the server's parameter name (`SpotIndexRequest`), not `search`.
+ *
+ * This took `search` until 2026-07-29, and because Laravel silently drops
+ * unknown query parameters, every search returned the unfiltered spot list
+ * with no error anywhere. `SpotIndexRequest` has no `category` rule at all, so
+ * the category filter never existed either — it is not accepted here rather
+ * than pretending to work. Filtering by category needs a server-side rule
+ * first.
+ */
+export async function getSpots(params?: { q?: string }): Promise<PaginatedResponse<Spot>> {
   const res = await client.get('/spots', { params })
   return res.data
 }

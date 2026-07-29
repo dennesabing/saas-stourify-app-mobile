@@ -17,7 +17,8 @@ export default function SpotPickerScreen({ navigation }: Props) {
 
   const { data } = useQuery({
     queryKey: ['spots-picker', debouncedSearch],
-    queryFn: () => getSpots(debouncedSearch ? { search: debouncedSearch } : {}),
+    // `q` is the server's parameter name; `search` was silently dropped.
+    queryFn: () => getSpots(debouncedSearch ? { q: debouncedSearch } : undefined),
     enabled: debouncedSearch.length > 1,
   })
 

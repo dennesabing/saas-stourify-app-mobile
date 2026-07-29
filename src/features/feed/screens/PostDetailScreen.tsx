@@ -94,10 +94,10 @@ export default function PostDetailScreen({ route, navigation }: Props) {
               <Pressable
                 onPress={() => navigation.navigate('SpotDetail', { spotId: post.spot!.uuid })}
                 accessibilityRole="button"
-                accessibilityLabel={`View ${post.spot.name}`}
+                accessibilityLabel={`View ${post.spot.title}`}
                 style={{ minHeight: theme.minTouchTarget, justifyContent: 'center', alignSelf: 'flex-start' }}
               >
-                <Tag label={`📍 ${post.spot.name}`} />
+                <Tag label={`📍 ${post.spot.title}`} />
               </Pressable>
             ) : null}
 

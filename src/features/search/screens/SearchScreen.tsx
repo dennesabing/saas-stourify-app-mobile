@@ -18,11 +18,10 @@ export default function SearchScreen({ navigation }: Props) {
   const debouncedSearch = useDebounce(search, 300)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['spots', debouncedSearch, category],
-    queryFn: () => getSpots({
-      ...(debouncedSearch ? { search: debouncedSearch } : {}),
-      ...(category !== 'All' ? { category: category.toLowerCase() } : {}),
-    }),
+    queryKey: ['spots', debouncedSearch],
+    // `q`, not `search` — see getSpots(). The category chips are display-only
+    // until the server accepts a category filter; sending one did nothing.
+    queryFn: () => getSpots(debouncedSearch ? { q: debouncedSearch } : undefined),
   })
 
   const spots = data?.data ?? []
@@ -49,9 +48,15 @@ export default function SearchScreen({ navigation }: Props) {
           <Text style={{ fontSize: 20 }}>📍</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.spotName}>{item.name}</Text>
+          {/* `title` is what SpotResource sends. This read `item.name` until
+              2026-07-29, so every result rendered a blank title over its
+              address — visible on device, invisible to the type checker
+              because the legacy alias was still declared. */}
+          <Text style={styles.spotName}>{item.title}</Text>
           <Text style={styles.spotMeta}>
-            {item.address ?? ''}{item.address && item.category?.name ? ' · ' : ''}{item.category?.name ?? ''}
+            {item.address ?? ''}
+            {item.address && item.categories?.length ? ' · ' : ''}
+            {item.categories?.join(' · ') ?? ''}
           </Text>
         </View>
       </TouchableOpacity>
