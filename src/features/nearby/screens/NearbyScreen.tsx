@@ -6,37 +6,104 @@ import * as Location from 'expo-location'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { DiscoverStackParamList } from '@/shared/navigation/types'
 import { getNearbyFeed } from '@/shared/api/feed'
-import { PostCard } from '@/shared/components/ui'
-import EmptyState from '@/shared/components/EmptyState'
+import { EmptyState, PostCard } from '@/shared/components/ui'
+import { useTheme } from '@/theme/ThemeProvider'
 import type { Post } from '@/shared/api/types'
 
 type Props = NativeStackScreenProps<DiscoverStackParamList, 'Nearby'>
 
+/**
+ * How long to wait for a live fix before settling for the last known position.
+ *
+ * A timeout rather than a `.catch`, because the failure this guards against
+ * does not reject: on an emulator whose fused provider is never driven,
+ * `getCurrentPositionAsync` simply never settles, so an error handler is never
+ * reached and the screen sits on its spinner forever.
+ */
+const POSITION_TIMEOUT_MS = 8000
+
+interface Coords {
+  lat: number
+  lng: number
+}
+
+/**
+ * What the screen knows about where the viewer is. A single boolean cannot
+ * carry this: "permission refused" and "permission granted, no fix" need
+ * different copy and different remedies.
+ */
+type LocationState = 'locating' | 'ready' | 'permission-denied' | 'unavailable'
+
+function toCoords(loc: Location.LocationObject | null): Coords | null {
+  return loc ? { lat: loc.coords.latitude, lng: loc.coords.longitude } : null
+}
+
+/** A live fix if one arrives in time, else the last one the device recorded. */
+async function readPosition(): Promise<Coords | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+
+  try {
+    const current = await Promise.race([
+      Location.getCurrentPositionAsync({}),
+      new Promise<Location.LocationObject | null>((resolve) => {
+        timer = setTimeout(() => resolve(null), POSITION_TIMEOUT_MS)
+      }),
+    ])
+    const coords = toCoords(current)
+    if (coords) return coords
+  } catch {
+    // No live fix. The last known position may still be usable.
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+
+  try {
+    return toCoords(await Location.getLastKnownPositionAsync())
+  } catch {
+    return null
+  }
+}
+
 export default function NearbyScreen({ navigation }: Props) {
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const theme = useTheme()
+  const [location, setLocation] = useState<Coords | null>(null)
   const [radius, setRadius] = useState(10)
-  const [permissionDenied, setPermissionDenied] = useState(false)
+  const [locationState, setLocationState] = useState<LocationState>('locating')
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    Location.requestForegroundPermissionsAsync()
-      .then(({ status }) => {
-        if (cancelled) return
-        if (status !== 'granted') {
-          setPermissionDenied(true)
-          return
-        }
-        return Location.getCurrentPositionAsync({})
-      })
-      .then((loc) => {
-        if (cancelled || !loc) return
-        setLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude })
-      })
-      .catch(() => {
-        if (!cancelled) setPermissionDenied(true)
-      })
+
+    async function acquire() {
+      let granted = false
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync()
+        granted = status === 'granted'
+      } catch {
+        granted = false
+      }
+      if (cancelled) return
+      if (!granted) {
+        setLocationState('permission-denied')
+        return
+      }
+
+      const coords = await readPosition()
+      if (cancelled) return
+      if (!coords) {
+        setLocationState('unavailable')
+        return
+      }
+
+      setLocation(coords)
+      setLocationState('ready')
+    }
+
+    setLocationState('locating')
+    void acquire()
+
     return () => { cancelled = true }
-  }, [])
+  }, [attempt])
 
   const { data, isLoading } = useQuery({
     queryKey: ['nearby', location?.lat, location?.lng, radius],
@@ -60,13 +127,35 @@ export default function NearbyScreen({ navigation }: Props) {
     [navigation],
   )
 
-  if (permissionDenied) {
+  // The full-screen states carry a themed background rather than the map
+  // chrome's dark literal: the design-system `EmptyState` draws its title in
+  // `ink`, which is near-black under the light palette and unreadable on it.
+  const emptyStateBackground = { backgroundColor: theme.colors.surface }
+
+  if (locationState === 'permission-denied') {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, emptyStateBackground]}>
         <EmptyState
           icon="📍"
           title="Location access needed"
           subtitle="Enable location in Settings to see nearby spots"
+        />
+      </View>
+    )
+  }
+
+  // Permission is fine — the device just could not produce a position. Say so,
+  // and offer another attempt here rather than sending anyone to a setting
+  // that is already correct.
+  if (locationState === 'unavailable') {
+    return (
+      <View style={[styles.container, emptyStateBackground]}>
+        <EmptyState
+          icon="🛰️"
+          title="Can't pin down your location"
+          subtitle="Location is on, but no fix came through. Move somewhere with a clearer view of the sky, then try again."
+          actionLabel="Try again"
+          onAction={() => setAttempt((n) => n + 1)}
         />
       </View>
     )

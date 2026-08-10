@@ -27,6 +27,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **"Location access needed" was shown to users who had granted location access.** (STOURIFY-20)
+  `NearbyScreen` chained the permission request and the position request into one promise with a
+  single `.catch`, so every failure — including a device that simply had no fix yet — rendered the
+  permission-denial copy and sent the user to a setting that was already correct. There was no
+  fallback and no way back: one slow fix ended the session on that screen. The boolean is replaced
+  by an explicit state (`locating` / `ready` / `permission-denied` / `unavailable`), and a position
+  failure now gets its own copy plus a "Try again" that re-runs the request in place. Before giving
+  up, the screen falls back to `getLastKnownPositionAsync()`. That fallback is reached through a
+  **timeout race**, not an error handler, which is the part that matters: the failure on record is
+  `getCurrentPositionAsync` never settling at all — on an emulator whose fused provider is never
+  driven it neither resolves nor rejects — so a `.catch` would never have fired.
+
 - **Tagging a spot on a post had never worked.** (STOURIFY-2) `PostComposeScreen` posted
   `spot_name`, `spot_latitude` and `spot_longitude`; `PostStoreRequest` accepts only `spot_uuid`.
   Laravel drops unvalidated keys without erroring, so every tagged post was created with its spot
