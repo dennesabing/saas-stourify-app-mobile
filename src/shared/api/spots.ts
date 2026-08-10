@@ -26,12 +26,28 @@ export async function getSpotPosts(uuid: string): Promise<PaginatedResponse<Post
   return res.data
 }
 
+/**
+ * `title` is the server's field name (`SpotStoreRequest`), not `name`.
+ *
+ * This posted `name` until 2026-08-11, and `title` is `required` there — so the
+ * first caller would have got a 422 complaining about a field it had never
+ * heard of, with `name` dropped silently alongside. Nothing called this yet,
+ * which is the only reason it was a trap rather than an outage.
+ *
+ * The body is spelled out rather than forwarded, so the wire contract is
+ * asserted by the test instead of being whatever the caller happened to pass.
+ */
 export async function createSpot(data: {
-  name: string
+  title: string
   latitude: number
   longitude: number
   description?: string
 }): Promise<Spot> {
-  const res = await client.post('/spots', data)
+  const res = await client.post('/spots', {
+    title: data.title,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    description: data.description,
+  })
   return res.data.data
 }

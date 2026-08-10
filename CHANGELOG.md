@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Tagging a spot on a post had never worked.** (STOURIFY-2) `PostComposeScreen` posted
+  `spot_name`, `spot_latitude` and `spot_longitude`; `PostStoreRequest` accepts only `spot_uuid`.
+  Laravel drops unvalidated keys without erroring, so every tagged post was created with its spot
+  association silently discarded — no failure surfaced anywhere. It now sends `spot_uuid` from the
+  spot the picker already fetched. Behaviour is tag-an-existing-spot only: nothing in the app can
+  produce a pending spot without a server-side uuid, and the create-then-tag flow belongs to the
+  Create milestone.
+- **`createSpot()` posted `name`, which the server has no rule for.** (STOURIFY-2)
+  `SpotStoreRequest` requires `title`, so the first caller would have taken a 422 naming a field it
+  never sent. Nothing called it yet — the defect was dormant, not absent. The parameter and the
+  posted key are now `title`, and the request body is spelled out rather than forwarded, so the
+  wire contract is what the test asserts.
 - **A production APK pointed at the Android emulator loopback.** `eas.json` set
   `EXPO_PUBLIC_API_URL` only on the `development` profile, and `mobile/.env` is gitignored so it
   never reaches an EAS builder — a `preview` or `production` build therefore fell through to the
