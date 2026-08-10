@@ -8,6 +8,8 @@ import DiscoverScreen from '@/features/discover/screens/DiscoverScreen'
 import CommentsScreen from '@/features/feed/screens/CommentsScreen'
 import FeedScreen from '@/features/feed/screens/FeedScreen'
 import PostDetailScreen from '@/features/feed/screens/PostDetailScreen'
+import CameraCaptureScreen from '@/features/media/screens/CameraCaptureScreen'
+import PhotoReviewScreen from '@/features/media/screens/PhotoReviewScreen'
 import NearbyScreen from '@/features/nearby/screens/NearbyScreen'
 import EditProfileScreen from '@/features/profile/screens/EditProfileScreen'
 import FollowListScreen from '@/features/profile/screens/FollowListScreen'
@@ -80,6 +82,8 @@ function CreateStackNav() {
       <CreateStack.Screen name="MediaPicker" component={MediaPickerScreen} />
       <CreateStack.Screen name="PostCompose" component={PostComposeScreen} />
       <CreateStack.Screen name="SpotPicker" component={SpotPickerScreen} />
+      <CreateStack.Screen name="CameraCapture" component={CameraCaptureScreen} />
+      <CreateStack.Screen name="PhotoReview" component={PhotoReviewScreen} />
       <CreateStack.Screen name="CreateSpot" component={CreateSpotScreen} />
       <CreateStack.Screen name="MySpots" component={MySpotsScreen} />
     </CreateStack.Navigator>

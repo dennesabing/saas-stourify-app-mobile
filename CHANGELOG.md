@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Camera capture and a photo review step.** (STOURIFY-3) `CameraCaptureScreen` is the first
+  `expo-camera` surface in the app — an in-app `CameraView` with an inline permission gate, a lens
+  flip, and a gallery alternative that opens the picker's built-in native crop editor. Every result,
+  captured or picked, goes through M4a's `queueLocalMedia`: the bytes are copied into app-private
+  storage and a `pending_media` row is written **before** anything navigates. `PhotoReviewScreen`
+  shows what has been captured, with retake and remove, and takes no route params at all — it reads
+  the rows from WatermelonDB. That is the point rather than a detail: the only payload a route could
+  carry is a camera URI into OS-owned cache that Android may reclaim, which is the difference
+  between offline-capable and "works if you reconnect in time" (design spec §2.3 rule 4).
+  Remove deletes the local file as well as the row, through the same `discardMediaRow` the Sync
+  Status screen's Discard uses (§2.4), so a removed photo cannot leave a copy nothing will collect.
+  Photos are queued **unbound** (`host_uuid = ''`) and are inert in the media drain until publish
+  binds them to a spot — that wiring is STOURIFY-5. Capped at three photos, enforced at capture
+  rather than discovered at publish. Filters remain cut. Reachable for now from a temporary "Add
+  photos" entry on the Create sheet.
+
 ### Fixed
 
 - **Tagging a spot on a post had never worked.** (STOURIFY-2) `PostComposeScreen` posted

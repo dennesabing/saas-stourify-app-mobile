@@ -72,6 +72,17 @@ export type CreateStackParamList = {
   MediaPicker: undefined
   PostCompose: { mediaAssets: { uri: string; type?: string; fileName?: string }[] }
   SpotPicker: undefined
+  /**
+   * `undefined` on both of these is load-bearing, not laziness.
+   *
+   * The only payload a capture flow could pass is a camera or picker URI, and
+   * that is an OS cache entry Android may reclaim (design spec §2.3 rule 4).
+   * Capture writes a `pending_media` row before it navigates, so the review
+   * step reads the database instead — and a param here would be the one way to
+   * put a cache URI back into navigation state.
+   */
+  CameraCapture: undefined
+  PhotoReview: undefined
   /** The offline-first slice: writes straight to WatermelonDB. */
   CreateSpot: undefined
   MySpots: undefined
