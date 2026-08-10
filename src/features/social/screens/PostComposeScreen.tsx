@@ -43,10 +43,14 @@ export default function PostComposeScreen({ route, navigation }: Props) {
           name: asset.fileName ?? `photo_${i}.jpg`,
         } as unknown as Blob)
       })
+      // `spot_uuid` is the only spot field `PostStoreRequest` accepts. This
+      // sent `spot_name` / `spot_latitude` / `spot_longitude` until 2026-08-11,
+      // and Laravel drops unvalidated keys without erroring — so the post was
+      // created, the spot association was thrown away, and tagging a spot had
+      // never once worked. `pendingSpot` is a `Spot` fetched from the server,
+      // so its uuid is always in hand.
       if (pendingSpot) {
-        form.append('spot_name', pendingSpot.name)
-        form.append('spot_latitude', String(pendingSpot.latitude))
-        form.append('spot_longitude', String(pendingSpot.longitude))
+        form.append('spot_uuid', pendingSpot.uuid)
       }
       return createPost(form)
     },
