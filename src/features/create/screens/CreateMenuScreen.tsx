@@ -33,6 +33,19 @@ export default function CreateMenuScreen({ navigation }: Props) {
         </Card>
 
         {/*
+          `MediaPicker` is the only route into `PostCompose`, and until
+          STOURIFY-18 nothing navigated to it — the compose screen was
+          unreachable through the UI, which is how two silent contract defects on
+          it went unnoticed. An unreachable screen cannot be live-verified either.
+        */}
+        <Card onPress={() => navigation.navigate('MediaPicker')} accessibilityLabel="New Post">
+          <Text variant="h2">New Post</Text>
+          <Text variant="caption" color="muted">
+            Post a photo from a place you have been
+          </Text>
+        </Card>
+
+        {/*
           A temporary entry point. The capture flow's permanent home is inside
           the spot-create sequence (STOURIFY-5); until that lands, this is what
           makes the screens reachable at all — including for the live-run gate.
