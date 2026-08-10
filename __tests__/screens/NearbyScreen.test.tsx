@@ -8,13 +8,17 @@ import { TestProviders } from '../support/TestProviders'
  * rendering a Google native view, which jest cannot do — and which the
  * emulator gate covers anyway. Here the map is only ever a presence check:
  * did the screen get far enough to mount it?
+ *
+ * The mock deliberately does NOT claim the `nearby-map` testID: since
+ * STOURIFY-7 the screen mounts `MapCanvas`, which carries that id itself, and
+ * two elements answering to one id makes every `getByTestId` ambiguous.
  */
 jest.mock('react-native-maps', () => {
   const React = require('react')
   const { View } = require('react-native')
 
   const MapView = (props: any) =>
-    React.createElement(View, { testID: 'nearby-map' }, props.children)
+    React.createElement(View, { testID: 'vendor-map-view' }, props.children)
   const Marker = (props: any) =>
     React.createElement(View, { testID: `nearby-marker-${props.title}` })
 

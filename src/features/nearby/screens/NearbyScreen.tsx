@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native'
-import MapView, { Marker } from 'react-native-maps'
 import { useQuery } from '@tanstack/react-query'
 import * as Location from 'expo-location'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
@@ -8,6 +7,7 @@ import type { DiscoverStackParamList } from '@/shared/navigation/types'
 import { getNearbyFeed } from '@/shared/api/feed'
 import { EmptyState, PostCard } from '@/shared/components/ui'
 import { useTheme } from '@/theme/ThemeProvider'
+import { MapCanvas, type MapPin } from '@/shared/map'
 import type { Post } from '@/shared/api/types'
 
 type Props = NativeStackScreenProps<DiscoverStackParamList, 'Nearby'>
@@ -63,6 +63,8 @@ async function readPosition(): Promise<Coords | null> {
     return null
   }
 }
+/** Pin ids are post uuids, so the viewer's own pin needs one that cannot collide. */
+const YOU_PIN_ID = 'viewer-location'
 
 export default function NearbyScreen({ navigation }: Props) {
   const theme = useTheme()
@@ -70,6 +72,7 @@ export default function NearbyScreen({ navigation }: Props) {
   const [radius, setRadius] = useState(10)
   const [locationState, setLocationState] = useState<LocationState>('locating')
   const [attempt, setAttempt] = useState(0)
+  const [selectedPinId, setSelectedPinId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -112,6 +115,36 @@ export default function NearbyScreen({ navigation }: Props) {
   })
 
   const posts = data?.data ?? []
+
+  /** A pin per post that has a spot, plus one for the viewer. Ids are post uuids. */
+  const pins = useMemo<MapPin[]>(() => {
+    const spotPins: MapPin[] = posts.flatMap((post) =>
+      post.spot
+        ? [
+            {
+              id: post.uuid,
+              coordinate: { latitude: post.spot.latitude, longitude: post.spot.longitude },
+              title: post.spot.title,
+              kind: 'spot' as const,
+            },
+          ]
+        : [],
+    )
+
+    if (!location) return spotPins
+
+    return [
+      ...spotPins,
+      {
+        id: YOU_PIN_ID,
+        coordinate: { latitude: location.lat, longitude: location.lng },
+        title: 'You',
+        kind: 'you' as const,
+      },
+    ]
+  }, [posts, location])
+
+  const selectedPost = posts.find((post) => post.uuid === selectedPinId)
 
   const renderItem = useCallback(
     ({ item }: { item: Post }) => (
@@ -164,30 +197,26 @@ export default function NearbyScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       {location ? (
-        <MapView
+        <MapCanvas
+          testID="nearby-map"
           style={styles.map}
-          region={{
-            latitude: location.lat,
-            longitude: location.lng,
-            latitudeDelta: 0.1,
-            longitudeDelta: 0.1,
-          }}
-        >
-          {posts.map((post) =>
-            post.spot ? (
-              <Marker
-                key={post.uuid}
-                coordinate={{ latitude: post.spot.latitude, longitude: post.spot.longitude }}
-                title={post.spot.title}
+          region={{ center: { latitude: location.lat, longitude: location.lng }, radiusKm: radius }}
+          pins={pins}
+          selectedPinId={selectedPinId}
+          onSelectPin={setSelectedPinId}
+          onRecenter={() => setSelectedPinId(null)}
+          renderPeekCard={() =>
+            selectedPost ? (
+              <PostCard
+                post={selectedPost}
+                onPress={() => {
+                  if (selectedPost.spot?.uuid)
+                    navigation.navigate('SpotDetail', { spotId: selectedPost.spot.uuid })
+                }}
               />
             ) : null
-          )}
-          <Marker
-            coordinate={{ latitude: location.lat, longitude: location.lng }}
-            pinColor="blue"
-            title="You"
-          />
-        </MapView>
+          }
+        />
       ) : (
         <View style={[styles.map, styles.mapPlaceholder]}>
           <ActivityIndicator color="#00b4d8" size="large" />
