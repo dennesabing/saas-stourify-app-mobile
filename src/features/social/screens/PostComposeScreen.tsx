@@ -97,7 +97,7 @@ export default function PostComposeScreen({ route, navigation }: Props) {
       <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('SpotPicker')}>
         <Text style={styles.rowIcon}>📍</Text>
         <Text style={styles.rowLabel}>Tag a Spot</Text>
-        <Text style={styles.rowValue}>{pendingSpot?.name ?? 'None ›'}</Text>
+        <Text style={styles.rowValue}>{pendingSpot?.title ?? 'None ›'}</Text>
       </TouchableOpacity>
 
       <Text style={styles.sectionLabel}>Visibility</Text>

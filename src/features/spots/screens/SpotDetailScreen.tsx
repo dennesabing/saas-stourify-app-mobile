@@ -47,7 +47,7 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
   const posts = postsData?.data ?? []
   const media = spot?.media ?? []
   const categories = spot?.categories ?? []
-  const title = spot?.title ?? spot?.name ?? '...'
+  const title = spot?.title ?? '...'
 
   const onSave = useCallback(async () => {
     if (isSaved) return

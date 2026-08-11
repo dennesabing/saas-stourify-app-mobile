@@ -35,7 +35,7 @@ export default function SpotPickerScreen({ navigation }: Props) {
       >
         <View style={styles.icon}><Text>📍</Text></View>
         <View>
-          <Text style={styles.name}>{item.name}</Text>
+          <Text style={styles.name}>{item.title}</Text>
           <Text style={styles.meta}>{item.address ?? ''}</Text>
         </View>
       </TouchableOpacity>
