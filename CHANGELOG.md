@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The author of a post is now a tap-target** (STOURIFY-35). Pressing the identity block on a feed
+  row or on the post detail header opens that explorer's profile; pressing anywhere else on the card
+  still opens the post. `Profile` is registered on the Home stack, which had no profile route at all
+  — so every feed row named its author and led nowhere, which is exactly the broken loop the card
+  was raised for. Inert when `PostResource.author` is absent (it is `whenLoaded('user')` and
+  genuinely missing on some paths): no uuid, no tap-target, rather than a tap that throws.
+
 - **Settings → Delete account, the in-app deletion path Play requires** (STOURIFY-32). A new row in
   the existing DANGER ZONE opens a confirmation sheet that collects the account's own email address
   and password, which is what `DELETE /api/v1/me` demands — a sheet rather than an `Alert` for
@@ -22,6 +29,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that no longer exists. `src/shared/api/account.ts` is the new client.
 
 ### Fixed
+
+- **The profile screen was reading an endpoint that cannot describe an explorer** (STOURIFY-35).
+  It called `GET /users/{uuid}` — the boilerplate's platform-user route, which carries a name, an
+  email and an avatar and nothing more. There is no username, bio, home city or follower count on
+  it, which is why the counts rendered as a literal `–` and the header could never show an identity.
+  It now reads `GET /profile` and `GET /profiles/{user}`, and renders the whole header: avatar,
+  name, `@username`, bio, home city, interest chips and the server's computed counts. Three read
+  outcomes each get their own render rather than a blank screen — a `null` own profile (registered
+  but mid-onboarding), a 404 (no profile row), and a 403 (a block stands between the two parties,
+  worded neutrally to match the server, which answers identically from either side by design).
+
+- **Follow, unfollow and the follow lists were calling routes that have never existed**
+  (STOURIFY-35). `src/shared/api/follows.ts` addressed a `/users/{uuid}/…` surface throughout; the
+  real API is a single `follows` resource. Following is `POST /follows` with a `user_uuid`, and
+  ending a relationship is `DELETE /follows/{followUuid}` — the *edge's* uuid, which the profile
+  header's new `viewer` block now carries. `getUserPosts()` likewise moved from a non-existent
+  `/users/{uuid}/posts` to `GET /posts?user_uuid=`, and the own-profile grid now passes `mine`
+  instead of listing every visible post in the app under the signed-in explorer's name.
 
 - **A timed-out account deletion no longer reports failure over an account that is already gone**
   (STOURIFY-32). Found by the live run, not by reasoning: the dev backend took **19 seconds** to

@@ -1,8 +1,16 @@
 import { client } from './client'
 import type { PaginatedResponse, Post } from './types'
 
-export async function getPosts(): Promise<PaginatedResponse<Post>> {
-  const res = await client.get('/posts')
+/**
+ * `GET /posts` — every post visible to the caller.
+ *
+ * `mine` narrows it to the caller's own, which is what the own-profile grid
+ * wants; without it the grid shows the whole visible corpus.
+ */
+export async function getPosts(params?: { mine?: boolean }): Promise<PaginatedResponse<Post>> {
+  const res = await client.get('/posts', {
+    params: params?.mine ? { mine: 1 } : {},
+  })
   return res.data
 }
 
@@ -55,7 +63,15 @@ export async function toggleLike(postUuid: string): Promise<{ liked: boolean; li
   return res.data.data
 }
 
+/**
+ * One explorer's posts — the other-user profile grid.
+ *
+ * A filter on the post index, not a `/users/{uuid}/posts` route (which has
+ * never existed). The server applies its visibility scope first, so this
+ * returns only what the caller may already see: no unpublished work, and no
+ * followers-only posts unless the caller is an accepted follower.
+ */
 export async function getUserPosts(userUuid: string): Promise<PaginatedResponse<Post>> {
-  const res = await client.get(`/users/${userUuid}/posts`)
+  const res = await client.get('/posts', { params: { user_uuid: userUuid } })
   return res.data
 }

@@ -74,6 +74,11 @@ export default function FeedScreen({ navigation }: Props) {
         post={item}
         onPress={() => navigation.navigate('PostDetail', { postId: item.uuid })}
         onLikePress={() => likeMutation.mutate(item.uuid)}
+        onAuthorPress={
+          item.author
+            ? () => navigation.navigate('Profile', { userId: item.author!.uuid })
+            : undefined
+        }
       />
     ),
     [navigation, likeMutation],

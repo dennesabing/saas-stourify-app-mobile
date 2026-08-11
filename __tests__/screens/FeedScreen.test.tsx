@@ -162,3 +162,36 @@ it('renders posts from a seeded query cache while the fetcher throws', async () 
     expect(screen.getByText('Sunset at the cove')).toBeTruthy()
   })
 })
+
+/**
+ * The tap path STOURIFY-35 exists for: from real content in the feed to the
+ * author's profile. Registering the route was only half of it — the Home stack
+ * had no `Profile` screen at all, so this navigate would have thrown.
+ */
+it('opens the author profile when the feed row identity is tapped', async () => {
+  ;(getFollowingFeed as jest.Mock).mockResolvedValue({
+    data: [makePost({ uuid: 'post-1' })],
+    next_cursor: null,
+    prev_cursor: null,
+  })
+
+  renderScreen()
+
+  fireEvent.press(await screen.findByLabelText("Ana Martinez's profile"))
+
+  expect(navigation.navigate).toHaveBeenCalledWith('Profile', { userId: 'u1' })
+})
+
+it('opening the post is still the card tap, not the author tap', async () => {
+  ;(getFollowingFeed as jest.Mock).mockResolvedValue({
+    data: [makePost({ uuid: 'post-1' })],
+    next_cursor: null,
+    prev_cursor: null,
+  })
+
+  renderScreen()
+
+  fireEvent.press(await screen.findByLabelText('Post by Ana Martinez'))
+
+  expect(navigation.navigate).toHaveBeenCalledWith('PostDetail', { postId: 'post-1' })
+})
