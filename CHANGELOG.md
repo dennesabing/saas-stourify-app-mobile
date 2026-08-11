@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **One map wrapper, and it is the only map-aware file.** (STOURIFY-7) `src/shared/map/MapCanvas.tsx`
+  is now the single file in `src/` that names the map engine; everything else speaks the app's own
+  vocabulary from `src/shared/map/types.ts` — pins with a semantic `kind`, a selected pin, a peek
+  card, a recenter, and a region expressed as a centre plus a radius **in kilometres**. That last
+  one is the load-bearing choice: degree deltas are one engine's private unit and have no MapLibre
+  equivalent, so forwarding them would have made the wrapper an alias rather than a seam, and the
+  post-beta swap to MapLibre (offline map packs) would still have meant editing every screen that
+  draws a map. `NearbyScreen` consumes it and no longer imports the engine — it also now supports
+  tapping a pin to peek at that post, and a recenter control. The boundary is enforced by
+  `__tests__/shared/map/vendorIsolation.test.ts`, which walks `src/` and fails if a second file
+  mentions the engine: `mobile/` ships no ESLint, and a convention nobody checks does not survive
+  three milestones.
+
+  The recenter control carries the safe-area top inset. The map draws edge to edge, so at a bare
+  spacing offset the status bar covered all but about twenty pixels of a 44dp target — on the
+  emulator it read as a dead button rather than as a layout bug, which is why the live gate found
+  it and the unit tests had not. Asserted now, not just commented.
+
 - **Settings now links to the Privacy Policy, the Terms of Service and a web account-deletion page**
   (STOURIFY-34). Google Play requires the first two to be reachable from inside the app, not only
   from the store listing, and requires a web-reachable deletion-request URL separate from the in-app
