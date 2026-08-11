@@ -60,6 +60,13 @@ export type DiscoverStackParamList = {
   Search: undefined
   Nearby: undefined
   Map: undefined
+  /**
+   * Reached from a people hit in Search. Registered here as well as in the
+   * Activity and Profile stacks because `/discover/search` returns people, and
+   * a person row that renders but goes nowhere leaves the people index exactly
+   * as unreachable as it was before (STOURIFY-9).
+   */
+  Profile: { userId?: string }
   SpotDetail: { spotId: string }
   PostDetail: { postId: string }
   PhotoGallery: { spotId: string }
