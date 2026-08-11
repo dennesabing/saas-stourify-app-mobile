@@ -17,6 +17,12 @@ interface Props {
    * preview) must not offer a tap that goes nowhere.
    */
   onAuthorPress?: () => void
+  /**
+   * Opens the per-post overflow — Report, today. Optional for the same reason
+   * `onAuthorPress` is: a card rendered in a picker or a preview has nothing to
+   * report to, and a control that does nothing is worse than no control.
+   */
+  onMorePress?: () => void
 }
 
 /**
@@ -40,7 +46,7 @@ interface Props {
  * made a feed row a dead end — the parent card's "a spot with an author you
  * cannot tap is a broken loop".
  */
-function PostCard({ post, onPress, onLikePress, onAuthorPress }: Props) {
+function PostCard({ post, onPress, onLikePress, onAuthorPress, onMorePress }: Props) {
   const theme = useTheme()
   const author = post.author
   const liked = post.is_liked === true
@@ -57,28 +63,54 @@ function PostCard({ post, onPress, onLikePress, onAuthorPress }: Props) {
       accessibilityLabel={`Post by ${author?.name ?? 'Unknown'}`}
       style={styles.card}
     >
-      <Pressable
-        onPress={authorIsTappable ? onAuthorPress : undefined}
-        disabled={!authorIsTappable}
-        accessibilityRole={authorIsTappable ? 'button' : undefined}
-        accessibilityLabel={authorIsTappable ? `${author?.name ?? 'Unknown'}'s profile` : undefined}
-        style={[
-          styles.header,
-          { padding: theme.spacing[3], gap: theme.spacing[3], minHeight: theme.minTouchTarget },
-        ]}
-      >
-        <Avatar uri={author?.avatar_url} name={author?.name} size={36} />
-        <View style={styles.identity}>
-          <Text variant="h2" numberOfLines={1}>
-            {author?.name ?? 'Unknown'}
-          </Text>
-          {author?.username ? (
-            <Text variant="caption" color="muted" numberOfLines={1}>
-              @{author.username}
+      {/* Three nested tap-targets in one row, each with its own job: the
+          identity opens the author, the overflow opens the post's menu, and the
+          card behind them opens the post. */}
+      <View style={styles.header}>
+        <Pressable
+          onPress={authorIsTappable ? onAuthorPress : undefined}
+          disabled={!authorIsTappable}
+          accessibilityRole={authorIsTappable ? 'button' : undefined}
+          accessibilityLabel={authorIsTappable ? `${author?.name ?? 'Unknown'}'s profile` : undefined}
+          style={[
+            styles.header,
+            styles.identity,
+            { padding: theme.spacing[3], gap: theme.spacing[3], minHeight: theme.minTouchTarget },
+          ]}
+        >
+          <Avatar uri={author?.avatar_url} name={author?.name} size={36} />
+          <View style={styles.identity}>
+            <Text variant="h2" numberOfLines={1}>
+              {author?.name ?? 'Unknown'}
             </Text>
-          ) : null}
-        </View>
-      </Pressable>
+            {author?.username ? (
+              <Text variant="caption" color="muted" numberOfLines={1}>
+                @{author.username}
+              </Text>
+            ) : null}
+          </View>
+        </Pressable>
+
+        {onMorePress ? (
+          <Pressable
+            onPress={onMorePress}
+            accessibilityRole="button"
+            accessibilityLabel="More options for this post"
+            style={[
+              styles.action,
+              {
+                minWidth: theme.minTouchTarget,
+                minHeight: theme.minTouchTarget,
+                marginRight: theme.spacing[2],
+              },
+            ]}
+          >
+            <Text variant="h2" color="muted">
+              ⋯
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
 
       {photo ? (
         <Image

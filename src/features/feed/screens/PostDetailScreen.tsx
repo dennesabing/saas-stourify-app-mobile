@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pressable, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
 import { getPost, toggleLike } from '@/shared/api/posts'
+import PostActionsSheet from '@/features/social/components/PostActionsSheet'
 import { Avatar, Button, Skeleton, Tag, Text } from '@/shared/components/ui'
 import type { Post } from '@/shared/api/types'
 import { useTheme } from '@/theme/ThemeProvider'
@@ -21,6 +23,7 @@ export default function PostDetailScreen({ route, navigation }: Props) {
   const { postId } = route.params
   const theme = useTheme()
   const queryClient = useQueryClient()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const { data: post, isLoading } = useQuery({
     queryKey: POST_QUERY_KEY(postId),
@@ -57,16 +60,43 @@ export default function PostDetailScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
-      <Pressable
-        onPress={() => navigation.goBack()}
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-        style={{ minHeight: theme.minTouchTarget, justifyContent: 'center', paddingHorizontal: theme.gutter }}
-      >
-        <Text variant="body" color="primary">
-          ← Back
-        </Text>
-      </Pressable>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          style={{
+            flex: 1,
+            minHeight: theme.minTouchTarget,
+            justifyContent: 'center',
+            paddingHorizontal: theme.gutter,
+          }}
+        >
+          <Text variant="body" color="primary">
+            ← Back
+          </Text>
+        </Pressable>
+
+        {/* Reporting is reachable from here as well as from the feed row: the
+            reader who opened a post to look closer is the one most likely to
+            decide it needs reporting (STOURIFY-37). */}
+        <Pressable
+          onPress={() => setMenuOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="More options for this post"
+          style={{
+            minWidth: theme.minTouchTarget,
+            minHeight: theme.minTouchTarget,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginRight: theme.spacing[2],
+          }}
+        >
+          <Text variant="h2" color="muted">
+            ⋯
+          </Text>
+        </Pressable>
+      </View>
 
       <ScrollView contentContainerStyle={{ padding: theme.gutter, gap: theme.spacing[3] }}>
         {isLoading || !post ? (
@@ -150,6 +180,8 @@ export default function PostDetailScreen({ route, navigation }: Props) {
           </>
         )}
       </ScrollView>
+
+      <PostActionsSheet postUuid={menuOpen ? postId : null} onClose={() => setMenuOpen(false)} />
     </SafeAreaView>
   )
 }

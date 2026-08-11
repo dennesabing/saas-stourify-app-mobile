@@ -136,6 +136,21 @@ export default function SettingsScreen({ navigation }: Props) {
         <Text style={styles.rowValue}>{settings?.follow_mode ?? '–'} ›</Text>
       </TouchableOpacity>
 
+      {/*
+        Blocked accounts is the only place a block can be lifted from. The
+        obvious home — a toggle on the blocked person's profile — is unreachable
+        once the block stands, because the server refuses that profile to the
+        blocker as well, so the difference in responses cannot announce the block
+        (STOURIFY-36, STOURIFY-37).
+      */}
+      <Text style={styles.section}>PRIVACY</Text>
+
+      <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('BlockedAccounts')}>
+        <Text style={styles.rowIcon}>🚫</Text>
+        <Text style={styles.rowLabel}>Blocked accounts</Text>
+        <Text style={styles.rowValue}>›</Text>
+      </TouchableOpacity>
+
       <Text style={styles.section}>OFFLINE</Text>
 
       <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('SyncStatus')}>

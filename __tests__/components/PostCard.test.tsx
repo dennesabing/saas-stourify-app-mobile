@@ -173,3 +173,32 @@ test('the author is inert when no handler is supplied', () => {
 
   expect(screen.queryByLabelText("Ana Martinez's profile")).toBeNull()
 })
+
+/**
+ * The report affordance (STOURIFY-37).
+ *
+ * Optional in exactly the way `onAuthorPress` is: a card rendered somewhere
+ * with nothing to report to — a picker, a preview — must not show a control
+ * that does nothing. The card itself knows nothing about reporting; it raises
+ * the tap and the screen decides.
+ */
+test('the overflow control appears only when a handler is supplied', () => {
+  renderThemed(<PostCard post={mockPost} onPress={() => {}} />)
+  expect(screen.queryByLabelText('More options for this post')).toBeNull()
+
+  screen.unmount()
+
+  renderThemed(<PostCard post={mockPost} onPress={() => {}} onMorePress={jest.fn()} />)
+  expect(screen.getByLabelText('More options for this post')).toBeTruthy()
+})
+
+test('pressing the overflow control does not also open the post', () => {
+  const onPress = jest.fn()
+  const onMorePress = jest.fn()
+  renderThemed(<PostCard post={mockPost} onPress={onPress} onMorePress={onMorePress} />)
+
+  fireEvent.press(screen.getByLabelText('More options for this post'))
+
+  expect(onMorePress).toHaveBeenCalledTimes(1)
+  expect(onPress).not.toHaveBeenCalled()
+})

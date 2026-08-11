@@ -32,9 +32,20 @@ jest.mock('@/shared/api/follows', () => ({
   unfollow: jest.fn(),
 }))
 
+jest.mock('@/shared/api/blocks', () => ({
+  blockUser: jest.fn(),
+}))
+
+jest.mock('@/shared/api/reports', () => {
+  const actual = jest.requireActual('@/shared/api/reports')
+  return { ...actual, fileReport: jest.fn() }
+})
+
 import { getMyProfile, getProfile } from '@/shared/api/profiles'
 import { getPosts, getUserPosts } from '@/shared/api/posts'
 import { follow, unfollow } from '@/shared/api/follows'
+import { blockUser } from '@/shared/api/blocks'
+import { fileReport } from '@/shared/api/reports'
 import { useAuthStore } from '@/shared/store/auth'
 
 const SAFE_AREA_METRICS: Metrics = {
@@ -84,8 +95,23 @@ const navigation = {
   getState: () => ({ routeNames }),
 } as any
 
+/**
+ * The query client the last `renderProfile` built, with `resetQueries` spied.
+ *
+ * A block changes what several endpoints return — feed, profile, posts, search —
+ * so dropping those caches is the only thing that makes the blocked explorer's
+ * content leave the screen without a restart. It is `resetQueries` and not
+ * `invalidateQueries` deliberately: the live run showed invalidation issuing the
+ * refetches and still leaving the blocked explorer's post on screen, because
+ * invalidation keeps the stale pages rendered until every refetch it started
+ * resolves. This assertion pins the stronger call so the weaker one cannot come
+ * back as a "tidy-up".
+ */
+let resetSpy: jest.SpyInstance
+
 function renderProfile(userId?: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  resetSpy = jest.spyOn(qc, 'resetQueries')
   return render(
     <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
       <ThemeProvider scheme="light">
@@ -286,4 +312,142 @@ test('an explorer with no profile row reads as not found, not as a crash', async
   renderProfile(OTHER_UUID)
 
   expect(await screen.findByText(/no profile/i)).toBeTruthy()
+})
+
+// ---------------------------------------------------------------------------
+// Block and report (STOURIFY-37)
+// ---------------------------------------------------------------------------
+
+/**
+ * These are the safety affordances the store requires, and the seam they hold
+ * is the confirmation. Blocking is not undoable in full: the server deletes the
+ * follow edges in both directions and `BlockApiController::destroy()` states
+ * that unblocking does not put them back. So a one-tap block in the overflow
+ * menu would be a permanent side effect behind an accidental brush of a finger.
+ *
+ * They are also gated on the profile not being my own, rather than on
+ * `profile.can`. That map is `view`/`update`/`delete` on the ExplorerProfile
+ * row, so `can.update` is true only for the owner — gating Block on it would
+ * show the button on exactly the one profile where blocking is meaningless.
+ */
+
+test('another explorer offers block and report; my own profile does not', async () => {
+  ;(getProfile as jest.Mock).mockResolvedValue(profileFixture())
+
+  renderProfile(OTHER_UUID)
+
+  fireEvent.press(await screen.findByLabelText('More options'))
+  expect(screen.getByText('Block')).toBeTruthy()
+  expect(screen.getByText('Report')).toBeTruthy()
+})
+
+test('my own profile has no overflow menu at all', async () => {
+  ;(getMyProfile as jest.Mock).mockResolvedValue(
+    profileFixture({
+      user_uuid: ME_UUID,
+      viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null },
+    }),
+  )
+
+  renderProfile()
+
+  await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
+  expect(screen.queryByLabelText('More options')).toBeNull()
+})
+
+test('choosing Block asks first and files nothing until it is confirmed', async () => {
+  ;(getProfile as jest.Mock).mockResolvedValue(profileFixture())
+
+  renderProfile(OTHER_UUID)
+
+  fireEvent.press(await screen.findByLabelText('More options'))
+  fireEvent.press(screen.getByText('Block'))
+
+  // The menu tap opens the confirmation. It must not have blocked yet.
+  expect(blockUser).not.toHaveBeenCalled()
+  expect(screen.getByText(/Block Grace Santos\?/i)).toBeTruthy()
+  // The consequence is named, because it is the part that cannot be undone.
+  expect(screen.getByText(/will not be restored/i)).toBeTruthy()
+})
+
+test('dismissing the confirmation blocks nobody', async () => {
+  ;(getProfile as jest.Mock).mockResolvedValue(profileFixture())
+
+  renderProfile(OTHER_UUID)
+
+  fireEvent.press(await screen.findByLabelText('More options'))
+  fireEvent.press(screen.getByText('Block'))
+  fireEvent.press(screen.getByLabelText('Cancel'))
+
+  expect(blockUser).not.toHaveBeenCalled()
+})
+
+test('confirming blocks by user uuid and leaves the screen', async () => {
+  ;(getProfile as jest.Mock).mockResolvedValue(profileFixture())
+  ;(blockUser as jest.Mock).mockResolvedValue({ uuid: 'block-1', created_at: null })
+
+  renderProfile(OTHER_UUID)
+
+  fireEvent.press(await screen.findByLabelText('More options'))
+  fireEvent.press(screen.getByText('Block'))
+  fireEvent.press(screen.getByLabelText('Block this explorer'))
+
+  await waitFor(() => expect(blockUser).toHaveBeenCalledWith(OTHER_UUID))
+  // Staying put would leave a screen whose very next read is a 403.
+  await waitFor(() => expect(navigation.goBack).toHaveBeenCalled())
+})
+
+test('a block drops the caches that would otherwise keep showing the blocked explorer', async () => {
+  ;(getProfile as jest.Mock).mockResolvedValue(profileFixture())
+  ;(blockUser as jest.Mock).mockResolvedValue({ uuid: 'block-1', created_at: null })
+
+  renderProfile(OTHER_UUID)
+
+  fireEvent.press(await screen.findByLabelText('More options'))
+  fireEvent.press(screen.getByText('Block'))
+  fireEvent.press(screen.getByLabelText('Block this explorer'))
+
+  await waitFor(() => expect(blockUser).toHaveBeenCalled())
+
+  const reset = resetSpy.mock.calls.map(([arg]) => JSON.stringify(arg?.queryKey))
+
+  // The feed is the screen the acceptance criteria name first: B's posts have
+  // to leave A's feed without a restart.
+  expect(reset).toContain(JSON.stringify(['feed', 'following']))
+  expect(reset).toContain(JSON.stringify(['discover-search']))
+  expect(reset).toContain(JSON.stringify(['discover-people']))
+  expect(reset).toContain(JSON.stringify(['explorer-posts', OTHER_UUID]))
+})
+
+test('an explorer already blocked is treated as blocked, not as a failure', async () => {
+  // `POST /blocks` answers 200 with the existing row rather than erroring. A
+  // client that only accepted 201 would report a failure on a successful block.
+  ;(getProfile as jest.Mock).mockResolvedValue(profileFixture())
+  ;(blockUser as jest.Mock).mockResolvedValue({ uuid: 'block-existing', created_at: null })
+
+  renderProfile(OTHER_UUID)
+
+  fireEvent.press(await screen.findByLabelText('More options'))
+  fireEvent.press(screen.getByText('Block'))
+  fireEvent.press(screen.getByLabelText('Block this explorer'))
+
+  await waitFor(() => expect(navigation.goBack).toHaveBeenCalled())
+})
+
+test('choosing Report opens the report form for the person, not for a post', async () => {
+  ;(getProfile as jest.Mock).mockResolvedValue(profileFixture())
+  ;(fileReport as jest.Mock).mockResolvedValue({ uuid: 'report-1' })
+
+  renderProfile(OTHER_UUID)
+
+  fireEvent.press(await screen.findByLabelText('More options'))
+  fireEvent.press(screen.getByText('Report'))
+  fireEvent.press(screen.getByText('Harassment or bullying'))
+  fireEvent.press(screen.getByLabelText('Submit report'))
+
+  await waitFor(() =>
+    expect(fileReport).toHaveBeenCalledWith(
+      expect.objectContaining({ reportableType: 'user', reportableUuid: OTHER_UUID }),
+    ),
+  )
 })
