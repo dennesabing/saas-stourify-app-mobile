@@ -47,6 +47,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The media drain no longer duplicates a photo whose attach response was lost.** (STOURIFY-28)
+  A device run published three photos and produced four `media` rows server-side. The card's
+  hypothesis was a `destroyPermanently()` that silently failed; the evidence says otherwise. The
+  surviving row read `state='pending'`, `attempts=0`, `last_error=NULL`, and exactly one branch in
+  `drainPendingMedia` leaves an *attempted* row in that state — the `isMediaNetworkFailure` retry
+  path. The row never reached its cleanup. The attach had committed on the server and only its
+  reply was lost, which axios reports as a response-less error, identical in every observable way to
+  a request that never left the device.
+
+  So there was nothing local to clean up, and no cleanup change could have helped. The drain now
+  sends `idempotencyKey: row.id` with every attach — the uuidv4 `queueLocalMedia` already mints as
+  the `pending_media` row id, stable across every retry — and the server collapses repeats into one
+  media row. **No schema migration:** the stable identity the fix needs already existed.
+
+  The retry behaviour itself is deliberately unchanged. Giving up on a response-less attach would
+  trade a duplicate photo for a lost one, which is the worse failure.
+
+  `mediaDrain.test.ts` gains a regression test that reproduces the real mechanism — a lost attach
+  response, retried on the next cycle — and asserts the two attempts carry different presigned keys
+  but the same token, which is why the presigned key could never have served as the token itself.
+
 - **`Spot.name` retired — the server has only ever sent `title`.** (STOURIFY-11) The `Spot` type had
   `name: string` **required** and `title?: string` optional, which is exactly backwards:
   `SpotResource::toArray()` sends `title` and has never sent a `name` key. A required field the

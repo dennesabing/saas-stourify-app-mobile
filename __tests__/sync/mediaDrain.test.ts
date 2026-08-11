@@ -203,4 +203,81 @@ describe('drainPendingMedia', () => {
     // The file must survive a rejected attach — the user can retry.
     expect(fsCalls.deletes).toHaveLength(0)
   })
+
+  // -------------------------------------------------------------------------
+  // Idempotency (STOURIFY-28)
+  //
+  // The duplicate this guards against was NOT a failed cleanup. The attach
+  // reached the server, committed, and its RESPONSE was lost — which axios
+  // reports as a response-less error, indistinguishable from a request that
+  // never left the device. The drain therefore correctly retries, and the
+  // retry is what created a second media row. The only place that can be
+  // fixed is the server, and only if the client hands it something stable to
+  // recognise the retry by.
+  // -------------------------------------------------------------------------
+
+  it('sends the pending row id as the attach idempotency key', async () => {
+    const database = createTestDatabase()
+    const spot = await seedSpot(database, { uuid: 'spot-uuid-1' })
+    await markSynced(database, spot)
+    await seedPendingMedia(database, { id: 'media-1', hostUuid: 'spot-uuid-1' })
+
+    mockRequestUploadUrl.mockResolvedValueOnce({ key: 'uploads/pending/a/file.jpg', url: 'https://s3.example.com/x', headers: {}, expires_at: 'later' })
+    mockPutFile.mockResolvedValueOnce(undefined)
+    mockAttachMedia.mockResolvedValueOnce({ uuid: 'media-uuid-1' })
+
+    await drainPendingMedia(database)
+
+    expect(mockAttachMedia).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: 'media-1' }))
+  })
+
+  it('reproduces the duplicate: a lost attach RESPONSE is retried next cycle under the same idempotency key', async () => {
+    const database = createTestDatabase()
+    const spot = await seedSpot(database, { uuid: 'spot-uuid-1' })
+    await markSynced(database, spot)
+    await seedPendingMedia(database, { id: 'media-1', hostUuid: 'spot-uuid-1' })
+
+    // Each attempt presigns afresh — this is precisely why the presigned key
+    // cannot itself be the idempotency token.
+    let presignCount = 0
+    mockRequestUploadUrl.mockImplementation(async () => {
+      presignCount += 1
+      return { key: `uploads/pending/attempt-${presignCount}/file.jpg`, url: 'https://s3.example.com/x', headers: {}, expires_at: 'later' }
+    })
+    mockPutFile.mockResolvedValue(undefined)
+
+    // Cycle 1: the server committed, but the reply never came back. axios
+    // reports no `response`, so `isMediaNetworkFailure` is true.
+    const lostResponse = Object.assign(new Error('timeout of 0ms exceeded'), { isAxiosError: true, request: {} })
+    mockAttachMedia.mockRejectedValueOnce(lostResponse)
+
+    const first = await drainPendingMedia(database)
+
+    expect(first.networkFailure).toBe(true)
+    expect(first.uploaded).toBe(0)
+
+    // The exact state signature seen on the device: untouched, so it retries.
+    const afterFirst = await database.get<PendingMedia>('pending_media').find('media-1')
+    expect(afterFirst.state).toBe('pending')
+    expect(afterFirst.attempts).toBe(0)
+    expect(afterFirst.lastError).toBeNull()
+    expect(fsCalls.deletes).toHaveLength(0)
+
+    // Cycle 2: the retry. It MUST happen — the client cannot know the first
+    // one landed — so the duplicate can only be stopped server-side.
+    mockAttachMedia.mockResolvedValueOnce({ uuid: 'media-uuid-1' })
+
+    const second = await drainPendingMedia(database)
+
+    expect(second.uploaded).toBe(1)
+    expect(mockAttachMedia).toHaveBeenCalledTimes(2)
+
+    const [firstAttach, secondAttach] = mockAttachMedia.mock.calls.map((call) => call[0])
+
+    // Different object each attempt...
+    expect(firstAttach.key).not.toBe(secondAttach.key)
+    // ...but one stable token, which is what the server deduplicates on.
+    expect(firstAttach.idempotencyKey).toBe('media-1')
+    expect(secondAttach.idempotencyKey).toBe('media-1')
+  })
 })
