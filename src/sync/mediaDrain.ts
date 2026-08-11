@@ -124,6 +124,11 @@ export async function drainPendingMedia(database: Database): Promise<MediaDrainO
 
       await attachMedia({
         key: presigned.key,
+        // The row's own id, minted by `queueLocalMedia` as a uuidv4 and stable
+        // for the row's whole life — so every retry of THIS photo carries the
+        // same token and the server can collapse them into one media row. No
+        // new column is needed: the identity already exists.
+        idempotencyKey: row.id,
         modelType: row.hostType,
         modelUuid: row.hostUuid,
       })
@@ -138,6 +143,14 @@ export async function drainPendingMedia(database: Database): Promise<MediaDrainO
         // Mirrors `drainOutbox`'s treatment of a dropped radio (`pushService.ts:416-421`):
         // the file and the row are untouched, `attempts` is not bumped, and
         // the row retries next cycle exactly as it is.
+        //
+        // STOURIFY-28: this branch is ALSO reached when the attach committed
+        // server-side and only its response was lost — axios reports both as a
+        // response-less error and nothing here can tell them apart. Retrying is
+        // still right (dropping the photo on a dropped radio would be worse),
+        // so the duplicate it used to cause is prevented at the other end, by
+        // the `idempotencyKey` sent above. Do not "fix" this by giving up on
+        // retry, and do not assume a row in this state was never uploaded.
         networkFailure = true
         continue
       }

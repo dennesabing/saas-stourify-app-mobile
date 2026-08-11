@@ -55,6 +55,15 @@ export async function putFile(
 
 export interface AttachMediaInput {
   key: string
+  /**
+   * A token the CLIENT mints once per photo and replays on every retry, so the
+   * server can recognise a repeated attach and return the row it already made
+   * instead of creating a second one.
+   *
+   * It cannot be `key`: every attempt presigns a fresh object, so `key` is
+   * different each time. See STOURIFY-28.
+   */
+  idempotencyKey?: string
   name?: string
   /** Defaults server-side to 'attachments'. */
   collection?: string
@@ -67,10 +76,15 @@ export interface AttachMediaInput {
  * an over-size file 422s after its bytes are already uploaded. Callers
  * (phase 2 of the drain, Task 5) must expect and handle that rejection;
  * this function does not swallow it.
+ *
+ * This call is at-least-once and cannot be made otherwise: a response lost on
+ * the way back is indistinguishable from a request that never arrived, so the
+ * caller must retry and pass `idempotencyKey` to keep the retry harmless.
  */
 export async function attachMedia(input: AttachMediaInput): Promise<Media> {
   const res = await client.post('/media/attach', {
     key: input.key,
+    idempotency_key: input.idempotencyKey,
     name: input.name,
     collection: input.collection,
     model_type: input.modelType,
