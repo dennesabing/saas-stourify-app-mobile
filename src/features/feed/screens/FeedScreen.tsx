@@ -1,9 +1,10 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { FlatList, RefreshControl, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
+import PostActionsSheet from '@/features/social/components/PostActionsSheet'
 import { EmptyState, PostCard, Skeleton } from '@/shared/components/ui'
 import { getFollowingFeed } from '@/shared/api/feed'
 import { toggleLike } from '@/shared/api/posts'
@@ -40,6 +41,11 @@ function flipLike(data: FeedData | undefined, postUuid: string): FeedData | unde
 export default function FeedScreen({ navigation }: Props) {
   const theme = useTheme()
   const queryClient = useQueryClient()
+
+  // The uuid of the post whose overflow is open, or null. One sheet for the
+  // whole list rather than one per row: a FlatList of a hundred rows would
+  // otherwise mount a hundred modals (STOURIFY-37).
+  const [reportingPost, setReportingPost] = useState<string | null>(null)
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, refetch, isRefetching } =
     useInfiniteQuery({
@@ -79,6 +85,7 @@ export default function FeedScreen({ navigation }: Props) {
             ? () => navigation.navigate('Profile', { userId: item.author!.uuid })
             : undefined
         }
+        onMorePress={() => setReportingPost(item.uuid)}
       />
     ),
     [navigation, likeMutation],
@@ -131,6 +138,8 @@ export default function FeedScreen({ navigation }: Props) {
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.colors.primary} />
         }
       />
+
+      <PostActionsSheet postUuid={reportingPost} onClose={() => setReportingPost(null)} />
     </SafeAreaView>
   )
 }

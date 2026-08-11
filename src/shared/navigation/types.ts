@@ -115,6 +115,15 @@ export type ProfileStackParamList = {
   EditProfile: undefined
   Wishlist: undefined
   Settings: undefined
+  /**
+   * The list of explorers I have blocked, reached from Settings.
+   *
+   * It is here and not on the other-user profile because a block hides that
+   * profile from the blocker too — `GET /profiles/{user}` answers 403 in both
+   * directions so the difference cannot announce the block (STOURIFY-36). This
+   * is the only surface Unblock can be reached from (STOURIFY-37).
+   */
+  BlockedAccounts: undefined
   PostDetail: { postId: string }
   SpotDetail: { spotId: string }
   PhotoGallery: { spotId: string }

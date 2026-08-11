@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { Dimensions, FlatList, Image, Pressable, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -7,7 +7,20 @@ import type { ProfileStackParamList } from '@/shared/navigation/types'
 import { getMyProfile, getProfile, type ExplorerProfile } from '@/shared/api/profiles'
 import { getPosts, getUserPosts } from '@/shared/api/posts'
 import { follow, unfollow } from '@/shared/api/follows'
-import { Avatar, Button, Chip, Divider, EmptyState, Skeleton, Text } from '@/shared/components/ui'
+import { blockUser } from '@/shared/api/blocks'
+import { extractApiError } from '@/shared/api/client'
+import ReportSheet from '@/features/social/components/ReportSheet'
+import {
+  Avatar,
+  Button,
+  Chip,
+  Divider,
+  EmptyState,
+  Sheet,
+  SheetOption,
+  Skeleton,
+  Text,
+} from '@/shared/components/ui'
 import { useAuthStore } from '@/shared/store/auth'
 import type { Post } from '@/shared/api/types'
 import { useTheme } from '@/theme/ThemeProvider'
@@ -99,6 +112,54 @@ export default function ProfileScreen({ route, navigation }: Props) {
     onSuccess: invalidateProfile,
   })
 
+  // ── Block and report (STOURIFY-37) ────────────────────────────────────────
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [confirmingBlock, setConfirmingBlock] = useState(false)
+  const [reporting, setReporting] = useState(false)
+
+  /**
+   * A block changes what several endpoints return, not one row, so the caches
+   * are dropped rather than edited.
+   *
+   * The like button on this same screen patches its cache optimistically, and
+   * that is right for a single boolean on a single post. It is wrong here: a
+   * block filters the feed, the search results, the post lists and the profile,
+   * across pages already loaded and pages not yet fetched, and the server has
+   * just cleared its own caches for exactly the same reason. Letting the server
+   * answer is both simpler and correct, and a block is rare enough that the
+   * refetch costs nothing anyone notices.
+   *
+   * **`resetQueries`, not `invalidateQueries`, for the content lists — and the
+   * live run is why.** Invalidating marked them stale and genuinely issued the
+   * refetches (the backend log shows `/feed`, `/discover/search` and `/posts`
+   * being re-requested the moment the block landed), and the blocked explorer's
+   * post *still* sat at the top of the feed a minute and a half later. It only
+   * left after a manual pull-to-refresh. Invalidation keeps the old pages on
+   * screen until every refetch it started resolves — which for the feed's
+   * infinite query means every page already loaded — so one slow or failed page
+   * leaves the whole list showing exactly the content the block was meant to
+   * remove. Resetting drops the cached pages outright: the list has nothing
+   * stale left to render, and refetches from the first page. The cost is a
+   * moment of skeleton on a screen the reader is being returned to anyway.
+   */
+  const blockMutation = useMutation({
+    mutationFn: () => blockUser(targetId),
+    onSuccess: () => {
+      queryClient.resetQueries({ queryKey: ['feed', 'following'] })
+      queryClient.resetQueries({ queryKey: ['discover-search'] })
+      queryClient.resetQueries({ queryKey: ['discover-people'] })
+      queryClient.resetQueries({ queryKey: ['explorer-profile', targetId] })
+      queryClient.resetQueries({ queryKey: ['explorer-posts', targetId] })
+      queryClient.invalidateQueries({ queryKey: ['blocks'] })
+
+      setConfirmingBlock(false)
+      // Leaving is not a nicety: this screen's next read of
+      // `GET /profiles/{them}` is now a 403, so staying would swap the header
+      // for the "not available" state under the reader's hands.
+      navigation.goBack()
+    },
+  })
+
   const width = Dimensions.get('window').width
   const tile = Math.floor((width - GRID_GAP * (COLUMNS - 1)) / COLUMNS)
 
@@ -182,7 +243,10 @@ export default function ProfileScreen({ route, navigation }: Props) {
     )
   }
 
+  const subjectName = profile?.name ?? profile?.username ?? 'this explorer'
+
   return renderFrame(
+    <>
     <FlatList
       testID="profile-grid"
       data={posts}
@@ -208,6 +272,7 @@ export default function ProfileScreen({ route, navigation }: Props) {
             viewer?.follow_uuid ? unfollowMutation.mutate() : followMutation.mutate()
           }
           followPending={followMutation.isPending || unfollowMutation.isPending}
+          onMore={() => setMenuOpen(true)}
         />
       }
       ListEmptyComponent={
@@ -219,7 +284,77 @@ export default function ProfileScreen({ route, navigation }: Props) {
           </View>
         )
       }
-    />,
+    />
+
+    {/* The overflow menu. Unblock is deliberately absent: once a block stands,
+        this screen cannot be reached at all — `GET /profiles/{them}` answers 403
+        for the blocker exactly as it does for the blocked party, because a
+        different answer would announce the block (STOURIFY-36). Unblock lives on
+        the Blocked accounts list, which `GET /blocks` can always serve. */}
+    <Sheet visible={menuOpen} onClose={() => setMenuOpen(false)}>
+      <SheetOption
+        label="Block"
+        icon="🚫"
+        destructive
+        description="You will not see each other on Stourify."
+        onPress={() => {
+          setMenuOpen(false)
+          setConfirmingBlock(true)
+        }}
+      />
+      <SheetOption
+        label="Report"
+        icon="🚩"
+        description="Tell our team about this explorer. They will not know."
+        onPress={() => {
+          setMenuOpen(false)
+          setReporting(true)
+        }}
+      />
+    </Sheet>
+
+    {/* Confirmed rather than one-tap, because part of a block does not come
+        back. `BlockApiController` hard-deletes the follow edges in both
+        directions and `destroy()` states that unblocking will not recreate
+        them — re-following on somebody's behalf would be worse. So the
+        consequence is named here, in the words a person would use. */}
+    <Sheet
+      visible={confirmingBlock}
+      onClose={() => setConfirmingBlock(false)}
+      title={`Block ${subjectName}?`}
+      subtitle={
+        'Neither of you will see the other on Stourify, and any follows between you are removed. ' +
+        'They are not told. If you unblock later, those follows will not be restored — you would each have to follow again.'
+      }
+    >
+      {blockMutation.isError ? (
+        <Text variant="caption" color="danger">
+          {extractApiError(blockMutation.error)}
+        </Text>
+      ) : null}
+
+      <Button
+        label="Block"
+        accessibilityLabel="Block this explorer"
+        variant="danger"
+        loading={blockMutation.isPending}
+        onPress={() => blockMutation.mutate()}
+      />
+      <Button
+        label="Cancel"
+        accessibilityLabel="Cancel"
+        variant="ghost"
+        onPress={() => setConfirmingBlock(false)}
+      />
+    </Sheet>
+
+    <ReportSheet
+      visible={reporting}
+      onClose={() => setReporting(false)}
+      reportableType="user"
+      reportableUuid={targetId}
+    />
+    </>,
   )
 }
 
@@ -235,18 +370,26 @@ interface HeaderProps {
   onFollowing: () => void
   onFollowToggle: () => void
   followPending: boolean
+  /** Opens the block/report menu. Only ever called on somebody else's profile. */
+  onMore: () => void
 }
 
 /**
  * The identity header.
  *
- * ── AFFORDANCE SLOT ─────────────────────────────────────────────────────────
- * STOURIFY-37's block and report actions belong in `ProfileActions` below, in
- * the branch that renders for somebody ELSE's profile, beside the follow
- * button. Nothing else on this screen needs to change for them: the row is
- * already laid out for more than one control, and `profile.can` from
- * `ProfileResource` is the ability map to gate them on.
- * ────────────────────────────────────────────────────────────────────────────
+ * The AFFORDANCE SLOT that stood here is filled: block and report live in
+ * `ProfileActions` below, in the `else` branch beside the follow button
+ * (STOURIFY-37).
+ *
+ * One thing that note got wrong, worth recording because it looks right. It
+ * said to gate the two actions on `profile.can`. That map comes from
+ * `BaseResource::resolvePermissions()`, which resolves `view` / `update` /
+ * `delete` **against the ExplorerProfile row** — so `can.update` is true only
+ * for the profile's owner, and gating Block on it would show the button on the
+ * one profile where blocking is meaningless and hide it everywhere it matters.
+ * The abilities that really govern these two (`stourify.follows.manage`,
+ * `stourify.reports.create`) are held by every explorer and are not reported
+ * per target by any payload. So the gate is the `else` branch itself.
  */
 function ProfileHeader({
   profile,
@@ -260,6 +403,7 @@ function ProfileHeader({
   onFollowing,
   onFollowToggle,
   followPending,
+  onMore,
 }: HeaderProps) {
   const theme = useTheme()
   const counts = profile?.counts
@@ -327,6 +471,7 @@ function ProfileHeader({
         onSettings={onSettings}
         onFollowToggle={onFollowToggle}
         followPending={followPending}
+        onMore={onMore}
       />
 
       <Divider />
@@ -342,11 +487,12 @@ interface ActionsProps {
   onSettings: () => void
   onFollowToggle: () => void
   followPending: boolean
+  onMore: () => void
 }
 
 /**
- * The action row under the header — and the place STOURIFY-37 hangs Block and
- * Report off, in the `else` branch beside the follow button.
+ * The action row under the header — Follow, and beside it the overflow that
+ * carries Block and Report (STOURIFY-37).
  */
 function ProfileActions({
   profile,
@@ -356,6 +502,7 @@ function ProfileActions({
   onSettings,
   onFollowToggle,
   followPending,
+  onMore,
 }: ActionsProps) {
   const theme = useTheme()
 
@@ -392,7 +539,28 @@ function ProfileActions({
         loading={followPending}
         style={{ flex: 1 }}
       />
-      {/* STOURIFY-37: Block and Report go here. */}
+
+      {/* Not a Button: the kit's Button is a labelled control and this is a
+          glyph. The visible "⋯" says nothing to a screen reader, so the
+          accessible label carries the whole meaning. */}
+      <Pressable
+        onPress={onMore}
+        accessibilityRole="button"
+        accessibilityLabel="More options"
+        style={{
+          minWidth: theme.minTouchTarget,
+          minHeight: theme.minTouchTarget,
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: theme.radius.button,
+          borderWidth: 1,
+          borderColor: theme.colors.hairline,
+        }}
+      >
+        <Text variant="h2" color="muted">
+          ⋯
+        </Text>
+      </Pressable>
     </View>
   )
 }

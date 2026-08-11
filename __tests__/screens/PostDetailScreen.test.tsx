@@ -8,7 +8,13 @@ jest.mock('@/shared/api/posts', () => ({
   toggleLike: jest.fn(),
 }))
 
+jest.mock('@/shared/api/reports', () => {
+  const actual = jest.requireActual('@/shared/api/reports')
+  return { ...actual, fileReport: jest.fn() }
+})
+
 import { getPost, toggleLike } from '@/shared/api/posts'
+import { fileReport } from '@/shared/api/reports'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 
@@ -130,4 +136,30 @@ it('does not offer an author tap-target when the author was never loaded', async
 
   await waitFor(() => expect(screen.getByText('Unknown')).toBeTruthy())
   expect(screen.queryByLabelText("Unknown's profile")).toBeNull()
+})
+
+/**
+ * Reporting a post from its own screen (STOURIFY-37).
+ *
+ * Both places a post is visible carry the affordance — the feed row and here.
+ * A reader who opened a post to look closer is the reader most likely to decide
+ * it needs reporting, and sending them back to the feed to do it is the kind of
+ * friction that means it never gets used.
+ */
+it('files a report for this post from the detail header', async () => {
+  ;(getPost as jest.Mock).mockResolvedValue(makePost())
+  ;(fileReport as jest.Mock).mockResolvedValue({ uuid: 'report-1' })
+
+  renderScreen()
+
+  fireEvent.press(await screen.findByLabelText('More options for this post'))
+  fireEvent.press(screen.getByText('Report'))
+  fireEvent.press(screen.getByText('Spam or misleading'))
+  fireEvent.press(screen.getByLabelText('Submit report'))
+
+  await waitFor(() =>
+    expect(fileReport).toHaveBeenCalledWith(
+      expect.objectContaining({ reportableType: 'post', reportableUuid: 'post-1' }),
+    ),
+  )
 })

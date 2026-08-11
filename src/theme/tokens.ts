@@ -33,6 +33,20 @@ export const palette = {
     danger: '#C0492F',
     /** 1px dividers and borders. */
     hairline: 'rgba(21,34,48,0.12)',
+    /**
+     * The dim behind a sheet or dialog.
+     *
+     * **Not in the handoff** — `styles.css` specifies `--radius-sheet` and an
+     * `--elev-floating` shadow for sheets but never the scrim behind one, so
+     * there was no value to transcribe (STOURIFY-37). Derived from `ink` at 55%,
+     * which is the same base the hairline is derived from; the light palette
+     * needs the heavier value because the sheet it dims is nearly white.
+     *
+     * It lives here rather than inline in `Sheet.tsx` for the reason at the top
+     * of this file: a screen never writes a colour literal. If the handoff ever
+     * names a scrim, this is the one line to correct.
+     */
+    scrim: 'rgba(21,34,48,0.55)',
   },
   dark: {
     surface: '#0E1621',
@@ -50,6 +64,8 @@ export const palette = {
     success: '#47B784',
     danger: '#E06A5A',
     hairline: 'rgba(255,255,255,0.10)',
+    /** See the light palette's note. Darker, because the sheet above it is dark. */
+    scrim: 'rgba(3,8,14,0.70)',
   },
 } as const
 

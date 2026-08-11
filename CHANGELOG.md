@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Block and report, reachable from the app.** (STOURIFY-37) The server has had both for a while —
+  `sto_blocks` and `/api/v1/blocks` since STOURIFY-36, `/api/v1/reports` since M1 — and there was no
+  way to reach either from a phone. Google Play does not publish a user-content app without them.
+
+  Another explorer's profile now carries a `⋯` beside the Follow button, offering **Block** and
+  **Report**. Block asks for confirmation first and says what it costs: the follows between the two
+  accounts are deleted in both directions, and unblocking will not bring them back — that is the
+  server's behaviour, stated plainly rather than discovered afterwards. A post carries the same `⋯`
+  in the feed and on its own screen, offering Report.
+
+  The report form is one component for every subject (`src/features/social/components/ReportSheet.tsx`).
+  It enforces the server's own rule that a reason of "other" needs a description, so nobody waits for
+  a round trip to be told a rule the app already knew. Filing the same report twice answers 200 with
+  the row that already exists, and the sheet reads that as thank-you rather than as a failure.
+
+  **Unblock lives under Settings → Blocked accounts, not on the blocked person's profile**, and the
+  reason is worth knowing: once a block stands, `GET /profiles/{user}` answers 403 for the *blocker*
+  as well, because a different answer for the two parties would announce the block. So that profile
+  cannot be opened to un-block from. `GET /blocks` always can, which is what the new
+  `BlockedAccountsScreen` reads. Unblock addresses the block row's uuid, never the user's.
+
+  New: `src/shared/api/blocks.ts`, `src/shared/api/reports.ts`,
+  `src/features/social/components/ReportSheet.tsx`,
+  `src/features/social/components/PostActionsSheet.tsx`,
+  `src/features/profile/screens/BlockedAccountsScreen.tsx`.
+  Touched: `ProfileScreen`, `PostCard` (an optional `onMorePress`), `FeedScreen`,
+  `PostDetailScreen`, `SettingsScreen`, `shared/navigation/types.ts`, `TabNavigator`.
+
+- **`Sheet` and `SheetOption` primitives.** (STOURIFY-37) The Wander D4 kit had no modal surface at
+  all, which is why `SettingsScreen`'s delete-account confirmation was hand-built in colour literals.
+  Block, report and the overflow menus all needed one, so it is a primitive now: a dimmed backdrop
+  that dismisses on tap, a rounded panel on `radius.sheet`, and rows that can act as menu items or as
+  a radio group. Built on React Native's own `Modal` rather than a gesture library — a draggable
+  sheet is a native module, and adding one would force a rebuild of the dev client and the APK for
+  something no sheet here needs.
+
+  `colors.scrim` is new in `src/theme/tokens.ts` and is the one value on this card **not**
+  transcribed from the handoff: `styles.css` specifies a sheet radius and a sheet shadow but never
+  the dim behind one. Derived from `ink`, documented in place as the line to correct if the handoff
+  ever names it.
+
 ### Fixed
 
 - **Nearby now calls a route that exists.** (STOURIFY-8) `getNearbyFeed` in `src/shared/api/feed.ts`
