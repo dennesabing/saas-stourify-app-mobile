@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, Linking } from 'react-native'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { ProfileStackParamList } from '@/shared/navigation/types'
@@ -7,6 +7,7 @@ import { getAccountSettings, updateAccountSettings } from '@/shared/api/settings
 import * as authApi from '@/shared/api/auth'
 import { deleteAccount, deletionOutcomeIsUnknown } from '@/shared/api/account'
 import { signOut } from '@/sync/session'
+import { PRIVACY_POLICY_URL, TERMS_URL, ACCOUNT_DELETION_URL } from '@/shared/config/legal'
 
 type Props = NativeStackScreenProps<ProfileStackParamList, 'Settings'>
 
@@ -39,6 +40,18 @@ export default function SettingsScreen({ navigation }: Props) {
     // the same teardown as the 401 paths (client.ts, sync/httpClient.ts), or
     // the local database and sync cursor survive a real logout.
     await signOut()
+  }
+
+  // Opened in the device browser via Linking rather than an in-app WebView or
+  // expo-web-browser. Both of those are native modules, so adding one would force
+  // a rebuild of the dev client and of the APK to ship what is, on our side, three
+  // links. Linking ships with React Native and needs neither.
+  //
+  // Failure is swallowed: openURL rejects when no browser can handle the intent,
+  // and a settings row that throws an unhandled rejection is worse than one that
+  // does nothing.
+  const openLegalPage = (url: string) => {
+    Linking.openURL(url).catch(() => {})
   }
 
   const deleteMutation = useMutation({
@@ -129,6 +142,34 @@ export default function SettingsScreen({ navigation }: Props) {
         <Text style={styles.rowIcon}>🔄</Text>
         <Text style={styles.rowLabel}>Offline & sync</Text>
         <Text style={styles.rowValue}>›</Text>
+      </TouchableOpacity>
+
+      {/*
+        Play requires the privacy policy and terms to be reachable from inside the
+        app, not only from the store listing, and requires a web-reachable
+        account-deletion page in addition to the in-app path below. These sit
+        outside DANGER ZONE deliberately: reading a policy is not destructive, and
+        the only irreversible action on this screen should be the one in the red
+        section.
+      */}
+      <Text style={styles.section}>LEGAL</Text>
+
+      <TouchableOpacity style={styles.row} onPress={() => openLegalPage(PRIVACY_POLICY_URL)}>
+        <Text style={styles.rowIcon}>🔒</Text>
+        <Text style={styles.rowLabel}>Privacy Policy</Text>
+        <Text style={styles.rowValue}>↗</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.row} onPress={() => openLegalPage(TERMS_URL)}>
+        <Text style={styles.rowIcon}>📄</Text>
+        <Text style={styles.rowLabel}>Terms of Service</Text>
+        <Text style={styles.rowValue}>↗</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.row} onPress={() => openLegalPage(ACCOUNT_DELETION_URL)}>
+        <Text style={styles.rowIcon}>❓</Text>
+        <Text style={styles.rowLabel}>Request account deletion</Text>
+        <Text style={styles.rowValue}>↗</Text>
       </TouchableOpacity>
 
       <Text style={styles.section}>DANGER ZONE</Text>
