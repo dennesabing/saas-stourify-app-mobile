@@ -9,6 +9,43 @@ import { TestProviders } from '../support/TestProviders'
 
 jest.mock('@/sync/scheduler', () => ({ syncNow: jest.fn(async () => undefined) }))
 
+/**
+ * Since STOURIFY-4 the screen captures its coordinates instead of asking for
+ * them, so a screen test has to stand in for two pieces of hardware: the map
+ * (a Google native view jest cannot render) and the position sensor.
+ *
+ * The map mock is a bare view. Whether it *draws* is the emulator gate's
+ * question; what matters here is that the screen got far enough to mount one
+ * and that publishing uses the coordinates it was given.
+ */
+jest.mock('react-native-maps', () => {
+  const React = require('react')
+  const { View } = require('react-native')
+
+  const MapView = React.forwardRef((props: any, ref: any) => {
+    React.useImperativeHandle(ref, () => ({ animateToRegion: jest.fn() }))
+    return React.createElement(View, { testID: 'vendor-map' }, props.children)
+  })
+  const Marker = (props: any) =>
+    React.createElement(View, { testID: `vendor-marker-${props.identifier}` })
+
+  return { __esModule: true, default: MapView, Marker }
+})
+
+jest.mock('expo-location', () => ({
+  requestForegroundPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
+  getCurrentPositionAsync: jest.fn(async () => ({
+    coords: { latitude: 6.1164, longitude: 125.1716, accuracy: 8 },
+    timestamp: 1,
+  })),
+  getLastKnownPositionAsync: jest.fn(async () => null),
+}))
+
+/** Online, so no offline notice muddies the assertions below. */
+jest.mock('@/sync/seams/connectivity', () => ({
+  netInfoConnectivity: { isOnline: () => true, subscribe: () => () => {} },
+}))
+
 jest.mock('expo-file-system', () => {
   const present = new Set<string>()
 
@@ -57,10 +94,17 @@ async function capture(database: Database, filename: string): Promise<void> {
   await queueCapturedPhoto(database, { uri: `content://camera/${filename}`, filename, mime: 'image/jpeg' })
 }
 
+/**
+ * A publishable spot: a name, plus the position the mocked sensor supplies on
+ * its own. Waiting for the coordinates to land is the whole difference from the
+ * old version of this helper — nothing types them any more.
+ */
 async function fillValidSpot(name = 'Hidden Cove'): Promise<void> {
   fireEvent.changeText(screen.getByPlaceholderText('Spot name'), name)
-  fireEvent.changeText(screen.getByPlaceholderText('Latitude'), '6.1164')
-  fireEvent.changeText(screen.getByPlaceholderText('Longitude'), '125.1716')
+
+  await waitFor(() => {
+    expect(screen.getByTestId('picked-coordinates')).toBeTruthy()
+  })
 }
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
@@ -81,9 +125,7 @@ it('writes the spot straight to the local database and never to the network', as
     </TestProviders>,
   )
 
-  fireEvent.changeText(screen.getByPlaceholderText('Spot name'), 'Hidden Cove')
-  fireEvent.changeText(screen.getByPlaceholderText('Latitude'), '6.1164')
-  fireEvent.changeText(screen.getByPlaceholderText('Longitude'), '125.1716')
+  await fillValidSpot('Hidden Cove')
   fireEvent.press(screen.getByText('Publish spot'))
 
   await waitFor(async () => {
@@ -109,9 +151,7 @@ it('navigates to My Spots after the local write', async () => {
     </TestProviders>,
   )
 
-  fireEvent.changeText(screen.getByPlaceholderText('Spot name'), 'Kalaklan Point')
-  fireEvent.changeText(screen.getByPlaceholderText('Latitude'), '6.2')
-  fireEvent.changeText(screen.getByPlaceholderText('Longitude'), '125.2')
+  await fillValidSpot('Kalaklan Point')
   fireEvent.press(screen.getByText('Publish spot'))
 
   await waitFor(() => {
@@ -145,6 +185,91 @@ it('validates locally without touching the database', async () => {
   await waitFor(() => {
     expect(screen.getByText('A spot needs a name of at least 3 characters.')).toBeTruthy()
   })
+  expect(await database.get<Spot>('sto_spots').query().fetchCount()).toBe(0)
+})
+
+it('offers no way to type a coordinate — the card\'s first acceptance line', async () => {
+  const database = createTestDatabase()
+
+  render(
+    <TestProviders database={database}>
+      <CreateSpotScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() => {
+    expect(screen.getByTestId('picked-coordinates')).toBeTruthy()
+  })
+
+  expect(screen.queryByPlaceholderText('Latitude')).toBeNull()
+  expect(screen.queryByPlaceholderText('Longitude')).toBeNull()
+})
+
+it('publishes the position the phone reported, without anybody typing it', async () => {
+  const database = createTestDatabase()
+
+  render(
+    <TestProviders database={database}>
+      <CreateSpotScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await fillValidSpot('Sensor Sourced')
+  fireEvent.press(screen.getByText('Publish spot'))
+
+  await waitFor(async () => {
+    expect(await database.get<Spot>('sto_spots').query().fetchCount()).toBe(1)
+  })
+
+  const [spot] = await database.get<Spot>('sto_spots').query().fetch()
+  expect(spot.latitude).toBeCloseTo(6.1164)
+  expect(spot.longitude).toBeCloseTo(125.1716)
+})
+
+it('saves the categories that were picked, in the field name the server uses', async () => {
+  const database = createTestDatabase()
+
+  render(
+    <TestProviders database={database}>
+      <CreateSpotScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await fillValidSpot('Categorised Cove')
+  fireEvent.press(screen.getByText('Coast'))
+  fireEvent.press(screen.getByText('Publish spot'))
+
+  await waitFor(async () => {
+    expect(await database.get<Spot>('sto_spots').query().fetchCount()).toBe(1)
+  })
+
+  const [spot] = await database.get<Spot>('sto_spots').query().fetch()
+  expect(spot.categories).toEqual(['Coast'])
+})
+
+// The reason this is worth a screen test rather than only a unit test: the row
+// would otherwise sit in the outbox and be refused by the server minutes later,
+// with nobody watching to be told.
+it('refuses a description past the server\'s limit before writing anything', async () => {
+  const database = createTestDatabase()
+
+  render(
+    <TestProviders database={database}>
+      <CreateSpotScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await fillValidSpot('Overlong Story')
+  fireEvent.changeText(
+    screen.getByPlaceholderText('What makes it worth the trip?'),
+    'x'.repeat(5001),
+  )
+  fireEvent.press(screen.getByText('Publish spot'))
+
+  await waitFor(() => {
+    expect(screen.getByText(/5,000 characters/)).toBeTruthy()
+  })
+
   expect(await database.get<Spot>('sto_spots').query().fetchCount()).toBe(0)
 })
 

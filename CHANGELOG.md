@@ -9,6 +9,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The new-spot form captures where you are instead of asking you to type it.** (STOURIFY-4) Adding
+  a spot used to mean typing a latitude and a longitude into two boxes — the equivalent of being
+  asked for your own address in GPS numbers. Nobody standing at a waterfall knows they are at
+  `6.1164, 125.1716`, and one mistyped digit put the spot in the sea with nothing to flag it, because
+  the wrong number is still a perfectly valid number.
+
+  The screen now reads the phone's own position when it opens, shows it on a map, and lets you drag
+  the pin if the phone's guess is off. The coordinates appear as text you can read and cannot edit,
+  with the accuracy in metres beside them, so a 12-metre fix is distinguishable from a rough one.
+
+  The two paths that are not the happy one are built rather than assumed:
+
+  - **Location refused.** One sentence saying so, plus a working map centred on your home city — read
+    out of the local database, so it works with no signal — or on General Santos City when there is
+    no profile to read. You place the pin yourself.
+  - **Offline.** The map and the pin stay; only the imagery is missing, and a line says so and says
+    it will fill in later. Placing a pin needs no map tiles, and dropping the map offline would remove
+    the only way to correct a position exactly where people most often have no signal.
+
+  New: `src/features/create/components/LocationPicker.tsx`,
+  `src/features/create/api/spotForm.ts` (the form's rules, as one testable function),
+  `src/features/create/api/mapCenter.ts` (the fallback centre),
+  `src/shared/location/position.ts` (permission and position, with a refusal kept distinct from a
+  silence), `src/shared/hooks/useIsOnline.ts` (reads the sync layer's connectivity seam rather than
+  subscribing to NetInfo a second time).
+
+  **No file under `src/features/create/` names a map library.** The picker consumes `@/shared/map`,
+  which is still the app's only map-aware file — the property that keeps the post-beta MapLibre swap
+  a one-file change, and which `__tests__/shared/map/vendorIsolation.test.ts` enforces.
+
+- **Categories on a new spot**, as chips, using the same labels the Discover filter rail shows. The
+  server takes free strings with no list to check against, so this is the app's own shortlist. The
+  local row already had a `categories` column and the push already sent it, so nothing else changed.
+
+### Changed
+
+- **`MapCanvas` can hand a coordinate back.** (STOURIFY-4) Two optional props — `movablePinId` and
+  `onMovePin` — make exactly one pin draggable and report where it was dropped as a plain app
+  coordinate. The engine's own event object stops inside the wrapper, and a drag callback that
+  arrives with no coordinate is ignored rather than forwarded: passing it on would move the spot to
+  an undefined position, which reads downstream as a validation failure on a position the user never
+  chose.
+
+- **The new-spot form enforces the server's own limits before writing anything locally.**
+  (STOURIFY-4) Title 3–255 characters, description up to 5,000, at most 10 categories of 40
+  characters each — the rules in `SpotStoreRequest`, restated in `spotForm.ts`. This matters more on
+  an offline-first app than it looks: a spot the server will refuse is written locally and pushed
+  minutes later, so the rejection lands with nobody left watching to be told.
+
 - **Block and report, reachable from the app.** (STOURIFY-37) The server has had both for a while —
   `sto_blocks` and `/api/v1/blocks` since STOURIFY-36, `/api/v1/reports` since M1 — and there was no
   way to reach either from a phone. Google Play does not publish a user-content app without them.

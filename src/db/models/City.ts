@@ -27,6 +27,18 @@ export default class City extends Model {
     return this._getRaw('country') as string | null
   }
 
+  /**
+   * Both optional, and the pair is only meaningful together — a city with a
+   * latitude and no longitude cannot be pointed at, so callers check both.
+   */
+  get latitude(): number | null {
+    return this._getRaw('latitude') as number | null
+  }
+
+  get longitude(): number | null {
+    return this._getRaw('longitude') as number | null
+  }
+
   get isFeatured(): boolean {
     return this._getRaw('is_featured') as boolean
   }
