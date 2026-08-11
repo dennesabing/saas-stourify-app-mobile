@@ -140,3 +140,36 @@ test('meets the minimum touch target on both actions', () => {
   expect(flatten(like.props.style).minHeight).toBeGreaterThanOrEqual(44)
   expect(flatten(comments.props.style).minHeight).toBeGreaterThanOrEqual(44)
 })
+
+/**
+ * The author tap-target (STOURIFY-35).
+ *
+ * The parent card's rationale is that "a spot with an author you cannot tap is
+ * a broken loop". This header was an inert `View`: the profile route existed,
+ * real content named its author, and there was no way to get from one to the
+ * other. The pressable is scoped to the identity block on purpose — pressing
+ * the photo or the caption still opens the post.
+ */
+test('pressing the author identity calls onAuthorPress, not onPress', () => {
+  const onPress = jest.fn()
+  const onAuthorPress = jest.fn()
+  renderThemed(<PostCard post={mockPost} onPress={onPress} onAuthorPress={onAuthorPress} />)
+
+  fireEvent.press(screen.getByLabelText("Ana Martinez's profile"))
+
+  expect(onAuthorPress).toHaveBeenCalledTimes(1)
+  expect(onPress).not.toHaveBeenCalled()
+})
+
+test('the author is not a tap-target when the post has no author to open', () => {
+  const { author, ...rest } = mockPost
+  renderThemed(<PostCard post={rest as Post} onPress={() => {}} onAuthorPress={jest.fn()} />)
+
+  expect(screen.queryByLabelText("Unknown's profile")).toBeNull()
+})
+
+test('the author is inert when no handler is supplied', () => {
+  renderThemed(<PostCard post={mockPost} onPress={() => {}} />)
+
+  expect(screen.queryByLabelText("Ana Martinez's profile")).toBeNull()
+})

@@ -48,6 +48,14 @@ export type TabParamList = {
 export type HomeStackParamList = {
   Home: undefined
   PostDetail: { postId: string }
+  /**
+   * Reached by tapping the author of a post — in a feed row or on the detail
+   * screen. Registered here as well as in Discover, Activity and Profile
+   * because the feed is where an explorer meets most content, and until
+   * STOURIFY-35 the Home stack had no profile route at all: the author was
+   * named on every row and led nowhere.
+   */
+  Profile: { userId?: string }
   Comments: { postId: string }
   SpotDetail: { spotId: string }
   PhotoGallery: { spotId: string }

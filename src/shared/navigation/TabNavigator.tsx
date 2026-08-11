@@ -51,6 +51,7 @@ function HomeStackNav() {
     <HomeStack.Navigator screenOptions={stackOptions}>
       <HomeStack.Screen name="Home" component={FeedScreen} />
       <HomeStack.Screen name="PostDetail" component={PostDetailScreen} />
+      <HomeStack.Screen name="Profile" component={ProfileScreen} />
       <HomeStack.Screen name="Comments" component={CommentsScreen} />
       <HomeStack.Screen name="SpotDetail" component={SpotDetailScreen} />
       <HomeStack.Screen name="PhotoGallery" component={PhotoGalleryScreen} />

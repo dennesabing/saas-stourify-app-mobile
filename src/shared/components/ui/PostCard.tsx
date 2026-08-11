@@ -11,6 +11,12 @@ interface Props {
   post: Post
   onPress: () => void
   onLikePress?: () => void
+  /**
+   * Opens the author's profile. Optional, and the identity block is inert
+   * without it — a card rendered somewhere with no profile route (a picker, a
+   * preview) must not offer a tap that goes nowhere.
+   */
+  onAuthorPress?: () => void
 }
 
 /**
@@ -27,12 +33,22 @@ interface Props {
  * First photo only: a feed row is a summary, and the post detail screen is
  * where the rest belong. `thumb_url` is preferred when present, but the platform
  * only generates a `thumb` conversion for avatars, so `url` is the normal case.
+ *
+ * The identity block is its own tap-target, nested inside the card's own
+ * pressable: tapping the avatar or the name opens the AUTHOR, tapping anywhere
+ * else opens the POST. Until STOURIFY-35 it was an inert `View`, which is what
+ * made a feed row a dead end — the parent card's "a spot with an author you
+ * cannot tap is a broken loop".
  */
-function PostCard({ post, onPress, onLikePress }: Props) {
+function PostCard({ post, onPress, onLikePress, onAuthorPress }: Props) {
   const theme = useTheme()
   const author = post.author
   const liked = post.is_liked === true
   const photo = post.media?.[0]
+  // Both conditions matter: no handler means nothing to open, and no author
+  // means no `uuid` to open it WITH — `author` is `whenLoaded('user')` and is
+  // genuinely absent on some paths.
+  const authorIsTappable = onAuthorPress !== undefined && author !== undefined
 
   return (
     <Card
@@ -41,7 +57,16 @@ function PostCard({ post, onPress, onLikePress }: Props) {
       accessibilityLabel={`Post by ${author?.name ?? 'Unknown'}`}
       style={styles.card}
     >
-      <View style={[styles.header, { padding: theme.spacing[3], gap: theme.spacing[3] }]}>
+      <Pressable
+        onPress={authorIsTappable ? onAuthorPress : undefined}
+        disabled={!authorIsTappable}
+        accessibilityRole={authorIsTappable ? 'button' : undefined}
+        accessibilityLabel={authorIsTappable ? `${author?.name ?? 'Unknown'}'s profile` : undefined}
+        style={[
+          styles.header,
+          { padding: theme.spacing[3], gap: theme.spacing[3], minHeight: theme.minTouchTarget },
+        ]}
+      >
         <Avatar uri={author?.avatar_url} name={author?.name} size={36} />
         <View style={styles.identity}>
           <Text variant="h2" numberOfLines={1}>
@@ -53,7 +78,7 @@ function PostCard({ post, onPress, onLikePress }: Props) {
             </Text>
           ) : null}
         </View>
-      </View>
+      </Pressable>
 
       {photo ? (
         <Image

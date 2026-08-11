@@ -106,3 +106,28 @@ it('flips the like state optimistically and rolls back on failure', async () => 
 
   await waitFor(() => expect(screen.getByText('3')).toBeTruthy())
 })
+
+/**
+ * The author header on the detail screen is the second half of STOURIFY-35's
+ * tap path — a reader who opened a post and then wants the person behind it
+ * should not have to go back to the feed to reach them.
+ */
+it('opens the author profile from the detail header', async () => {
+  ;(getPost as jest.Mock).mockResolvedValue(makePost())
+
+  renderScreen()
+
+  fireEvent.press(await screen.findByLabelText("Ana Martinez's profile"))
+
+  expect(navigation.navigate).toHaveBeenCalledWith('Profile', { userId: 'u1' })
+})
+
+it('does not offer an author tap-target when the author was never loaded', async () => {
+  const { author, ...rest } = makePost()
+  ;(getPost as jest.Mock).mockResolvedValue(rest)
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Unknown')).toBeTruthy())
+  expect(screen.queryByLabelText("Unknown's profile")).toBeNull()
+})

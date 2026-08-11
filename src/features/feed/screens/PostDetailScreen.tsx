@@ -76,7 +76,22 @@ export default function PostDetailScreen({ route, navigation }: Props) {
           </View>
         ) : (
           <>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[3] }}>
+            {/* The author is a tap-target here as well as in the feed row: a
+                reader who has already opened a post should not have to go back
+                out to reach the person behind it (STOURIFY-35). Inert when the
+                `user` relation was never loaded — there is no uuid to open. */}
+            <Pressable
+              onPress={author ? () => navigation.navigate('Profile', { userId: author.uuid }) : undefined}
+              disabled={!author}
+              accessibilityRole={author ? 'button' : undefined}
+              accessibilityLabel={author ? `${author.name}'s profile` : undefined}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: theme.spacing[3],
+                minHeight: theme.minTouchTarget,
+              }}
+            >
               <Avatar uri={author?.avatar_url} name={author?.name} size={40} />
               <View style={{ flex: 1 }}>
                 <Text variant="h2" numberOfLines={1}>
@@ -88,7 +103,7 @@ export default function PostDetailScreen({ route, navigation }: Props) {
                   </Text>
                 ) : null}
               </View>
-            </View>
+            </Pressable>
 
             {post.spot ? (
               <Pressable
