@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Settings → Delete account, the in-app deletion path Play requires** (STOURIFY-32). A new row in
+  the existing DANGER ZONE opens a confirmation sheet that collects the account's own email address
+  and password, which is what `DELETE /api/v1/me` demands — a sheet rather than an `Alert` for
+  exactly that reason, since an Alert cannot collect credentials. Two failure modes are handled
+  deliberately rather than incidentally: an empty field is caught before the request, because
+  otherwise it returns as a 422 that reads to the user like a wrong password; and a rejected
+  deletion leaves the session completely intact, because signing out on failure would present a
+  refused deletion as a successful one. On success the teardown goes through the existing
+  `signOut()` — the one path that clears the local database, the sync cursor and the query cache —
+  since by then the server has revoked every token and everything held locally describes an account
+  that no longer exists. `src/shared/api/account.ts` is the new client.
+
+### Fixed
+
+- **A timed-out account deletion no longer reports failure over an account that is already gone**
+  (STOURIFY-32). Found by the live run, not by reasoning: the dev backend took **19 seconds** to
+  complete the deletion and the API client gives up at 15, so the app showed "Could not delete your
+  account" while the server had finished — leaving the user apparently signed in, holding a token
+  that had just been revoked, so every retry answered 401. Two changes. `deleteAccount` now allows
+  60 seconds, because deletion is the longest write the app makes: it revokes tokens and then
+  withdraws every spot, post, review, wishlist item, follow edge and profile the account owns,
+  writing a sync tombstone for each. And a response-less error is now treated as an **unknown**
+  outcome rather than a failure — the app signs out. The asymmetry against a real rejection (wrong
+  password, which definitely means the account survived, and correctly leaves the session alone) is
+  the point: signing out after a timeout that changed nothing costs one login, while staying signed
+  in after a timeout that deleted everything leaves an app that cannot recover.
+
 - **Publish binds captured photos to the new spot — the M4 headline gate.** (STOURIFY-5) A spot
   and its photos are now one act. `publishSpot()` (`src/features/create/api/publishSpot.ts`) mints
   the spot's uuid, writes the `sto_spots` row and sets `host_uuid`/`host_type` on every queued
