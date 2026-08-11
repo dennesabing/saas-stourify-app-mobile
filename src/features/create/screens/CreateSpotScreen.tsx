@@ -1,29 +1,37 @@
-import { useState } from 'react'
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native'
+import { useEffect, useState } from 'react'
+import { Image, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useDatabase } from '@nozbe/watermelondb/react'
 import { Button, Text } from '@/shared/components/ui'
 import type { CreateStackParamList } from '@/shared/navigation/types'
 import { useAuthStore } from '@/shared/store/auth'
-import { uuidv4 } from '@/shared/utils/uuid'
 import { syncNow } from '@/sync/scheduler'
-import type Spot from '@/db/models/Spot'
+import type PendingMedia from '@/db/models/PendingMedia'
+import { MAX_DRAFT_PHOTOS, observeDraftMedia } from '@/features/media/api/draftMedia'
+import { publishSpot } from '@/features/create/api/publishSpot'
 import { useTheme } from '@/theme/ThemeProvider'
 
 type Props = NativeStackScreenProps<CreateStackParamList, 'CreateSpot'>
 
 /**
- * The offline-first vertical slice.
+ * The offline-first vertical slice, and the review-and-publish step that closes
+ * the M4 gate.
  *
  * It writes straight to WatermelonDB and NEVER to the network. There is
- * deliberately no loading state and no error state for the write: a local write
- * cannot fail for network reasons, so a spinner would be describing a risk that
- * does not exist. The drain happens in the background; `syncNow` is a nudge, not
- * a dependency — the spot is already durable when it returns.
+ * deliberately no loading state for the write: a local write cannot fail for
+ * network reasons, so a spinner would be describing a risk that does not exist.
+ * The drain happens in the background; `syncNow` is a nudge, not a dependency —
+ * the spot and its photos are already durable when it returns.
  *
  * That inversion — the network is a background concern, not a screen concern —
  * is the pattern M3 copies for every other owned entity.
+ *
+ * The photo strip reads the database rather than a route param, for the reason
+ * `CreateStackParamList` spells out: a camera URI is an OS cache entry Android
+ * may reclaim (design spec §2.3 rule 4). Capture writes a durable
+ * `pending_media` row before it navigates, and publish is what binds those rows
+ * to this spot.
  */
 export default function CreateSpotScreen({ navigation }: Props) {
   const theme = useTheme()
@@ -35,6 +43,18 @@ export default function CreateSpotScreen({ navigation }: Props) {
   const [latitude, setLatitude] = useState('')
   const [longitude, setLongitude] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [photos, setPhotos] = useState<PendingMedia[]>([])
+  const [publishing, setPublishing] = useState(false)
+
+  useEffect(() => {
+    // Subscribe rather than refetch on focus: a photo removed on the review
+    // step has to update this strip, and a focus-driven refetch would miss a
+    // change made while this screen was already mounted underneath it.
+    const subscription = observeDraftMedia(database).subscribe(setPhotos)
+    return () => subscription.unsubscribe()
+  }, [database])
+
+  const atCap = photos.length >= MAX_DRAFT_PHOTOS
 
   const inputStyle = {
     backgroundColor: theme.colors.card,
@@ -46,7 +66,9 @@ export default function CreateSpotScreen({ navigation }: Props) {
     minHeight: theme.minTouchTarget,
   }
 
-  async function onSave(): Promise<void> {
+  async function onPublish(): Promise<void> {
+    if (publishing) return
+
     if (title.trim().length < 3) {
       setError('A spot needs a name of at least 3 characters.')
       return
@@ -66,32 +88,34 @@ export default function CreateSpotScreen({ navigation }: Props) {
     }
 
     setError(null)
+    setPublishing(true)
 
-    // The uuid is minted HERE, before the write. It is the row's identity and
-    // the key the server resolves the push by, which is what makes a replayed
-    // drain create nothing new.
-    const uuid = uuidv4()
-    const now = Date.now()
-
-    await database.write(async () => {
-      await database.get<Spot>('sto_spots').create((row: any) => {
-        row._raw.id = uuid
-        row._raw.uuid = uuid
-        row._raw.user_id = userId === null ? null : Number(userId)
-        row._raw.title = title.trim()
-        row._raw.description = description.trim() === '' ? null : description.trim()
-        row._raw.latitude = lat
-        row._raw.longitude = lng
-        row._raw.status = 'draft'
-        row._raw.is_verified = false
-        row._raw.reviews_count = 0
-        row._raw.saves_count = 0
-        row._raw.created_at = now
-        row._raw.updated_at = now
+    try {
+      // One call writes the spot and binds every captured photo to its uuid.
+      // The uuid is minted in there, before the write — it is the row's
+      // identity, the key the server resolves the push by, and the
+      // `model_uuid` each photo's later `attach` resolves against.
+      await publishSpot(database, {
+        title,
+        description,
+        latitude: lat,
+        longitude: lng,
+        userId: userId === null ? null : Number(userId),
       })
-    })
+    } catch (publishError) {
+      // Reaching here means an invariant broke, not that the network did —
+      // publish never touches it. Say so rather than inventing a retry.
+      setError(
+        publishError instanceof Error
+          ? publishError.message
+          : 'That spot could not be published. Try again.',
+      )
+      return
+    } finally {
+      setPublishing(false)
+    }
 
-    // A nudge, not a dependency: the row is already durable and will drain on
+    // A nudge, not a dependency: the rows are already durable and will drain on
     // the next trigger regardless of whether this resolves.
     void syncNow(database)
 
@@ -142,13 +166,70 @@ export default function CreateSpotScreen({ navigation }: Props) {
           />
         </View>
 
+        <View style={{ gap: theme.spacing[2] }}>
+          <Text variant="h2">Photos</Text>
+          <Text variant="caption" color="muted">
+            {`${photos.length} of ${MAX_DRAFT_PHOTOS}`}
+          </Text>
+        </View>
+
+        {photos.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{ flexDirection: 'row', gap: theme.spacing[3] }}>
+              {photos.map((photo) => (
+                <Pressable
+                  key={photo.id}
+                  onPress={() => navigation.navigate('PhotoReview')}
+                  accessibilityRole="imagebutton"
+                  accessibilityLabel={photo.filename}
+                >
+                  <Image
+                    source={{ uri: photo.localPath }}
+                    style={[
+                      styles.thumbnail,
+                      { borderRadius: theme.radius.button, backgroundColor: theme.colors.surfaceAlt },
+                    ]}
+                    resizeMode="cover"
+                  />
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+        ) : (
+          <Text variant="caption" color="muted">
+            No photos yet. They are saved on this device the moment you take them, signal or not.
+          </Text>
+        )}
+
+        {atCap ? (
+          <Text variant="caption" color="muted">
+            {`That is all ${MAX_DRAFT_PHOTOS} photos. Remove one to take another.`}
+          </Text>
+        ) : null}
+
+        <Button
+          label="Add photos"
+          variant="secondary"
+          onPress={() => navigation.navigate('CameraCapture')}
+          accessibilityLabel="Add photos"
+          disabled={atCap}
+          fullWidth
+        />
+
         {error !== null ? (
           <Text variant="caption" style={{ color: theme.colors.danger }}>
             {error}
           </Text>
         ) : null}
 
-        <Button label="Save spot" onPress={onSave} />
+        <Button
+          label="Publish spot"
+          onPress={() => {
+            void onPublish()
+          }}
+          disabled={publishing}
+          fullWidth
+        />
       </ScrollView>
     </SafeAreaView>
   )
@@ -158,4 +239,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 12 },
   half: { flex: 1 },
   multiline: { minHeight: 96, textAlignVertical: 'top' },
+  thumbnail: { width: 96, height: 96 },
 })

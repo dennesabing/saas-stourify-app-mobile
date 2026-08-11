@@ -37,3 +37,17 @@ it('opens the post composer via the media picker', () => {
 
   expect(navigation.navigate).toHaveBeenCalledWith('MediaPicker')
 })
+
+/**
+ * Capture is reachable only from inside the spot-create sequence now.
+ *
+ * The temporary Add-photos card here existed to make the camera screens
+ * reachable before publish did — and every photo taken through it was bound to
+ * nothing, because there was no spot to bind to. A photo with no host is
+ * skipped by the media drain silently and forever.
+ */
+it('offers no route to the camera outside the spot flow', () => {
+  renderScreen()
+
+  expect(screen.queryByLabelText('Add photos')).toBeNull()
+})

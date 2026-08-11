@@ -130,9 +130,19 @@ export default function PhotoReviewScreen({ navigation }: Props) {
               disabled={atCap}
               fullWidth
             />
+            {/*
+              `popTo`, not `navigate`, and the difference is the whole point.
+              React Navigation 7 changed `navigate` to PUSH when the target is
+              not the current screen; unwinding to an existing instance is now
+              `popTo`. With `navigate` here the user comes back to a blank New
+              Spot form — the title and coordinates typed before the photo
+              detour silently gone. Caught on the device, not by the suite: a
+              mocked navigator records the call and cannot tell you what the
+              real one does with it.
+            */}
             <Button
               label="Done"
-              onPress={() => navigation.navigate('CreateMenu')}
+              onPress={() => navigation.popTo('CreateSpot')}
               accessibilityLabel="Done adding photos"
               fullWidth
             />

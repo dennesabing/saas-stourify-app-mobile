@@ -8,7 +8,7 @@ import { queueLocalMedia } from './queueLocalMedia'
  * The morph alias every photo captured in the Create flow is destined for.
  * Matches `AllowedMorph` server-side and `HOST_TABLES` in `sync/mediaDrain.ts`.
  */
-const DRAFT_HOST_TYPE = 'stourify_spot'
+export const DRAFT_HOST_TYPE = 'stourify_spot'
 
 /**
  * The `host_uuid` a photo carries before it belongs to anything.

@@ -57,7 +57,7 @@ jest.mock('expo-file-system', () => {
 import { queueCapturedPhoto } from '@/features/media/api/draftMedia'
 import PhotoReviewScreen from '@/features/media/screens/PhotoReviewScreen'
 
-const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
+const navigation = { navigate: jest.fn(), goBack: jest.fn(), popTo: jest.fn() } as any
 
 /**
  * Deliberately `undefined`, and asserted on rather than assumed: the review
@@ -169,4 +169,32 @@ it('updates the strip when a photo is removed, without a remount', async () => {
   await waitFor(() => expect(screen.getByText('1 of 3')).toBeTruthy())
   expect(screen.queryByLabelText('Remove first.jpg')).toBeNull()
   expect(screen.getByLabelText('Remove second.jpg')).toBeTruthy()
+})
+
+/**
+ * Done returns to the spot form, not the Create menu.
+ *
+ * `navigate` resolves to the `CreateSpot` instance already on the stack, so the
+ * title and coordinates typed before the capture detour survive it. Sending the
+ * user back to the menu instead discards that form silently — and leaves the
+ * captured photos unbound, which is the exact state STOURIFY-5 exists to end.
+ */
+it('done returns to the spot form the photos belong to', async () => {
+  await seedDraft('one.jpg')
+  renderScreen()
+
+  await waitFor(() => {
+    expect(screen.getByLabelText('Done adding photos')).toBeTruthy()
+  })
+
+  fireEvent.press(screen.getByLabelText('Done adding photos'))
+
+  // `popTo`, not `navigate`. React Navigation 7 made `navigate` push a NEW
+  // screen when the target is not the current one, so `navigate('CreateSpot')`
+  // returns the user to a blank form with everything they typed gone. That
+  // failed on the device while this file was green — a mocked navigator records
+  // the call and knows nothing about what the real one does with it.
+  expect(navigation.popTo).toHaveBeenCalledWith('CreateSpot')
+  expect(navigation.navigate).not.toHaveBeenCalledWith('CreateSpot')
+  expect(navigation.navigate).not.toHaveBeenCalledWith('CreateMenu')
 })
