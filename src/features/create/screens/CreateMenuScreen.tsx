@@ -46,16 +46,12 @@ export default function CreateMenuScreen({ navigation }: Props) {
         </Card>
 
         {/*
-          A temporary entry point. The capture flow's permanent home is inside
-          the spot-create sequence (STOURIFY-5); until that lands, this is what
-          makes the screens reachable at all — including for the live-run gate.
+          The temporary Add-photos entry point is gone: capture now lives inside
+          the spot-create sequence, which is where STOURIFY-5 put it. Reaching
+          the camera without a spot to attach to was only ever a way to make the
+          screens reachable before publish existed, and it produced photos bound
+          to nothing.
         */}
-        <Card onPress={() => navigation.navigate('CameraCapture')} accessibilityLabel="Add photos">
-          <Text variant="h2">Add photos</Text>
-          <Text variant="caption" color="muted">
-            Capture what the spot actually looks like — works with no signal
-          </Text>
-        </Card>
 
         <Card raised={false}>
           <Text variant="h2" color="muted">

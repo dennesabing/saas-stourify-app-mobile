@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Publish binds captured photos to the new spot — the M4 headline gate.** (STOURIFY-5) A spot
+  and its photos are now one act. `publishSpot()` (`src/features/create/api/publishSpot.ts`) mints
+  the spot's uuid, writes the `sto_spots` row and sets `host_uuid`/`host_type` on every queued
+  `pending_media` row in **one** `database.batch`, entirely offline. The uuid is minted before the
+  write because it is the row's identity, the key the server resolves the push by, and the
+  `model_uuid` each photo's later `attach` resolves against (design spec §2.3 rule 1) — a
+  server-allocated id would leave nothing to bind to until the spot had already reached a network,
+  which is the one thing this flow does not have. One batch rather than two writes: a crash between
+  them would publish a spot whose photos point at nothing, and the media drain skips an unbound row
+  silently and forever, so that partial publish would never surface. An unbound row surviving
+  publish throws — the card's rule that this is a bug, not a skip — as does a draft carrying more
+  than the three-photo cap, which is a capture-time cap having failed rather than something to trim
+  behind the user's back. **No gating was added anywhere**: publish touches neither the sync cycle
+  nor `fullyAcked`, per design spec §2.3 rule 3, and the M4a regression test holding that line
+  passes unmodified. `CreateSpotScreen` grew the review surface it needed — a live photo strip, an
+  `n of 3` counter, an Add-photos route into capture that disables at the cap, and a Publish action
+  — and capture's temporary entry point on the Create sheet is gone, since photos taken there could
+  never bind to anything. `PhotoReviewScreen`'s Done now returns to the spot form rather than the
+  Create menu, so the title and coordinates typed before the detour survive it.
+
 - **Camera capture and a photo review step.** (STOURIFY-3) `CameraCaptureScreen` is the first
   `expo-camera` surface in the app — an in-app `CameraView` with an inline permission gate, a lens
   flip, and a gallery alternative that opens the picker's built-in native crop editor. Every result,
