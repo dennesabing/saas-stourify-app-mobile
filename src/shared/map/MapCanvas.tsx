@@ -4,7 +4,7 @@ import MapView, { Marker } from 'react-native-maps'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Text from '@/shared/components/ui/Text'
 import { useTheme } from '@/theme/ThemeProvider'
-import type { MapPin, MapPinKind, MapRegion } from './types'
+import type { MapCoordinate, MapPin, MapPinKind, MapRegion } from './types'
 
 /**
  * The only map-aware file in the app.
@@ -49,6 +49,22 @@ export interface MapCanvasProps {
    * its own state.
    */
   onRecenter?: () => void
+  /**
+   * The one pin the viewer may pick up and put down somewhere else. Everything
+   * else on the map stays where it is.
+   *
+   * Deliberately one id rather than a flag on `MapPin`: a screen that can move
+   * two pins at once has to explain which is which, and no screen needs that
+   * yet. `CreateSpotScreen` moves the spot it is creating and nothing else.
+   */
+  movablePinId?: string | null
+  /**
+   * Called with the pin's id and where it was dropped — an app coordinate, not
+   * the engine's event. Without this the pin is not movable, however
+   * `movablePinId` is set: a pin that can be dragged and reports nowhere loses
+   * the position silently.
+   */
+  onMovePin?: (pinId: string, coordinate: MapCoordinate) => void
   style?: StyleProp<ViewStyle>
   testID?: string
 }
@@ -73,6 +89,8 @@ export default function MapCanvas({
   onSelectPin,
   renderPeekCard,
   onRecenter,
+  movablePinId = null,
+  onMovePin,
   style,
   testID,
 }: MapCanvasProps) {
@@ -97,6 +115,31 @@ export default function MapCanvas({
     [onSelectPin, selectedPinId],
   )
 
+  /**
+   * The engine hands over its own event object. It stops here — every caller
+   * above sees a `MapCoordinate` and nothing else.
+   *
+   * A drop with no coordinate is dropped rather than reported: the engine has
+   * been observed to fire drag callbacks with an empty payload, and forwarding
+   * that would move the spot to `(undefined, undefined)` — which reads
+   * downstream as a validation failure on a position the user never chose.
+   */
+  const handleDragEnd = useCallback(
+    (pinId: string, event: { nativeEvent?: { coordinate?: MapCoordinate } }) => {
+      const coordinate = event?.nativeEvent?.coordinate
+      if (
+        !coordinate ||
+        typeof coordinate.latitude !== 'number' ||
+        typeof coordinate.longitude !== 'number'
+      ) {
+        return
+      }
+
+      onMovePin?.(pinId, { latitude: coordinate.latitude, longitude: coordinate.longitude })
+    },
+    [onMovePin],
+  )
+
   const handleRecenter = useCallback(() => {
     mapRef.current?.animateToRegion(vendorRegion, theme.motion.base)
     onRecenter?.()
@@ -112,16 +155,22 @@ export default function MapCanvas({
         region={vendorRegion}
         onPress={() => onSelectPin?.(null)}
       >
-        {pins.map((pin) => (
-          <Marker
-            key={pin.id}
-            identifier={pin.id}
-            coordinate={pin.coordinate}
-            title={pin.title}
-            pinColor={pinColorFor(pin.kind)}
-            onPress={() => handlePinPress(pin.id)}
-          />
-        ))}
+        {pins.map((pin) => {
+          const movable = onMovePin !== undefined && pin.id === movablePinId
+
+          return (
+            <Marker
+              key={pin.id}
+              identifier={pin.id}
+              coordinate={pin.coordinate}
+              title={pin.title}
+              pinColor={pinColorFor(pin.kind)}
+              draggable={movable}
+              onDragEnd={movable ? (event: any) => handleDragEnd(pin.id, event) : undefined}
+              onPress={() => handlePinPress(pin.id)}
+            />
+          )
+        })}
       </MapView>
 
       {onRecenter ? (

@@ -211,6 +211,84 @@ describe('MapCanvas — the peek card', () => {
   })
 })
 
+describe('MapCanvas — moving a pin', () => {
+  it('leaves every pin fixed unless the caller names one as movable', () => {
+    render(<MapCanvas region={{ center: HERE, radiusKm: 10 }} pins={PINS} />)
+
+    for (const marker of mockMarkerProps) {
+      expect(marker.draggable).toBeFalsy()
+    }
+  })
+
+  it('makes exactly the named pin movable, and no other', () => {
+    render(
+      <MapCanvas
+        region={{ center: HERE, radiusKm: 10 }}
+        pins={PINS}
+        movablePinId="spot-a"
+        onMovePin={jest.fn()}
+      />,
+    )
+
+    expect(mockMarkerProps.find((p) => p.identifier === 'spot-a')!.draggable).toBe(true)
+    expect(mockMarkerProps.find((p) => p.identifier === 'spot-b')!.draggable).toBeFalsy()
+  })
+
+  // The point of the whole wrapper, at its narrowest: the engine hands over a
+  // `nativeEvent`, and the caller must never see one.
+  it('reports a plain app coordinate when the pin is dropped, never the engine event', () => {
+    const onMovePin = jest.fn()
+    render(
+      <MapCanvas
+        region={{ center: HERE, radiusKm: 10 }}
+        pins={PINS}
+        movablePinId="spot-a"
+        onMovePin={onMovePin}
+      />,
+    )
+
+    const dropped = { latitude: 6.1164, longitude: 125.1716 }
+    mockMarkerProps
+      .find((p) => p.identifier === 'spot-a')!
+      .onDragEnd({ nativeEvent: { coordinate: dropped } })
+
+    expect(onMovePin).toHaveBeenCalledWith('spot-a', dropped)
+  })
+
+  it('survives an engine event that carries no coordinate rather than reporting a broken one', () => {
+    const onMovePin = jest.fn()
+    render(
+      <MapCanvas
+        region={{ center: HERE, radiusKm: 10 }}
+        pins={PINS}
+        movablePinId="spot-a"
+        onMovePin={onMovePin}
+      />,
+    )
+
+    mockMarkerProps.find((p) => p.identifier === 'spot-a')!.onDragEnd({ nativeEvent: {} })
+
+    expect(onMovePin).not.toHaveBeenCalled()
+  })
+
+  it('does not swallow selection: a movable pin is still tappable', () => {
+    const onSelectPin = jest.fn()
+    const { getByTestId } = render(
+      <MapCanvas
+        region={{ center: HERE, radiusKm: 10 }}
+        pins={PINS}
+        movablePinId="spot-a"
+        onMovePin={jest.fn()}
+        onSelectPin={onSelectPin}
+      />,
+    )
+
+    fireEvent.press(getByTestId('vendor-marker-spot-a'))
+
+    expect(onSelectPin).toHaveBeenCalledWith('spot-a')
+  })
+})
+
 describe('MapCanvas — recenter', () => {
   it('draws no control unless the caller wants one', () => {
     const { queryByTestId } = render(<MapCanvas region={{ center: HERE, radiusKm: 10 }} pins={PINS} />)

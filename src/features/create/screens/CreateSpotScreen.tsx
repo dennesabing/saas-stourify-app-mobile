@@ -1,16 +1,38 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useDatabase } from '@nozbe/watermelondb/react'
-import { Button, Text } from '@/shared/components/ui'
+import { Button, Chip, Text } from '@/shared/components/ui'
 import type { CreateStackParamList } from '@/shared/navigation/types'
+import type { MapCoordinate } from '@/shared/map'
 import { useAuthStore } from '@/shared/store/auth'
 import { syncNow } from '@/sync/scheduler'
 import type PendingMedia from '@/db/models/PendingMedia'
 import { MAX_DRAFT_PHOTOS, observeDraftMedia } from '@/features/media/api/draftMedia'
 import { publishSpot } from '@/features/create/api/publishSpot'
+import LocationPicker from '@/features/create/components/LocationPicker'
+import { MAX_SPOT_CATEGORIES, validateSpotForm } from '@/features/create/api/spotForm'
 import { useTheme } from '@/theme/ThemeProvider'
+
+/**
+ * The categories on offer.
+ *
+ * The server takes free strings — `SpotStoreRequest` has no list to check
+ * against — so this is the app's own shortlist, deliberately the same labels the
+ * Discover filter rail uses, so what somebody tags here is what somebody else
+ * can filter by there.
+ */
+const SPOT_CATEGORIES = [
+  'Nature',
+  'Foodie',
+  'Coast',
+  'Heritage',
+  'Viewpoint',
+  'Adventure',
+  'Nightlife',
+  'Shopping',
+] as const
 
 type Props = NativeStackScreenProps<CreateStackParamList, 'CreateSpot'>
 
@@ -27,6 +49,14 @@ type Props = NativeStackScreenProps<CreateStackParamList, 'CreateSpot'>
  * That inversion — the network is a background concern, not a screen concern —
  * is the pattern M3 copies for every other owned entity.
  *
+ * **Location is captured, never typed** (STOURIFY-4). `LocationPicker` owns
+ * that: the phone's own position on entry, a draggable pin for correction, and
+ * a stated reason on screen whenever neither is available. This screen only
+ * holds the resulting coordinate, and refuses to publish without one. Note what
+ * it does NOT import — no map library appears anywhere under
+ * `features/create/`, because `src/shared/map/MapCanvas.tsx` is the app's only
+ * map-aware file and a second one would end the one-file MapLibre swap.
+ *
  * The photo strip reads the database rather than a route param, for the reason
  * `CreateStackParamList` spells out: a camera URI is an OS cache entry Android
  * may reclaim (design spec §2.3 rule 4). Capture writes a durable
@@ -40,8 +70,10 @@ export default function CreateSpotScreen({ navigation }: Props) {
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [latitude, setLatitude] = useState('')
-  const [longitude, setLongitude] = useState('')
+  // Never typed: filled in from the device on entry, corrected by moving the
+  // pin. `null` means nothing has placed it yet, which validation refuses.
+  const [coordinate, setCoordinate] = useState<MapCoordinate | null>(null)
+  const [categories, setCategories] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [photos, setPhotos] = useState<PendingMedia[]>([])
   const [publishing, setPublishing] = useState(false)
@@ -66,24 +98,34 @@ export default function CreateSpotScreen({ navigation }: Props) {
     minHeight: theme.minTouchTarget,
   }
 
+  /**
+   * Stable, so the picker does not re-request a position every time anything
+   * else on the form changes — its effect would otherwise re-run on every
+   * keystroke in the title field.
+   */
+  const onCoordinateChange = useCallback((next: MapCoordinate) => setCoordinate(next), [])
+
+  function toggleCategory(category: string): void {
+    setCategories((previous) =>
+      previous.includes(category)
+        ? previous.filter((existing) => existing !== category)
+        : previous.length >= MAX_SPOT_CATEGORIES
+          ? previous
+          : [...previous, category],
+    )
+  }
+
   async function onPublish(): Promise<void> {
     if (publishing) return
 
-    if (title.trim().length < 3) {
-      setError('A spot needs a name of at least 3 characters.')
-      return
-    }
+    // One rule set, shared with its own tests and kept in step with
+    // `SpotStoreRequest`. A local write that the server will later refuse is
+    // the failure this guards: the refusal arrives long after the person who
+    // typed it stopped looking.
+    const invalid = validateSpotForm({ title, description, coordinate, categories })
 
-    const lat = Number(latitude)
-    const lng = Number(longitude)
-
-    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
-      setError('Latitude must be between -90 and 90.')
-      return
-    }
-
-    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
-      setError('Longitude must be between -180 and 180.')
+    if (invalid !== null) {
+      setError(invalid)
       return
     }
 
@@ -98,8 +140,11 @@ export default function CreateSpotScreen({ navigation }: Props) {
       await publishSpot(database, {
         title,
         description,
-        latitude: lat,
-        longitude: lng,
+        // Non-null by construction: `validateSpotForm` above refuses a form
+        // with no position, so reaching here means one was captured or placed.
+        latitude: coordinate!.latitude,
+        longitude: coordinate!.longitude,
+        categories,
         userId: userId === null ? null : Number(userId),
       })
     } catch (publishError) {
@@ -147,23 +192,23 @@ export default function CreateSpotScreen({ navigation }: Props) {
           multiline
         />
 
-        <View style={styles.row}>
-          <TextInput
-            style={[inputStyle, styles.half]}
-            placeholder="Latitude"
-            placeholderTextColor={theme.colors.muted}
-            keyboardType="numbers-and-punctuation"
-            value={latitude}
-            onChangeText={setLatitude}
-          />
-          <TextInput
-            style={[inputStyle, styles.half]}
-            placeholder="Longitude"
-            placeholderTextColor={theme.colors.muted}
-            keyboardType="numbers-and-punctuation"
-            value={longitude}
-            onChangeText={setLongitude}
-          />
+        <LocationPicker value={coordinate} onChange={onCoordinateChange} />
+
+        <View style={{ gap: theme.spacing[2] }}>
+          <Text variant="h2">Categories</Text>
+          <Text variant="caption" color="muted">
+            {`Optional — up to ${MAX_SPOT_CATEGORIES}.`}
+          </Text>
+          <View style={styles.chips}>
+            {SPOT_CATEGORIES.map((category) => (
+              <Chip
+                key={category}
+                label={category}
+                selected={categories.includes(category)}
+                onPress={() => toggleCategory(category)}
+              />
+            ))}
+          </View>
         </View>
 
         <View style={{ gap: theme.spacing[2] }}>
@@ -236,8 +281,7 @@ export default function CreateSpotScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 12 },
-  half: { flex: 1 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   multiline: { minHeight: 96, textAlignVertical: 'top' },
   thumbnail: { width: 96, height: 96 },
 })

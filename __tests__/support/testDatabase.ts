@@ -85,6 +85,10 @@ export interface CitySeed {
   serverId: number
   name: string
   slug: string
+  /** Both optional on the server, so both are nullable here — a city with no
+   *  coordinates is a real row, not a broken one. */
+  latitude: number | null
+  longitude: number | null
 }
 
 const CITY_DEFAULTS: CitySeed = {
@@ -92,6 +96,8 @@ const CITY_DEFAULTS: CitySeed = {
   serverId: 1,
   name: 'General Santos',
   slug: 'general-santos',
+  latitude: null,
+  longitude: null,
 }
 
 export async function seedCity(database: Database, overrides: Partial<CitySeed> = {}): Promise<City> {
@@ -104,6 +110,8 @@ export async function seedCity(database: Database, overrides: Partial<CitySeed> 
       row._raw.server_id = seed.serverId
       row._raw.name = seed.name
       row._raw.slug = seed.slug
+      row._raw.latitude = seed.latitude
+      row._raw.longitude = seed.longitude
       row._raw.spot_count = 0
       row._raw.is_featured = false
       row._raw.created_at = 1_700_000_000_000

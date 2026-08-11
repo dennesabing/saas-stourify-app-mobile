@@ -13,6 +13,11 @@ export interface PublishSpotInput {
   description: string
   latitude: number
   longitude: number
+  /**
+   * Free strings, exactly as `SpotStoreRequest` takes them. An empty list is
+   * written as `null`, which is what `pushService` already sends for "none".
+   */
+  categories?: string[]
   /** The signed-in explorer's server id, or `null` while it is unknown. */
   userId: number | null
 }
@@ -54,6 +59,9 @@ export async function publishSpot(
   const uuid = uuidv4()
   const now = Date.now()
   const description = input.description.trim()
+  // JSON text, because `categories` is a string column holding JSON — the
+  // schema's own note explains why the sanitizer cannot be handed an array.
+  const categories = (input.categories ?? []).map((category) => category.trim()).filter(Boolean)
 
   let photoCount = 0
 
@@ -82,6 +90,7 @@ export async function publishSpot(
         row._raw.description = description === '' ? null : description
         row._raw.latitude = input.latitude
         row._raw.longitude = input.longitude
+        row._raw.categories = categories.length === 0 ? null : JSON.stringify(categories)
         row._raw.status = 'draft'
         row._raw.is_verified = false
         row._raw.reviews_count = 0
