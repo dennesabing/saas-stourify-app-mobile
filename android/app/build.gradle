@@ -5,6 +5,53 @@ apply plugin: "com.facebook.react"
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
 /**
+ * Resolves the Google Maps Android API key without ever putting it in git.
+ *
+ * `android/` is committed here, so the manifest that `expo prebuild` writes is a tracked
+ * file. app.config.js therefore feeds prebuild the literal placeholder token
+ * `${GOOGLE_MAPS_API_KEY}` rather than the key, and the AGP manifest merger substitutes the
+ * value resolved below. The secret lives only in `mobile/.env` (gitignored) and in the APK.
+ *
+ * Lookup order:
+ *   1. the process environment — `expo run:android` and EAS both export `.env` / EAS-secret
+ *      values into the Gradle child process;
+ *   2. a Gradle property, for CI that would rather pass `-PGOOGLE_MAPS_API_KEY=…`;
+ *   3. `mobile/.env` parsed directly, so a bare `./gradlew assembleDebug` still works.
+ *
+ * See ../../docs/google-maps-api-key.md.
+ */
+def resolveGoogleMapsApiKey = {
+    def fromEnv = System.getenv("GOOGLE_MAPS_API_KEY")
+    if (fromEnv) return fromEnv
+
+    if (project.hasProperty("GOOGLE_MAPS_API_KEY")) {
+        def fromProp = project.property("GOOGLE_MAPS_API_KEY")
+        if (fromProp) return fromProp
+    }
+
+    def dotEnv = new File(projectRoot, ".env")
+    if (dotEnv.exists()) {
+        for (line in dotEnv.readLines()) {
+            def trimmed = line.trim()
+            if (trimmed.startsWith("#") || !trimmed.contains("=")) continue
+            def idx = trimmed.indexOf("=")
+            if (trimmed.substring(0, idx).trim() != "GOOGLE_MAPS_API_KEY") continue
+            def value = trimmed.substring(idx + 1).trim()
+            // Strip a single layer of surrounding quotes, as dotenv does.
+            if (value.length() >= 2 && ((value.startsWith('"') && value.endsWith('"')) ||
+                    (value.startsWith("'") && value.endsWith("'")))) {
+                value = value.substring(1, value.length() - 1)
+            }
+            if (value) return value
+        }
+    }
+
+    logger.warn("GOOGLE_MAPS_API_KEY is not set. This build will have no Google Maps key and " +
+            "every map surface will crash on mount. See mobile/docs/google-maps-api-key.md.")
+    return ""
+}
+
+/**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
@@ -87,7 +134,7 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.mobile"
+    namespace 'app.stourify.mobile'
     defaultConfig {
         // The Play Store identity, and it is PERMANENT after first publish —
         // a wrong value cannot be corrected without a new listing and the loss
@@ -95,15 +142,24 @@ android {
         //
         // This was left at the scaffold default `com.mobile` until 2026-07-29,
         // when the first attempt to actually run the app on a device caught it.
-        // `namespace` deliberately stays `com.mobile`: that is the Java/Kotlin
-        // source package (android/app/src/main/java/com/mobile/), not the app
-        // identity, and renaming it would mean moving the source tree for no
-        // benefit.
-        applicationId "app.stourify.mobile"
+        //
+        // `namespace` was held at `com.mobile` by hand for a while, on the view
+        // that the Kotlin source package is not the app identity. That is true,
+        // but `expo prebuild` derives `namespace` from `expo.android.package`
+        // and moves the source tree to match, so holding it back only produced
+        // a diff that came straight back on the next prebuild. Since 2026-08-11
+        // (STOURIFY-21) both are `app.stourify.mobile` and this file is left as
+        // prebuild writes it. Note the launcher activity is therefore
+        // `app.stourify.mobile.MainActivity`, not `com.mobile.MainActivity`.
+        applicationId 'app.stourify.mobile'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 3
+        versionName "0.3.0"
+
+        // Substituted into the `com.google.android.geo.API_KEY` meta-data that prebuild
+        // writes as `${GOOGLE_MAPS_API_KEY}`. See resolveGoogleMapsApiKey above.
+        manifestPlaceholders += [GOOGLE_MAPS_API_KEY: resolveGoogleMapsApiKey()]
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }

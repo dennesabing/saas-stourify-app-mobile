@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Map surfaces no longer kill the app process** (STOURIFY-21). The Android build carried no
+  `com.google.android.geo.API_KEY`, so the Google Maps SDK threw `IllegalStateException: API key not
+  found` on its own thread the instant a `MapView` mounted and dropped the app to the launcher — on
+  `master` and on the STOURIFY-7 branch alike, which is what ruled out a code regression. The key now
+  comes from `GOOGLE_MAPS_API_KEY` in `mobile/.env` and reaches the manifest without entering git:
+  a new dynamic `app.config.js` feeds prebuild the Gradle placeholder token `${GOOGLE_MAPS_API_KEY}`
+  (so the tracked `AndroidManifest.xml` holds only the token), and `android/app/build.gradle`
+  substitutes the real value at build time from the environment, a `-P` property, or `.env`.
+  `app.json` stays the source of truth for all static config — the resolved config gains
+  `android.config.googleMaps.apiKey` and nothing else. Verified on `Pixel_9`: Discover → "Spots near
+  me" draws Google tiles with no `FATAL EXCEPTION`. Provisioning, EAS-secret and key-restriction
+  steps are in `docs/google-maps-api-key.md`.
+
+### Changed
+
+- **The native Android project is now what `expo prebuild` writes** (STOURIFY-21). Running the
+  prebuild that injects the maps key also corrected drift the committed `android/` tree had
+  accumulated: the manifest had none of `app.json`'s permissions and no `stourify` scheme intent
+  filter, and the Kotlin namespace was still the scaffold's `com.mobile`. Both are now
+  `app.stourify.mobile`; `applicationId`, and therefore the installed package and its signing, are
+  unchanged. **The launcher activity is now `app.stourify.mobile.MainActivity`** — recipes that ran
+  `am start -n app.stourify.mobile/com.mobile.MainActivity` need updating. A stale
+  `android/build/generated/autolinking/` cache pins the old namespace and fails the build with
+  `package com.mobile does not exist`; delete that directory if you hit it.
+
 ### Added
 
 - **The author of a post is now a tap-target** (STOURIFY-35). Pressing the identity block on a feed
