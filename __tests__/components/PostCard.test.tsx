@@ -79,6 +79,36 @@ test('falls back gracefully when author is absent', () => {
   expect(screen.getByText('Unknown')).toBeTruthy()
 })
 
+/**
+ * STOURIFY-18's acceptance criterion 6 is that a composed post reaches the feed
+ * *with its photo*. The upload flow was verified live — `POST /media/attach`
+ * lands the object and `PostResource` returns it — and the post still rendered
+ * as text, because this card was written against a docblock claiming
+ * `PostResource` has no `media` key. It does.
+ */
+test('renders the first attached photo', () => {
+  const post: Post = {
+    ...mockPost,
+    media: [
+      { uuid: 'm1', url: 'https://cdn.example.com/a.jpg', thumb_url: null },
+      { uuid: 'm2', url: 'https://cdn.example.com/b.jpg', thumb_url: null },
+    ],
+  }
+  renderThemed(<PostCard post={post} onPress={() => {}} />)
+  const photo = screen.getByLabelText('Photo in post by Ana Martinez')
+  expect(photo.props.source).toEqual(expect.objectContaining({ uri: 'https://cdn.example.com/a.jpg' }))
+})
+
+test('renders no photo when the post has no media', () => {
+  renderThemed(<PostCard post={mockPost} onPress={() => {}} />)
+  expect(screen.queryByLabelText('Photo in post by Ana Martinez')).toBeNull()
+})
+
+test('renders no photo when media is an empty array', () => {
+  renderThemed(<PostCard post={{ ...mockPost, media: [] }} onPress={() => {}} />)
+  expect(screen.queryByLabelText('Photo in post by Ana Martinez')).toBeNull()
+})
+
 test('meets the minimum touch target on both actions', () => {
   renderThemed(<PostCard post={mockPost} onPress={() => {}} onLikePress={() => {}} />)
   const like = screen.getByLabelText('Like')
