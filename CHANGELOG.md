@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mentions the engine: `mobile/` ships no ESLint, and a convention nobody checks does not survive
   three milestones.
 
+  The recenter control carries the safe-area top inset. The map draws edge to edge, so at a bare
+  spacing offset the status bar covered all but about twenty pixels of a 44dp target — on the
+  emulator it read as a dead button rather than as a layout bug, which is why the live gate found
+  it and the unit tests had not. Asserted now, not just commented.
+
 - **Settings now links to the Privacy Policy, the Terms of Service and a web account-deletion page**
   (STOURIFY-34). Google Play requires the first two to be reachable from inside the app, not only
   from the store listing, and requires a web-reachable deletion-request URL separate from the in-app

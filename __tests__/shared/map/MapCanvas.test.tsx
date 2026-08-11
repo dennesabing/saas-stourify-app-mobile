@@ -1,5 +1,5 @@
 import { render, fireEvent } from '@testing-library/react-native'
-import { Text as RNText } from 'react-native'
+import { StyleSheet, Text as RNText } from 'react-native'
 import MapCanvas from '@/shared/map/MapCanvas'
 import type { MapPin } from '@/shared/map/types'
 
@@ -12,6 +12,18 @@ import type { MapPin } from '@/shared/map/types'
  * native view instead, which jest cannot do and which is the emulator gate's
  * job anyway.
  */
+
+/**
+ * These tests render `MapCanvas` bare rather than inside `TestProviders`, so
+ * there is no `SafeAreaProvider` above it and `useSafeAreaInsets()` would throw.
+ * A fixed inset set is also what makes the recenter control's position
+ * assertable at all.
+ */
+const TEST_INSETS = { top: 47, left: 0, right: 0, bottom: 34 }
+
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => TEST_INSETS,
+}))
 
 const mockMapProps: Record<string, any>[] = []
 const mockMarkerProps: Record<string, any>[] = []
@@ -219,5 +231,19 @@ describe('MapCanvas — recenter', () => {
       expect.objectContaining({ latitude: HERE.latitude, longitude: HERE.longitude }),
       expect.any(Number),
     )
+  })
+
+  // The map draws edge to edge, so a control placed at a bare spacing offset
+  // sits under the status bar. On the emulator that left a ~20px strip of a
+  // 44dp target reachable, which reads as a dead button rather than a layout
+  // bug — hence an assertion rather than a comment.
+  it('clears the status bar, which the edge-to-edge map does not do for it', () => {
+    const { getByTestId } = render(
+      <MapCanvas region={{ center: HERE, radiusKm: 10 }} pins={PINS} onRecenter={jest.fn()} />,
+    )
+
+    const style = StyleSheet.flatten(getByTestId('map-recenter').props.style)
+
+    expect(style.top).toBeGreaterThan(TEST_INSETS.top)
   })
 })

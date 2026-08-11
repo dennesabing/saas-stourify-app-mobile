@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, type ReactNode } from 'react'
 import { StyleSheet, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native'
 import MapView, { Marker } from 'react-native-maps'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Text from '@/shared/components/ui/Text'
 import { useTheme } from '@/theme/ThemeProvider'
 import type { MapPin, MapPinKind, MapRegion } from './types'
@@ -76,6 +77,11 @@ export default function MapCanvas({
   testID,
 }: MapCanvasProps) {
   const theme = useTheme()
+  // The map draws edge to edge, so the recenter control needs the inset the
+  // screen does not give it. Without this the status bar covers all but a few
+  // pixels of a 44dp target and the control is, in practice, unpressable —
+  // found on the emulator, not by reading the code.
+  const insets = useSafeAreaInsets()
   const mapRef = useRef<MapView | null>(null)
 
   const vendorRegion = useMemo(() => toVendorRegion(region), [region])
@@ -127,7 +133,7 @@ export default function MapCanvas({
           style={[
             styles.recenter,
             {
-              top: theme.spacing[3],
+              top: insets.top + theme.spacing[3],
               right: theme.spacing[3],
               width: theme.minTouchTarget,
               height: theme.minTouchTarget,
