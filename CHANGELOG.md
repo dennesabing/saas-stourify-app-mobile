@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Settings now links to the Privacy Policy, the Terms of Service and a web account-deletion page**
+  (STOURIFY-34). Google Play requires the first two to be reachable from inside the app, not only
+  from the store listing, and requires a web-reachable deletion-request URL separate from the in-app
+  path STOURIFY-32 shipped. A new LEGAL section on `SettingsScreen` carries all three.
+
+  They sit **above** DANGER ZONE rather than inside it: reading a policy is not destructive, and the
+  only irreversible action on that screen should be the one in the red section. The in-app
+  "Delete account" flow is untouched — the web page is an addition, and a test asserts both are
+  present, because Play requires both and losing either fails the listing.
+
+  Opened with `Linking.openURL` from React Native rather than `expo-web-browser` or an in-app
+  WebView. Both of those are native modules, so adding one would force a rebuild of the dev client
+  **and** of the APK in order to ship what is, on our side, three links.
+
+  The URLs come from the new `shared/config/legal.ts`, which derives the web origin from
+  `EXPO_PUBLIC_API_URL` — already the single source of truth for which backend a build talks to —
+  rather than hardcoding the production host. Hardcoding it would have made a dev build's Privacy
+  Policy link open production, which is exactly the sort of thing nobody notices until the two
+  documents disagree.
+
 ### Fixed
 
 - **Map surfaces no longer kill the app process** (STOURIFY-21). The Android build carried no
