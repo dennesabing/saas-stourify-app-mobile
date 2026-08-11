@@ -1,5 +1,5 @@
 import React from 'react'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { Image, Pressable, StyleSheet, View } from 'react-native'
 import { useTheme } from '@/theme/ThemeProvider'
 import type { Post } from '@/shared/api/types'
 import Avatar from './Avatar'
@@ -18,13 +18,21 @@ interface Props {
  * `whenLoaded('user')` server-side and so is genuinely absent on some paths.
  * Never crash on that; fall back to "Unknown" and an initial-less avatar.
  *
- * `PostResource` has no media key (confirmed against the resource, not
- * assumed) — this card does not render an image.
+ * Renders the post's first photo when it has one. This card used to carry the
+ * opposite claim — *"`PostResource` has no media key"* — and rendered text only.
+ * The resource does return `media`, an array of `{uuid, url, thumb_url}`, which
+ * is why `Post.media` has been typed all along; the docblock was simply wrong,
+ * and it made STOURIFY-18's photos upload correctly and then appear nowhere.
+ *
+ * First photo only: a feed row is a summary, and the post detail screen is
+ * where the rest belong. `thumb_url` is preferred when present, but the platform
+ * only generates a `thumb` conversion for avatars, so `url` is the normal case.
  */
 function PostCard({ post, onPress, onLikePress }: Props) {
   const theme = useTheme()
   const author = post.author
   const liked = post.is_liked === true
+  const photo = post.media?.[0]
 
   return (
     <Card
@@ -46,6 +54,17 @@ function PostCard({ post, onPress, onLikePress }: Props) {
           ) : null}
         </View>
       </View>
+
+      {photo ? (
+        <Image
+          source={{ uri: photo.thumb_url ?? photo.url }}
+          style={styles.photo}
+          resizeMode="cover"
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel={`Photo in post by ${author?.name ?? 'Unknown'}`}
+        />
+      ) : null}
 
       {post.spot ? (
         <View style={{ paddingHorizontal: theme.spacing[3], paddingBottom: theme.spacing[2] }}>
@@ -101,6 +120,7 @@ export default React.memo(PostCard)
 
 const styles = StyleSheet.create({
   card: { marginBottom: 0 },
+  photo: { width: '100%', aspectRatio: 1 },
   header: { flexDirection: 'row', alignItems: 'center' },
   identity: { flex: 1 },
   actions: { flexDirection: 'row', alignItems: 'center' },

@@ -6,7 +6,8 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { CreateStackParamList } from '@/shared/navigation/types'
-import { createPost } from '@/shared/api/posts'
+import { createPost, publishPost, type CreatePostInput } from '@/shared/api/posts'
+import { uploadPostMedia } from '@/features/social/api/uploadPostMedia'
 import { extractApiError } from '@/shared/api/client'
 import { useUIStore } from '@/shared/store'
 
@@ -32,27 +33,34 @@ export default function PostComposeScreen({ route, navigation }: Props) {
   }, [setPendingSpot])
 
   const createMutation = useMutation({
+    /**
+     * Create unpublished, upload, then publish — the contract the server
+     * already documents (`PostStoreRequest`) and routes (`POST
+     * /posts/{uuid}/publish`), in that order.
+     *
+     * This screen used to POST one multipart request carrying `media[0…n]` and
+     * no `publish`. `PostStoreRequest` validates neither key and Laravel drops
+     * unvalidated input silently, so every composed post was created with no
+     * photos and left permanently unpublished — no error anywhere (STOURIFY-18).
+     *
+     * The publish is last on purpose: if a photo fails to upload the post stays
+     * a draft rather than going live incomplete, and `publish` is idempotent, so
+     * finishing it later is safe.
+     */
     mutationFn: async () => {
-      const form = new FormData()
-      if (caption) form.append('caption', caption)
-      form.append('visibility', visibility)
-      mediaAssets.forEach((asset, i) => {
-        form.append(`media[${i}]`, {
-          uri: asset.uri,
-          type: asset.type ?? 'image/jpeg',
-          name: asset.fileName ?? `photo_${i}.jpg`,
-        } as unknown as Blob)
-      })
+      const payload: CreatePostInput = { visibility, publish: false }
+      if (caption) payload.caption = caption
       // `spot_uuid` is the only spot field `PostStoreRequest` accepts. This
-      // sent `spot_name` / `spot_latitude` / `spot_longitude` until 2026-08-11,
-      // and Laravel drops unvalidated keys without erroring — so the post was
-      // created, the spot association was thrown away, and tagging a spot had
-      // never once worked. `pendingSpot` is a `Spot` fetched from the server,
-      // so its uuid is always in hand.
-      if (pendingSpot) {
-        form.append('spot_uuid', pendingSpot.uuid)
-      }
-      return createPost(form)
+      // sent `spot_name` / `spot_latitude` / `spot_longitude` until 2026-08-11
+      // (STOURIFY-2), and the association was thrown away every time.
+      // `pendingSpot` is a `Spot` fetched from the server, so its uuid is
+      // always in hand.
+      if (pendingSpot) payload.spot_uuid = pendingSpot.uuid
+
+      const post = await createPost(payload)
+      await uploadPostMedia(post.uuid, mediaAssets)
+
+      return publishPost(post.uuid)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['feed', 'following'] })

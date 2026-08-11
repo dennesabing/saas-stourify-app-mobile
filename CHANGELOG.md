@@ -27,6 +27,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Composing a post dropped every photo and never published it.** (STOURIFY-18) `PostComposeScreen`
+  posted one multipart request carrying `media[0]`, `media[1]`, … and no `publish` flag.
+  `PostStoreRequest` validates neither key, and Laravel discards unvalidated input without erroring —
+  so every post ever composed with photos was created with none, and left permanently unpublished
+  (`store()` sets `published_at` only when `publish` is truthy, and `Post::scopeVisibleTo()` and the
+  feed both order by it). Two silent drops, no failure reported anywhere: the same failure mode as
+  STOURIFY-2's on the same screen.
+
+  The fix executes the contract the server already documents and routes: create the post unpublished,
+  upload each photo through the platform's presign flow (`POST /media/upload-url` → PUT the bytes
+  straight to storage → `POST /media/attach`, host `stourify_post`), then `POST /posts/{uuid}/publish`.
+  New `src/features/social/api/uploadPostMedia.ts` owns those three steps — the same ones
+  `sync/mediaDrain.ts` performs for the offline outbox — and `createPost` now sends JSON rather than
+  multipart. Publish is deliberately last: a failed upload leaves a draft the idempotent `publish` can
+  finish, rather than a live post missing half its photos.
+
+  Rejected teaching `PostStoreRequest` to accept multipart: it would put image bytes back through the
+  PHP request cycle the presign flow exists to avoid, and give the app two upload paths with different
+  offline durability. Rejected routing post photos through the `pending_media` outbox: `drainPendingMedia`
+  resolves its host in a local WatermelonDB table and `sto_posts` is not a synced table — posts are
+  online-only, and making them offline-creatable is a feature rather than this bug's fix.
+
+- **The feed rendered every post as text, never showing its photo.** (STOURIFY-18) `PostCard` carried a
+  docblock asserting *"`PostResource` has no media key (confirmed against the resource, not assumed)"*
+  and rendered no image on the strength of it. The resource does return `media` — an array of
+  `{uuid, url, thumb_url}` — which is why `Post.media` had been typed all along. Found only at this
+  card's live gate: the photo uploaded correctly, attached correctly, came back in `GET /feed` with a
+  working CDN URL, and still appeared nowhere, because the one component that could show it had been
+  told it did not exist. The card now renders the first attached photo, preferring `thumb_url` where
+  the platform generated one. First photo only — a feed row is a summary, and the detail screen owns
+  the rest.
+
+- **The post composer was unreachable through the UI.** (STOURIFY-18) `MediaPicker` is the only route
+  into `PostCompose` and nothing navigated to it, which is how the two defects above went unnoticed —
+  and why they could not be live-verified. The Create sheet now carries a "New Post" entry.
+
 - **"Location access needed" was shown to users who had granted location access.** (STOURIFY-20)
   `NearbyScreen` chained the permission request and the position request into one promise with a
   single `.catch`, so every failure — including a device that simply had no fix yet — rendered the
