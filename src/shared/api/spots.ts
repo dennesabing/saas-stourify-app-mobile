@@ -16,6 +16,34 @@ export async function getSpots(params?: { q?: string }): Promise<PaginatedRespon
   return res.data
 }
 
+/**
+ * Spots around a point, closest first.
+ *
+ * `GET /spots/nearby` is the only proximity route the server has ever
+ * registered. `getNearbyFeed` in `feed.ts` called `/feed/nearby` until
+ * STOURIFY-8 — a route that does not exist, whose 404 the screen rendered as
+ * "No spots nearby", so Nearby had never shown real data.
+ *
+ * The parameter names are `SpotNearbyRequest`'s: `lat`, `lng`, `radius`,
+ * `per_page`, `page`. `radius` — not `radius_km`. Laravel drops unvalidated
+ * query parameters without complaint, so a misspelling here does not fail, it
+ * silently falls back to the server's default radius.
+ *
+ * Ordering is the server's (bounding box + planar distance, `Spot::scopeNearby`)
+ * and is preserved as received; do not re-sort on the client.
+ */
+export async function getNearbySpots(
+  lat: number,
+  lng: number,
+  radius: number,
+  page?: number,
+): Promise<PaginatedResponse<Spot>> {
+  const res = await client.get('/spots/nearby', {
+    params: { lat, lng, radius, ...(page ? { page } : {}) },
+  })
+  return res.data
+}
+
 export async function getSpot(uuid: string): Promise<Spot> {
   const res = await client.get(`/spots/${uuid}`)
   return res.data.data

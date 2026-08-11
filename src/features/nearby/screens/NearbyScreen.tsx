@@ -4,11 +4,11 @@ import { useQuery } from '@tanstack/react-query'
 import * as Location from 'expo-location'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { DiscoverStackParamList } from '@/shared/navigation/types'
-import { getNearbyFeed } from '@/shared/api/feed'
-import { EmptyState, PostCard } from '@/shared/components/ui'
+import { getNearbySpots } from '@/shared/api/spots'
+import { EmptyState, SpotCard } from '@/shared/components/ui'
 import { useTheme } from '@/theme/ThemeProvider'
 import { MapCanvas, type MapPin } from '@/shared/map'
-import type { Post } from '@/shared/api/types'
+import type { Spot } from '@/shared/api/types'
 
 type Props = NativeStackScreenProps<DiscoverStackParamList, 'Nearby'>
 
@@ -63,8 +63,17 @@ async function readPosition(): Promise<Coords | null> {
     return null
   }
 }
-/** Pin ids are post uuids, so the viewer's own pin needs one that cannot collide. */
+/** Pin ids are spot uuids, so the viewer's own pin needs one that cannot collide. */
 const YOU_PIN_ID = 'viewer-location'
+
+/**
+ * The strip's secondary line. `distance_km` is present only on responses from
+ * `/spots/nearby`, and only there does "how far away" mean anything — a missing
+ * value is "not applicable", never zero, so it renders nothing at all.
+ */
+function distanceLabel(spot: Spot): string | null {
+  return spot.distance_km == null ? null : `${spot.distance_km.toFixed(1)} km away`
+}
 
 export default function NearbyScreen({ navigation }: Props) {
   const theme = useTheme()
@@ -108,28 +117,25 @@ export default function NearbyScreen({ navigation }: Props) {
     return () => { cancelled = true }
   }, [attempt])
 
+  // Spots, not posts. `/spots/nearby` is the only proximity route the server
+  // has; the feed has no nearby variant and never had one (STOURIFY-8). The
+  // server orders by distance, so the response order is rendered as received.
   const { data, isLoading } = useQuery({
     queryKey: ['nearby', location?.lat, location?.lng, radius],
-    queryFn: () => getNearbyFeed(location!.lat, location!.lng, radius),
+    queryFn: () => getNearbySpots(location!.lat, location!.lng, radius),
     enabled: !!location,
   })
 
-  const posts = data?.data ?? []
+  const spots = data?.data ?? []
 
-  /** A pin per post that has a spot, plus one for the viewer. Ids are post uuids. */
+  /** A pin per spot, plus one for the viewer. Ids are spot uuids. */
   const pins = useMemo<MapPin[]>(() => {
-    const spotPins: MapPin[] = posts.flatMap((post) =>
-      post.spot
-        ? [
-            {
-              id: post.uuid,
-              coordinate: { latitude: post.spot.latitude, longitude: post.spot.longitude },
-              title: post.spot.title,
-              kind: 'spot' as const,
-            },
-          ]
-        : [],
-    )
+    const spotPins: MapPin[] = spots.map((spot) => ({
+      id: spot.uuid,
+      coordinate: { latitude: spot.latitude, longitude: spot.longitude },
+      title: spot.title,
+      kind: 'spot' as const,
+    }))
 
     if (!location) return spotPins
 
@@ -142,18 +148,26 @@ export default function NearbyScreen({ navigation }: Props) {
         kind: 'you' as const,
       },
     ]
-  }, [posts, location])
+  }, [spots, location])
 
-  const selectedPost = posts.find((post) => post.uuid === selectedPinId)
+  const selectedSpot = spots.find((spot) => spot.uuid === selectedPinId)
 
+  // `wide` rather than `tall`: the strip is capped at 200px and a tall card is
+  // a 160px image plus its text, so the title and the distance fall below the
+  // fold — pins on the map with no legible list under them. Found on the
+  // emulator, not by reading the code.
   const renderItem = useCallback(
-    ({ item }: { item: Post }) => (
+    ({ item }: { item: Spot }) => (
       <View style={{ width: 280 }}>
-        <PostCard
-          post={item}
-          onPress={() => {
-            if (item.spot?.uuid) navigation.navigate('SpotDetail', { spotId: item.spot.uuid })
-          }}
+        <SpotCard
+          layout="wide"
+          title={item.title}
+          category={item.categories?.[0]}
+          imageUri={item.media?.[0]?.url}
+          rating={item.rating_average}
+          reviewCount={item.reviews_count}
+          meta={distanceLabel(item)}
+          onPress={() => navigation.navigate('SpotDetail', { spotId: item.uuid })}
         />
       </View>
     ),
@@ -206,13 +220,16 @@ export default function NearbyScreen({ navigation }: Props) {
           onSelectPin={setSelectedPinId}
           onRecenter={() => setSelectedPinId(null)}
           renderPeekCard={() =>
-            selectedPost ? (
-              <PostCard
-                post={selectedPost}
-                onPress={() => {
-                  if (selectedPost.spot?.uuid)
-                    navigation.navigate('SpotDetail', { spotId: selectedPost.spot.uuid })
-                }}
+            selectedSpot ? (
+              <SpotCard
+                layout="wide"
+                title={selectedSpot.title}
+                category={selectedSpot.categories?.[0]}
+                imageUri={selectedSpot.media?.[0]?.url}
+                rating={selectedSpot.rating_average}
+                reviewCount={selectedSpot.reviews_count}
+                meta={distanceLabel(selectedSpot)}
+                onPress={() => navigation.navigate('SpotDetail', { spotId: selectedSpot.uuid })}
               />
             ) : null
           }
@@ -239,7 +256,7 @@ export default function NearbyScreen({ navigation }: Props) {
       </View>
 
       <FlatList
-        data={posts}
+        data={spots}
         horizontal
         keyExtractor={(item) => item.uuid}
         renderItem={renderItem}

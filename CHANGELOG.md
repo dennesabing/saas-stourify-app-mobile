@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Nearby now calls a route that exists.** (STOURIFY-8) `getNearbyFeed` in `src/shared/api/feed.ts`
+  called `GET /feed/nearby` — a route the server has never registered. Only `GET /spots/nearby` is,
+  and nothing in the app called it, so `NearbyScreen` had rendered "No spots nearby" for its entire
+  life against a swallowed 404. The client is `getNearbySpots` in `src/shared/api/spots.ts` now, and
+  `getNearbyFeed` is gone rather than deprecated: an unused wrapper around a dead route is a trap
+  with a friendly name.
+
+  The parameter is `radius`, not `radius_km` — `SpotNearbyRequest` validates `lat`, `lng`, `radius`,
+  `per_page`, `page`. This matters more than a rename usually does, because Laravel drops
+  unvalidated query parameters silently: a misspelt radius does not fail, it quietly falls back to
+  the server's 5 km default. `__tests__/shared/api/spots.test.ts` asserts the exact parameter set
+  rather than a substring, so the next drift shows up as a red test instead of a wrong radius.
+
+  Nearby renders **spots**, not feed posts — the shape genuinely changed rather than being coerced.
+  Pins carry spot uuids, the strip and peek card are `SpotCard`s, and each shows its
+  `distance_km` as "N.N km away". `distance_km` is present only on `/spots/nearby` responses, so a
+  missing value renders nothing at all: absent means "not applicable" there, never zero.
+
+  The strip's cards are `layout="wide"`. A `tall` card is a 160px image plus its text and the strip
+  is capped at 200px, so the title and the distance fell below the fold — pins on the map with a
+  blank list under them. Found on the emulator, not by reading the code.
+
+  Distance ordering is the server's and is preserved as received, asserted end to end: the client
+  test and `__tests__/screens/NearbyScreen.test.tsx` both fix a five-spot General Santos cluster at
+  known separations and assert the whole sequence. A test that only checked for a non-empty array
+  would pass under any permutation, which is not the criterion.
+
 ### Added
 
 - **One map wrapper, and it is the only map-aware file.** (STOURIFY-7) `src/shared/map/MapCanvas.tsx`

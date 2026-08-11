@@ -52,6 +52,14 @@ export interface Spot {
   rating_average?: number
   reviews_count?: number
   saves_count?: number
+  /**
+   * How far this spot is from the position that was queried, in kilometres.
+   *
+   * Present ONLY on `GET /spots/nearby` — `SpotResource` merges the key in when
+   * the controller has computed it and omits it entirely otherwise, so a client
+   * can tell "not applicable" from "zero". Never treat a missing value as 0.
+   */
+  distance_km?: number
 }
 
 /** Mirrors `ReviewResource::toArray()`'s nested `author` — present on index/show only. */
