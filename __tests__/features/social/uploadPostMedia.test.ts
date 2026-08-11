@@ -1,3 +1,16 @@
+import { MARKER, exifGpsSegment, jpegWith, markersOf } from '../../support/jpegFixtures'
+import { stripImageMetadata } from '@/shared/media/stripImageMetadata'
+
+/**
+ * What the fake picker hands back: a JPEG carrying an EXIF block with real
+ * coordinates in it, so the assertion that they are gone by the time the bytes
+ * are PUT is capable of failing.
+ */
+// Named `mock…` because jest hoists the factory below above every import, and
+// only names with that prefix may be referenced from inside it.
+const mockPickedBytes = jpegWith([exifGpsSegment()])
+const mockStrippedBytes = stripImageMetadata(mockPickedBytes)
+
 /**
  * A deterministic stand-in for the native filesystem module, shaped like the
  * one `queueLocalMedia.test.ts` uses — `bytes()` is the only method this path
@@ -14,7 +27,7 @@ jest.mock('expo-file-system', () => {
     }
 
     bytes() {
-      return Promise.resolve(new Uint8Array([1, 2, 3]))
+      return Promise.resolve(mockPickedBytes)
     }
   }
 
@@ -64,7 +77,8 @@ it('presigns, PUTs and attaches every asset against the post', async () => {
   expect(mockRequestUploadUrl).toHaveBeenNthCalledWith(1, {
     filename: 'a.jpg',
     contentType: 'image/jpeg',
-    size: 4096,
+    // The stripped length, because the stripped bytes are what gets PUT.
+    size: mockStrippedBytes.length,
     modelType: 'stourify_post',
     modelUuid: 'post-uuid-1',
   })
@@ -89,8 +103,24 @@ it('PUTs to the presigned URL with the headers the presign returned', async () =
   expect(mockPutFile).toHaveBeenCalledWith(
     'https://spaces.example/a.jpg',
     { 'Content-Type': 'image/jpeg' },
-    new Uint8Array([1, 2, 3]),
+    mockStrippedBytes,
   )
+})
+
+/**
+ * A composed post's photos never enter the offline outbox, so they never pass
+ * the strip that happens there. This is the second upload path, and it needs its
+ * own guarantee (STOURIFY-40).
+ */
+it('strips the photo metadata before the bytes leave the device', async () => {
+  expect(markersOf(mockPickedBytes)).toContain(MARKER.APP1_EXIF)
+
+  await uploadPostMedia('post-uuid-1', [
+    { uri: 'file:///tmp/a.jpg', type: 'image/jpeg', fileName: 'a.jpg' },
+  ])
+
+  const [, , uploaded] = mockPutFile.mock.calls[0] as [string, unknown, Uint8Array]
+  expect(markersOf(uploaded)).not.toContain(MARKER.APP1_EXIF)
 })
 
 it('names an asset the picker gave no filename for', async () => {

@@ -3,6 +3,7 @@ import axios from 'axios'
 import { File } from 'expo-file-system'
 import type PendingMedia from '@/db/models/PendingMedia'
 import { attachMedia, putFile, requestUploadUrl } from '@/shared/api/media'
+import { stripImageMetadata } from '@/shared/media/stripImageMetadata'
 
 export interface MediaDrainOutcome {
   /** Rows whose host was acked and were actually attempted this pass. */
@@ -118,7 +119,13 @@ export async function drainPendingMedia(database: Database): Promise<MediaDrainO
         modelUuid: row.hostUuid,
       })
 
-      const bytes = await new File(row.localPath).bytes()
+      // Stripped a second time, on purpose. `queueLocalMedia` already strips
+      // the copy it writes, so for anything queued by this build there is
+      // nothing left to remove and this is a no-op. The outbox outlives an app
+      // update, though: a photo queued by an EARLIER build is sitting on disk
+      // with its coordinates intact, and this is the last moment before those
+      // bytes become a public URL (STOURIFY-40).
+      const bytes = stripImageMetadata(await new File(row.localPath).bytes())
 
       await putFile(presigned.url, presigned.headers, bytes)
 

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Photos no longer upload the coordinates they were taken at.** (STOURIFY-40) A camera writes hidden
+  information into every photo file — the time, the phone's make and model, and, with location
+  services on, the exact spot the photographer was standing. None of it shows when you look at the
+  picture, and Stourify was uploading all of it: the original file is served at a public URL, and
+  nothing anywhere in the upload path rewrote a single byte. For a location app the dangerous photos
+  are the ones somebody takes at home and posts without tagging a place — the picture shows a kitchen,
+  the metadata says which kitchen.
+
+  The removal happens on the phone, before the bytes leave it, so the coordinates never reach a server
+  at all. `src/shared/media/stripImageMetadata.ts` is the whole mechanism, and it needs no image
+  library: a JPEG is a chain of labelled blocks and the metadata is *its own blocks*, so the file is
+  copied with those blocks left out. The picture data comes through byte-for-byte — nothing is
+  re-encoded, so no photo loses quality — and no new native dependency was added, which is why this
+  needs no new development build.
+
+  Wired into all three places bytes are read: `features/media/api/queueLocalMedia.ts` (which now
+  reads, strips and writes instead of calling the filesystem's `copy()`, so a photo waiting in the
+  offline outbox is already clean while it waits), `features/social/api/uploadPostMedia.ts` (the
+  second upload path, which never enters the outbox at all), and `sync/mediaDrain.ts` (a second pass,
+  which covers a photo queued by a build that predates this change).
+
+  Deliberately not covered, and said plainly in the privacy policy rather than glossed over: PNG and
+  HEIC stills, and video, which can carry a location of its own. A JPEG the code cannot parse makes
+  the upload fail rather than going out unstripped.
+
 ### Added
 
 - **The new-spot form captures where you are instead of asking you to type it.** (STOURIFY-4) Adding

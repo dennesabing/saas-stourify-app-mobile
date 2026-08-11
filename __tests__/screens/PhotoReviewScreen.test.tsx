@@ -5,8 +5,8 @@ import { createTestDatabase } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
 
 /** Recording filesystem stand-in — see `__tests__/features/media/draftMedia.test.ts`. */
-const fsCalls: { copies: { from: string; to: string }[]; deletes: string[] } = {
-  copies: [],
+const fsCalls: { writes: string[]; deletes: string[] } = {
+  writes: [],
   deletes: [],
 }
 
@@ -25,9 +25,15 @@ jest.mock('expo-file-system', () => {
       return present.has(this.uri)
     }
 
-    copy(destination: { uri: string }) {
-      fsCalls.copies.push({ from: this.uri, to: destination.uri })
-      present.add(destination.uri)
+    async bytes() {
+      return new Uint8Array([1, 2, 3])
+    }
+
+    // `queueLocalMedia` reads, strips and writes rather than calling the native
+    // `copy()`, so the photo's metadata never reaches the outbox (STOURIFY-40).
+    write(_bytes: Uint8Array) {
+      fsCalls.writes.push(this.uri)
+      present.add(this.uri)
     }
 
     delete() {
@@ -72,7 +78,7 @@ let database: Database
 beforeEach(() => {
   jest.clearAllMocks()
   database = createTestDatabase()
-  fsCalls.copies = []
+  fsCalls.writes = []
   fsCalls.deletes = []
 })
 

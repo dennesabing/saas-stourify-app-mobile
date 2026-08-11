@@ -14,7 +14,7 @@ import { createTestDatabase } from '../support/testDatabase'
 
 // --- expo-file-system: a deterministic in-memory stand-in ------------------
 const mockFileRegistry = new Map<string, boolean>()
-const fsCalls: { copies: { from: string; to: string }[]; deletes: string[] } = { copies: [], deletes: [] }
+const fsCalls: { writes: string[]; deletes: string[] } = { writes: [], deletes: [] }
 
 jest.mock('expo-file-system', () => {
   class MockFile {
@@ -28,9 +28,12 @@ jest.mock('expo-file-system', () => {
       return mockFileRegistry.get(this.uri) ?? true
     }
 
-    copy(destination: { uri: string }) {
-      mockFileRegistry.set(destination.uri, true)
-      fsCalls.copies.push({ from: this.uri, to: destination.uri })
+    // `queueLocalMedia` makes its outbox copy by hand — read, strip, write —
+    // rather than with the native `copy()`, so the photo metadata comes off
+    // before the file exists at all (STOURIFY-40).
+    write(_bytes: Uint8Array) {
+      mockFileRegistry.set(this.uri, true)
+      fsCalls.writes.push(this.uri)
     }
 
     async bytes() {
@@ -108,7 +111,7 @@ beforeEach(async () => {
   resetSyncStatus()
   jest.clearAllMocks()
   mockFileRegistry.clear()
-  fsCalls.copies = []
+  fsCalls.writes = []
   fsCalls.deletes = []
 })
 
@@ -132,7 +135,7 @@ it('creates a spot with 3 photos entirely offline, then attaches all 3 on reconn
     )
   }
   expect(mediaIds).toHaveLength(3)
-  expect(fsCalls.copies).toHaveLength(3)
+  expect(fsCalls.writes).toHaveLength(3)
 
   // --- Step 2: run a cycle "offline" — nothing drains, nothing is lost ---
   const offlineClient = { get: jest.fn(), post: jest.fn(async () => { throw networkFailure() }) }

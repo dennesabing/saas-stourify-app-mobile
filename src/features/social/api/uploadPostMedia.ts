@@ -1,5 +1,6 @@
 import { File } from 'expo-file-system'
 import { attachMedia, putFile, requestUploadUrl } from '@/shared/api/media'
+import { stripImageMetadata } from '@/shared/media/stripImageMetadata'
 
 /**
  * The morph alias a post's photos are attached to — `Post::morphAlias()`.
@@ -34,6 +35,12 @@ export interface PostMediaAsset {
  * Rejects on the first failure rather than continuing: the caller publishes only
  * once every attach resolved, and a post that goes live missing half its photos
  * is worse than one left as a draft `publish` can finish later.
+ *
+ * This is the app's SECOND upload path, and the one that is easy to forget: a
+ * composed post's photos never enter the offline outbox, so they never pass the
+ * strip that happens there. The metadata has to come off here as well, or every
+ * post published with a photo uploads the coordinates it was taken at
+ * (STOURIFY-40).
  */
 export async function uploadPostMedia(
   postUuid: string,
@@ -43,14 +50,15 @@ export async function uploadPostMedia(
     const filename = asset.fileName ?? `photo_${index}.jpg`
     const contentType = asset.type ?? 'image/jpeg'
     const file = new File(asset.uri)
-    const bytes = await file.bytes()
+    const bytes = stripImageMetadata(await file.bytes())
 
     const presigned = await requestUploadUrl({
       filename,
       contentType,
       // Advisory only — the server enforces its ceiling at attach, once the
-      // object exists and its real size is knowable.
-      size: file.size ?? bytes.length,
+      // object exists and its real size is knowable. The stripped length, not
+      // the file's, because the stripped bytes are what gets PUT.
+      size: bytes.length,
       modelType: POST_MEDIA_HOST_TYPE,
       modelUuid: postUuid,
     })
