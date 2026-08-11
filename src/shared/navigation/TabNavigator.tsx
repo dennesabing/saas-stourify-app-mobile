@@ -66,6 +66,7 @@ function DiscoverStackNav() {
       <DiscoverStack.Screen name="Discover" component={DiscoverScreen} />
       <DiscoverStack.Screen name="Search" component={SearchScreen} />
       <DiscoverStack.Screen name="Nearby" component={NearbyScreen} />
+      <DiscoverStack.Screen name="Profile" component={ProfileScreen} />
       <DiscoverStack.Screen name="SpotDetail" component={SpotDetailScreen} />
       <DiscoverStack.Screen name="PostDetail" component={PostDetailScreen} />
       <DiscoverStack.Screen name="PhotoGallery" component={PhotoGalleryScreen} />

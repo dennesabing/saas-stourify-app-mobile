@@ -185,6 +185,33 @@ export interface Person {
 }
 
 /**
+ * A search hit from `GET /discover/search?type=cities` — mirrors
+ * `CityResource::toArray()`. Cities are curated reference data, so the shape is
+ * deliberately thin: enough to label and group a spot, and nothing else.
+ */
+export interface City {
+  uuid: string
+  name: string
+  region: string | null
+  country: string | null
+  is_featured: boolean
+}
+
+/** The result types `SearchRequest::TYPES` accepts. `tags` is NOT one — see STOURIFY-25. */
+export type DiscoverSearchType = 'spots' | 'cities' | 'people'
+
+/**
+ * The grouped preview an UNTYPED `GET /discover/search` returns — the "All"
+ * view. Each section is capped server-side (`SearchApiController::PREVIEW_LIMIT`),
+ * so this is a preview and never a page: to paginate one type, send `type`.
+ */
+export interface DiscoverSearchResults {
+  spots: Spot[]
+  cities: City[]
+  people: Person[]
+}
+
+/**
  * Mirrors `App\Http\Resources\MediaResource::toArray()` — the shape
  * `POST /media/attach` returns as its `data`.
  */

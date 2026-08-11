@@ -27,6 +27,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Search never called the search endpoint.** (STOURIFY-9) `SearchScreen` queried `GET /spots` —
+  the plain spot index — so the app had never once called `GET /discover/search`, the endpoint that
+  searches spots, cities **and** people and that `ExplorerProfile` was made Scout-searchable for.
+  The people and city indexes were unreachable from the app entirely, and spot hits skipped the
+  discoverability rule the search controller applies. It now calls `/discover/search` and renders
+  all three types as a sectioned list. `searchDiscover()` (the untyped grouped preview) and
+  `searchDiscoverType()` (one paginated section) are two functions rather than one, because the
+  route answers in two different shapes depending on whether `type` was sent, and a caller that has
+  to interrogate the response to find out which it got will eventually get it wrong.
+
+  Three smaller defects went with it. The **category chips did nothing** — six hardcoded strings
+  (`Nature`, `Food`, `History`, …) with no server rule behind them, and no category entity to build
+  one on; they are now the endpoint's real `type` selector (`All / Spots / Cities / People`), so
+  every control on the screen does what its label says. A **one-character query was sent to the
+  server**, which is required to answer `q|min:2` with a 422; nothing is sent below two characters
+  now, and the screen prompts rather than claiming there were no results. And `Profile` is
+  registered on the Discover stack, because a person row that renders but goes nowhere leaves the
+  people index exactly as unreachable as it was.
+
+  The screen was also moved onto Wander D4 tokens — it was 100% colour literals, the last screen in
+  the Discover stack that was.
+
+  Two things the emulator found that no unit test could. The chip rail rendered as full-height pills
+  down the screen: a horizontal `ScrollView` with no height constraint stretches into whatever space
+  the list below leaves it, and every test asserts on text rather than layout. And an in-flight
+  search rendered nothing at all, which on a slow backend is indistinguishable from a search that
+  found nothing — it now says `Searching…` with the term.
+
+  Not in scope, deliberately: a `tags` result type. The gate criterion named one, but
+  `SearchRequest::TYPES` is `['spots','cities','people']` and the module has a test asserting
+  `?type=tags` is a 422 — tags are refused, not merely missing, and there is no indexed tag entity
+  to search. Filed as STOURIFY-25.
+
 - **Composing a post dropped every photo and never published it.** (STOURIFY-18) `PostComposeScreen`
   posted one multipart request carrying `media[0]`, `media[1]`, … and no `publish` flag.
   `PostStoreRequest` validates neither key, and Laravel discards unvalidated input without erroring —
