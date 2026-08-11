@@ -1,4 +1,4 @@
-package com.mobile
+package app.stourify.mobile
 
 import android.app.Application
 import android.content.res.Configuration
