@@ -1,28 +1,43 @@
 import type { Database } from '@nozbe/watermelondb'
 import type PendingMedia from '@/db/models/PendingMedia'
 import { createTestDatabase } from '../../support/testDatabase'
+import { MARKER, exifGpsSegment, jpegWith, markersOf } from '../../support/jpegFixtures'
 
 /**
- * A deterministic stand-in for the native module. Records every `copy()` and
- * `create()` call so tests can assert the bytes were actually copied — not
- * just that a row was written — without touching a real filesystem.
+ * The bytes the fake picker hands back: a JPEG carrying an EXIF block with real
+ * coordinates in it. The assertions below are about what reaches the outbox, so
+ * the input has to genuinely contain what is supposed to be removed.
  */
-const fsCalls: { copies: { from: string; to: string }[]; creates: { uri: string }[] } = {
-  copies: [],
-  creates: [],
-}
+// Named `mock…` because jest hoists the factory below above every import, and
+// only names with that prefix may be referenced from inside it.
+const mockPickerBytes = jpegWith([exifGpsSegment()])
+
+/**
+ * A deterministic stand-in for the native module. Records every read and every
+ * write so tests can assert what actually landed in app-private storage —
+ * not merely that a row was written — without touching a real filesystem.
+ */
+const fsCalls: {
+  writes: { to: string; bytes: Uint8Array }[]
+  creates: { uri: string }[]
+} = { writes: [], creates: [] }
 
 jest.mock('expo-file-system', () => {
   class MockFile {
     uri: string
+
     size = 54321
 
     constructor(...uris: Array<string | { uri: string }>) {
       this.uri = uris.map((u) => (typeof u === 'string' ? u : u.uri)).join('/')
     }
 
-    copy(destination: { uri: string }) {
-      fsCalls.copies.push({ from: this.uri, to: destination.uri })
+    bytes() {
+      return Promise.resolve(mockPickerBytes)
+    }
+
+    write(bytes: Uint8Array) {
+      fsCalls.writes.push({ to: this.uri, bytes })
     }
   }
 
@@ -52,12 +67,12 @@ let database: Database
 
 beforeEach(() => {
   database = createTestDatabase()
-  fsCalls.copies = []
+  fsCalls.writes = []
   fsCalls.creates = []
 })
 
 describe('queueLocalMedia', () => {
-  it('copies the picker file into app-private storage rather than trusting the original URI', async () => {
+  it('writes the bytes into app-private storage rather than trusting the original URI', async () => {
     const pickerUri = 'content://media/external/images/media/9999'
 
     const id = await queueLocalMedia(database, {
@@ -68,8 +83,7 @@ describe('queueLocalMedia', () => {
       mime: 'image/jpeg',
     })
 
-    expect(fsCalls.copies).toHaveLength(1)
-    expect(fsCalls.copies[0].from).toBe(pickerUri)
+    expect(fsCalls.writes).toHaveLength(1)
 
     const row = await database.get<PendingMedia>('pending_media').find(id)
 
@@ -77,8 +91,39 @@ describe('queueLocalMedia', () => {
     // OS cache entry Android may reclaim; the copy is what survives an app
     // kill.
     expect(row.localPath).not.toBe(pickerUri)
-    expect(row.localPath).toBe(fsCalls.copies[0].to)
+    expect(row.localPath).toBe(fsCalls.writes[0].to)
     expect(row.localPath).toContain('media-outbox')
+  })
+
+  it('strips the photo metadata as it copies, so a queued photo never sits on disk with its coordinates', async () => {
+    // The whole point of stripping HERE rather than at drain time: an offline
+    // photo can wait on disk for days, and the file it waits as is this one.
+    expect(markersOf(mockPickerBytes)).toContain(MARKER.APP1_EXIF)
+
+    await queueLocalMedia(database, {
+      hostType: 'stourify_spot',
+      hostUuid: 'spot-uuid-1',
+      uri: 'content://media/1',
+      filename: 'beach.jpg',
+      mime: 'image/jpeg',
+    })
+
+    expect(markersOf(fsCalls.writes[0].bytes)).not.toContain(MARKER.APP1_EXIF)
+  })
+
+  it('records the size of what was actually written, not of the original', async () => {
+    const id = await queueLocalMedia(database, {
+      hostType: 'stourify_spot',
+      hostUuid: 'spot-uuid-1',
+      uri: 'content://media/1',
+      filename: 'beach.jpg',
+      mime: 'image/jpeg',
+    })
+
+    const row = await database.get<PendingMedia>('pending_media').find(id)
+
+    expect(row.size).toBe(fsCalls.writes[0].bytes.length)
+    expect(row.size).toBeLessThan(mockPickerBytes.length)
   })
 
   it('carries the host type/uuid and starts pending with zero attempts', async () => {

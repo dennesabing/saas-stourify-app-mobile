@@ -1,6 +1,17 @@
 import type { Database } from '@nozbe/watermelondb'
 import type PendingMedia from '@/db/models/PendingMedia'
 import { createTestDatabase, markSynced, seedSpot } from '../support/testDatabase'
+import { MARKER, exifGpsSegment, jpegWith, markersOf } from '../support/jpegFixtures'
+
+/**
+ * What the outbox file holds in these tests: a JPEG that still carries an EXIF
+ * block. That is deliberately the *old* state of the world — `queueLocalMedia`
+ * strips before writing now, so a file like this can only have been queued by an
+ * earlier build of the app. It is exactly the case the drain's own strip exists
+ * to cover, and named `mock…` because jest hoists the factory below above every
+ * import and only that prefix may be referenced from inside it.
+ */
+const mockOutboxBytes = jpegWith([exifGpsSegment()])
 
 /**
  * A deterministic stand-in for the native module — same shape as
@@ -22,7 +33,7 @@ jest.mock('expo-file-system', () => {
     }
 
     async bytes() {
-      return new Uint8Array([1, 2, 3])
+      return mockOutboxBytes
     }
 
     delete() {
@@ -139,6 +150,29 @@ describe('drainPendingMedia', () => {
     expect(mockAttachMedia).toHaveBeenCalledWith(
       expect.objectContaining({ modelType: 'stourify_spot', modelUuid: 'spot-uuid-1', key: 'media-outbox/media-1.jpg' }),
     )
+  })
+
+  /**
+   * The outbox outlives an app update. A photo queued by a build that predates
+   * STOURIFY-40 is still sitting on disk with the coordinates it was taken at,
+   * and this is the last moment before those bytes become a public URL.
+   */
+  it('strips the photo metadata before the PUT, covering photos queued by an older build', async () => {
+    const database = createTestDatabase()
+    const spot = await seedSpot(database, { uuid: 'spot-uuid-1' })
+    await markSynced(database, spot)
+    await seedPendingMedia(database, { hostUuid: 'spot-uuid-1' })
+
+    expect(markersOf(mockOutboxBytes)).toContain(MARKER.APP1_EXIF)
+
+    mockRequestUploadUrl.mockResolvedValueOnce({ key: 'k', url: 'https://s3.example.com/x', headers: {}, expires_at: 'later' })
+    mockPutFile.mockResolvedValueOnce(undefined)
+    mockAttachMedia.mockResolvedValueOnce({ uuid: 'media-uuid-1' })
+
+    await drainPendingMedia(database)
+
+    const [, , uploaded] = mockPutFile.mock.calls[0] as [string, unknown, Uint8Array]
+    expect(markersOf(uploaded)).not.toContain(MARKER.APP1_EXIF)
   })
 
   it('on success, deletes the local file and the row', async () => {

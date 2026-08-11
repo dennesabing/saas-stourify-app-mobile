@@ -11,9 +11,10 @@ import { createTestDatabase } from '../../support/testDatabase'
  * test that only counts rows cannot tell a clean remove from a storage leak.
  */
 const fsCalls: {
-  copies: { from: string; to: string }[]
+  reads: string[]
+  writes: string[]
   deletes: string[]
-} = { copies: [], deletes: [] }
+} = { reads: [], writes: [], deletes: [] }
 
 jest.mock('expo-file-system', () => {
   /** Paths the mock filesystem currently believes exist. */
@@ -31,9 +32,17 @@ jest.mock('expo-file-system', () => {
       return present.has(this.uri)
     }
 
-    copy(destination: { uri: string }) {
-      fsCalls.copies.push({ from: this.uri, to: destination.uri })
-      present.add(destination.uri)
+    async bytes() {
+      fsCalls.reads.push(this.uri)
+      return new Uint8Array([1, 2, 3])
+    }
+
+    // `queueLocalMedia` makes its outbox copy by hand — read, strip, write —
+    // rather than with the native `copy()`, so the photo metadata comes off
+    // before the file exists at all (STOURIFY-40).
+    write(_bytes: Uint8Array) {
+      fsCalls.writes.push(this.uri)
+      present.add(this.uri)
     }
 
     delete() {
@@ -72,7 +81,8 @@ let database: Database
 
 beforeEach(() => {
   database = createTestDatabase()
-  fsCalls.copies = []
+  fsCalls.reads = []
+  fsCalls.writes = []
   fsCalls.deletes = []
 })
 
@@ -102,9 +112,9 @@ describe('queueCapturedPhoto', () => {
 
     const row = await database.get<PendingMedia>('pending_media').find(id)
 
-    expect(fsCalls.copies).toHaveLength(1)
-    expect(fsCalls.copies[0].from).toBe(cameraUri)
-    expect(row.localPath).toBe(fsCalls.copies[0].to)
+    expect(fsCalls.reads).toEqual([cameraUri])
+    expect(fsCalls.writes).toHaveLength(1)
+    expect(row.localPath).toBe(fsCalls.writes[0])
     expect(row.localPath).not.toBe(cameraUri)
     expect(row.localPath).toContain('media-outbox')
   })

@@ -61,8 +61,14 @@ jest.mock('expo-file-system', () => {
       return present.has(this.uri)
     }
 
-    copy(destination: { uri: string }) {
-      present.add(destination.uri)
+    async bytes() {
+      return new Uint8Array([1, 2, 3])
+    }
+
+    // `queueLocalMedia` reads, strips and writes rather than calling the native
+    // `copy()`, so the photo's metadata never reaches the outbox (STOURIFY-40).
+    write(_bytes: Uint8Array) {
+      present.add(this.uri)
     }
 
     delete() {
