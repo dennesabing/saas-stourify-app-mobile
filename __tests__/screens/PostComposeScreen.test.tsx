@@ -41,10 +41,10 @@ const ASSETS = [
 const route = { params: { mediaAssets: ASSETS } } as any
 const emptyRoute = { params: { mediaAssets: [] } } as any
 
+/** The server's exact shape — `SpotResource::toArray()` sends `title`, never `name` (STOURIFY-11). */
 const SPOT: Spot = {
-  id: '1',
   uuid: 'spot-uuid-1',
-  name: 'Hidden Cove',
+  title: 'Hidden Cove',
   slug: 'hidden-cove',
   latitude: 6.1164,
   longitude: 125.1716,
@@ -87,6 +87,17 @@ it('sends `spot_uuid` from the tagged spot', async () => {
   })
 
   expect(mockCreatePost.mock.calls[0][0]).toMatchObject({ spot_uuid: 'spot-uuid-1' })
+})
+
+/**
+ * The row showed the tagged spot's `name`, which the server has never sent — so
+ * tagging a spot correctly still left the row reading `undefined` (STOURIFY-11).
+ */
+it('shows the tagged spot title on the Tag a Spot row', () => {
+  useUIStore.setState({ pendingSpot: SPOT })
+  renderScreen()
+
+  expect(screen.getByText('Hidden Cove')).toBeTruthy()
 })
 
 it('omits the spot entirely when nothing was tagged', async () => {

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native'
 import PostCard from '@/shared/components/ui/PostCard'
 import { ThemeProvider } from '@/theme/ThemeProvider'
-import type { Post } from '@/shared/api/types'
+import type { Post, Spot } from '@/shared/api/types'
 
 function renderThemed(ui: React.ReactElement) {
   return render(<ThemeProvider scheme="light">{ui}</ThemeProvider>)
@@ -107,6 +107,28 @@ test('renders no photo when the post has no media', () => {
 test('renders no photo when media is an empty array', () => {
   renderThemed(<PostCard post={{ ...mockPost, media: [] }} onPress={() => {}} />)
   expect(screen.queryByLabelText('Photo in post by Ana Martinez')).toBeNull()
+})
+
+/**
+ * The spot chip's label comes from `title` — the only spot name
+ * `SpotResource::toArray()` has ever sent. This fixture is deliberately the
+ * server's exact shape, so a chip that reads any other key renders `undefined`
+ * here exactly as it did on device (STOURIFY-11).
+ */
+test('labels the spot chip from the spot title', () => {
+  const post: Post = {
+    ...mockPost,
+    spot: {
+      uuid: 'spot-1',
+      title: 'Kalaklan Lighthouse',
+      slug: 'kalaklan-lighthouse',
+      latitude: 14.8386,
+      longitude: 120.2842,
+      status: 'active',
+    } as Spot,
+  }
+  renderThemed(<PostCard post={post} onPress={() => {}} />)
+  expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy()
 })
 
 test('meets the minimum touch target on both actions', () => {

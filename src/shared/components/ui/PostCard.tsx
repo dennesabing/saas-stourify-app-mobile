@@ -68,7 +68,7 @@ function PostCard({ post, onPress, onLikePress }: Props) {
 
       {post.spot ? (
         <View style={{ paddingHorizontal: theme.spacing[3], paddingBottom: theme.spacing[2] }}>
-          <Tag label={post.spot.name} />
+          <Tag label={post.spot.title} />
         </View>
       ) : null}
 

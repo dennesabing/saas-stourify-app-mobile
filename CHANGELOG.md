@@ -27,6 +27,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`Spot.name` retired — the server has only ever sent `title`.** (STOURIFY-11) The `Spot` type had
+  `name: string` **required** and `title?: string` optional, which is exactly backwards:
+  `SpotResource::toArray()` sends `title` and has never sent a `name` key. A required field the
+  server never sends types `undefined` as a `string`, so every consumer reading it compiled cleanly
+  and rendered a blank. `name` is now removed outright rather than deprecated — an optional `name`
+  would have kept the same reads compiling — and `title` is required.
+
+  Three surfaces were rendering nothing as a result: the feed card's spot chip
+  (`PostCard.tsx`), the compose screen's "Tag a Spot" row (`PostComposeScreen.tsx`), and every row
+  of the spot picker (`SpotPickerScreen.tsx`, which had no test file at all, which is how blank rows
+  survived a green suite). `SpotDetailScreen` was masked by its own `title ??` fallback and loses
+  the dead leg.
+
+  The card named `SearchScreen` and `NearbyScreen` as two of the four consumers; both had already
+  been moved onto `title` by STOURIFY-9 and STOURIFY-18, and `SpotDetailScreen`/`SpotPickerScreen` —
+  named nowhere on the card — were broken instead. `tsc --noEmit` is the test that proves the rename
+  is complete: with `name` deleted, a missed call site is a compile error rather than a blank on a
+  screen. `Spot.id` is still typed required and is also never sent — same defect class, filed
+  separately rather than widened into this card.
+
 - **Search never called the search endpoint.** (STOURIFY-9) `SearchScreen` queried `GET /spots` —
   the plain spot index — so the app had never once called `GET /discover/search`, the endpoint that
   searches spots, cities **and** people and that `ExplorerProfile` was made Scout-searchable for.

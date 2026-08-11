@@ -24,15 +24,19 @@ export interface Spot {
   id: string
   uuid: string
   /**
-   * Kept required for the existing consumers that already depend on it
-   * (`PostCard`, `PostComposeScreen`, `SearchScreen`, `NearbyScreen`) — but
-   * `SpotResource::toArray()` has never actually sent a `name` key, only
-   * `title`. That mismatch predates this change and is out of scope here;
-   * `title` below is the field the server genuinely returns.
+   * A spot's name. `SpotResource::toArray()` sends this and only this — there
+   * has never been a `name` key on the wire.
+   *
+   * `name` used to sit above this as a REQUIRED field, with `title` optional:
+   * exactly backwards. A required field the server never sends types
+   * `undefined` as a `string`, so `PostCard`, `PostComposeScreen` and
+   * `SpotPickerScreen` all rendered blanks with a clean typecheck. Removed
+   * rather than deprecated (STOURIFY-11) — an optional `name` would keep the
+   * same reads compiling.
+   *
+   * No numeric id, ever — join on `uuid`.
    */
-  name: string
-  /** `SpotResource::toArray()`'s real field. No numeric id, ever — join on `uuid`. */
-  title?: string
+  title: string
   slug: string
   description?: string
   latitude: number
