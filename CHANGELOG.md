@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A broken sync no longer holds your photos hostage.** (STOURIFY-29) A sync cycle does four things
+  in order: send up what you wrote offline, check nothing was refused, fetch what is new on the
+  server, and upload the photos waiting to go with your posts. If step three failed — the server
+  answering with an error, say — the app turned around and went home, and the photos never left the
+  queue. They waited for as long as the server kept failing, with no error, no failure count, and
+  nothing on the Sync Status screen saying why. They went up the instant fetching started working
+  again, which is what made this so hard to notice: nothing was ever lost, it was just late by
+  however long the fault lasted.
+
+  A photo never needed anything from step three. The one thing it genuinely waits on is the post it
+  belongs to existing on the server, and the upload code already checks that for itself, photo by
+  photo.
+
+  The fix is where the upload step sits rather than what it does: it moved into the cycle's `finally`
+  block in `src/sync/cycle.ts`, so the language itself guarantees it runs on every way out — the
+  failed fetch, a refused row further up, an unexpected crash, or a clean pass. Putting it anywhere
+  else would have fixed today's four exits and none of the ones somebody adds later, which is exactly
+  how the bug arrived. It is wrapped so that nothing it does can change what the cycle reports, in
+  either direction.
+
+  The rule pointing the other way is untouched: a stuck photo still cannot delay incoming data,
+  because the upload step still runs last.
+
 ### Security
 
 - **Photos no longer upload the coordinates they were taken at.** (STOURIFY-40) A camera writes hidden
