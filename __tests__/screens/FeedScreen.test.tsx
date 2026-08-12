@@ -164,6 +164,49 @@ it('renders posts from a seeded query cache while the fetcher throws', async () 
 })
 
 /**
+ * The two states STOURIFY-41 exists to tell apart.
+ *
+ * Both of these render zero rows, and before this card both said the same
+ * thing — "Your feed is empty". They are different facts: one is about the
+ * reader's account, the other is about the network, and only the second has an
+ * action worth offering.
+ *
+ * Each case asserts the presence of its own copy AND the absence of the
+ * other's. Presence alone would pass against a screen that stacked both
+ * messages, which is not a screen that tells them apart.
+ */
+describe('a failed feed is not an empty feed', () => {
+  it('says the request failed, and offers a retry that re-runs the query', async () => {
+    ;(getFollowingFeed as jest.Mock).mockRejectedValue(new Error('timeout of 15000ms exceeded'))
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText("Couldn't load your feed")).toBeTruthy())
+    expect(screen.queryByText('Your feed is empty')).toBeNull()
+
+    expect(getFollowingFeed).toHaveBeenCalledTimes(1)
+
+    fireEvent.press(screen.getByText('Try again'))
+
+    await waitFor(() => expect(getFollowingFeed).toHaveBeenCalledTimes(2))
+  })
+
+  it('still says the feed is empty when the request succeeds with no posts', async () => {
+    ;(getFollowingFeed as jest.Mock).mockResolvedValue({
+      data: [],
+      next_cursor: null,
+      prev_cursor: null,
+    })
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Your feed is empty')).toBeTruthy())
+    expect(screen.queryByText("Couldn't load your feed")).toBeNull()
+    expect(screen.queryByText('Try again')).toBeNull()
+  })
+})
+
+/**
  * The tap path STOURIFY-35 exists for: from real content in the feed to the
  * author's profile. Registering the route was only half of it — the Home stack
  * had no `Profile` screen at all, so this navigate would have thrown.

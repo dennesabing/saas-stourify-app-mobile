@@ -47,6 +47,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A feed that failed to load said "your feed is empty".** (STOURIFY-41) A shop with the lights off
+  and a shop with empty shelves look the same through the window at night. The feed had that problem:
+  when the request to the server failed, it put up the same sign it uses when the server answers and
+  genuinely has nothing to show you. Those are different facts, and only one of them is yours to
+  solve — told your feed is empty you conclude the app has nothing for you and stop, when a single
+  tap would have fixed it.
+
+  A failed feed now says "Couldn't load your feed", explains that your posts are still there, and
+  offers a **Try again** button. A feed that really is empty still says so, unchanged.
+
+  Two things stayed deliberately as they were. Posts you already have still win: if the app has
+  yesterday's feed saved and today's request fails, you read the saved posts and see no error at all.
+  And the 15-second timeout that makes these failures common on a slow connection is untouched here —
+  it is a single setting shared by every call in the app and is tracked separately as STOURIFY-61.
+  The same confusion on the Search and Nearby screens is tracked as STOURIFY-59 and STOURIFY-60.
+
 - **Edit Profile saved to an address that did not exist, and edited the wrong thing.** (STOURIFY-38)
   The screen posted `PUT /user/profile`, a route no file in the project declares, so every save
   answered 404 — you filled the form in, pressed Save, and nothing was stored and nothing said so.
