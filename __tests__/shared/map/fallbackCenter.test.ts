@@ -1,8 +1,8 @@
-import { DEFAULT_MAP_CENTER, readFallbackCenter } from '@/features/create/api/mapCenter'
+import { DEFAULT_MAP_CENTER, readFallbackCenter } from '@/shared/map/fallbackCenter'
 import { createTestDatabase, seedCity, seedExplorerProfile } from '../../support/testDatabase'
 
 /**
- * Where the picker points its map when the device will not say where it is.
+ * Where a map points when the device will not say where the phone is.
  *
  * Every read here is local. That is the whole reason this lives in the database
  * rather than behind a request: the moment it is most needed — no permission, no

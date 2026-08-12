@@ -3,10 +3,9 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import { useDatabase } from '@nozbe/watermelondb/react'
 import { Button, Text } from '@/shared/components/ui'
 import { useIsOnline } from '@/shared/hooks/useIsOnline'
-import { MapCanvas, type MapCoordinate, type MapPin } from '@/shared/map'
+import { MapCanvas, readFallbackCenter, type MapCoordinate, type MapPin } from '@/shared/map'
 import { requestPosition } from '@/shared/location/position'
 import { useTheme } from '@/theme/ThemeProvider'
-import { readFallbackCenter } from '@/features/create/api/mapCenter'
 
 /**
  * Where the spot is, captured rather than typed.

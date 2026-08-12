@@ -85,6 +85,19 @@ export default function DiscoverScreen({ navigation }: Props) {
           <Button label="Spots near me" variant="secondary" onPress={() => navigation.navigate('Nearby')} />
         </View>
       </View>
+
+      {/*
+        The other way of reading the same spots. It is a row of its own rather
+        than a third button beside the two above, because three labels of this
+        length on a 360dp screen wrap to two lines each and the row stops
+        looking like a row.
+      */}
+      <Button
+        label="Explore on a map"
+        variant="secondary"
+        fullWidth
+        onPress={() => navigation.navigate('Map')}
+      />
     </View>
   )
 

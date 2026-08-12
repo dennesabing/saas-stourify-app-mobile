@@ -5,6 +5,7 @@ import CreateMenuScreen from '@/features/create/screens/CreateMenuScreen'
 import CreateSpotScreen from '@/features/create/screens/CreateSpotScreen'
 import ThemeGalleryScreen from '@/features/dev/screens/ThemeGalleryScreen'
 import DiscoverScreen from '@/features/discover/screens/DiscoverScreen'
+import MapScreen from '@/features/discover/screens/MapScreen'
 import CommentsScreen from '@/features/feed/screens/CommentsScreen'
 import FeedScreen from '@/features/feed/screens/FeedScreen'
 import PostDetailScreen from '@/features/feed/screens/PostDetailScreen'
@@ -68,6 +69,7 @@ function DiscoverStackNav() {
       <DiscoverStack.Screen name="Discover" component={DiscoverScreen} />
       <DiscoverStack.Screen name="Search" component={SearchScreen} />
       <DiscoverStack.Screen name="Nearby" component={NearbyScreen} />
+      <DiscoverStack.Screen name="Map" component={MapScreen} />
       <DiscoverStack.Screen name="Profile" component={ProfileScreen} />
       <DiscoverStack.Screen name="SpotDetail" component={SpotDetailScreen} />
       <DiscoverStack.Screen name="PostDetail" component={PostDetailScreen} />
