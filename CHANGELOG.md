@@ -47,6 +47,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Edit Profile saved to an address that did not exist, and edited the wrong thing.** (STOURIFY-38)
+  The screen posted `PUT /user/profile`, a route no file in the project declares, so every save
+  answered 404 — you filled the form in, pressed Save, and nothing was stored and nothing said so.
+  It now saves to `PATCH /api/v1/profile`, which was already there all along.
+
+  The second half of the bug was what the form collected. Stourify keeps two separate things about
+  a person: the **platform account** (a name, an email, a login) and the **explorer profile** (the
+  username, bio, website, home city and interests other explorers actually see). The old form
+  collected the account's name plus the profile's bio and posted them together, which meant the
+  whole explorer identity was uneditable once onboarding was over. The screen now edits the five
+  identity fields, and the account's name and email stay where they belong.
+
+  This also un-breaks the one recovery path for somebody who skipped onboarding: the profile
+  header's "Set up profile" button routes here, and the endpoint creates and edits with the same
+  call, so a first save works exactly like a later one.
+
+  **Saving needs a connection, unlike the rest of this app.** Onboarding writes this same table
+  offline and lets the sync queue push it. This screen deliberately does not, because a username
+  has to be unique across the whole platform and only the server can say so — written locally, a
+  taken username would look saved and then fail inside a background push with nowhere to show the
+  error, leaving somebody with a username they do not have. When the server refuses, its own words
+  ("That username is taken.") now appear under the field they belong to instead of as one line at
+  the bottom, and the message goes away as soon as you start typing a different name. The screen
+  also moved onto the design system; it was the last profile screen still carrying hardcoded
+  colours.
+
+  **Two things the unit tests could not have found, both caught on a real emulator.** The save
+  reached the server and the profile header underneath still showed the old bio, because the screen
+  filed its copy of the profile under a name nothing else in the app used — it dropped a cache entry
+  no one was reading. And because this app keeps that cache on disk between launches, re-opening the
+  form filled it in from the copy left over from last time; a save from that state would have
+  written yesterday's values back over today's. The form now waits for the fresh answer before it
+  fills anything in.
+
 - **Corrected a stale note on the media type that pointed callers the wrong way.** (STOURIFY-53)
   `SpotMedia.thumb_url` in `src/shared/api/types.ts` carried a comment saying no thumbnail
   conversion existed, that the field was always empty, and that callers should render the original

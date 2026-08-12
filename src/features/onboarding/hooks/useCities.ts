@@ -5,6 +5,12 @@ import type City from '@/db/models/City'
 /** The shape `HomeCityScreen` renders — a snapshot, not a live model. */
 export interface CityRow {
   id: string
+  /**
+   * The server's uuid for this city. `EditProfileScreen` needs it because
+   * `PATCH /profile` addresses a home city by uuid, while the local write path
+   * onboarding uses addresses it by the numeric `serverId` below.
+   */
+  uuid: string
   serverId: number | null
   name: string
   region: string | null
@@ -33,6 +39,7 @@ export function useCities(): CityRow[] {
         setCities(
           rows.map((row) => ({
             id: row.id,
+            uuid: row.uuid,
             serverId: row.serverId,
             name: row.name,
             region: row.region,
@@ -48,6 +55,7 @@ export function useCities(): CityRow[] {
       setCities(
         rows.map((row) => ({
           id: row.id,
+          uuid: row.uuid,
           serverId: row.serverId,
           name: row.name,
           region: row.region,

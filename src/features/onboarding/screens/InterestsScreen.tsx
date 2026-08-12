@@ -5,13 +5,12 @@ import { useDatabase } from '@nozbe/watermelondb/react'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { OnboardingStackParamList } from '@/shared/navigation/types'
 import { Button, Chip, Text } from '@/shared/components/ui'
+import { INTEREST_OPTIONS } from '@/shared/constants/interests'
 import { syncNow } from '@/sync/scheduler'
 import type ExplorerProfile from '@/db/models/ExplorerProfile'
 import { useTheme } from '@/theme/ThemeProvider'
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'Interests'>
-
-const INTEREST_OPTIONS = ['Nature', 'Food', 'History', 'Art', 'Beach', 'Nightlife', 'Culture', 'Adventure']
 
 /**
  * Writes straight to the local `sto_explorer_profiles` row and never to the
