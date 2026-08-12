@@ -49,6 +49,7 @@ export default function SpotCard({
     <Card onPress={onPress} padded={false} accessibilityLabel={title}>
       <View style={isWide ? styles.wide : undefined}>
         <Image
+          testID="spot-card-image"
           source={imageUri ? { uri: imageUri } : undefined}
           style={
             isWide

@@ -10,9 +10,21 @@ export interface User {
 /**
  * A media entry from `SpotResource`/`PostResource`'s `media` array.
  *
- * `thumb_url` is ALWAYS `null` today — neither `Spot` nor `Post` registers a
- * `thumb` media conversion (only `User` does, for avatars). Render `url` and
- * scale it client-side; do not build a thumbnail affordance around this field.
+ * `thumb_url` is a real 400x400 conversion. Both `Spot` and `Post` register it
+ * (`registerMediaConversions()` in each model), so prefer it anywhere the
+ * picture is drawn smaller than that — `url` is the untouched upload and is
+ * often several megabytes.
+ *
+ * This comment used to say the opposite: that no conversion existed, that the
+ * field was always null, and that callers should render `url` and scale it
+ * client-side. That was true when it was written and stopped being true when
+ * the conversions landed, and a stale instruction in a type is worse than no
+ * instruction — the explore grid was built against it and would have shipped
+ * downloading originals into 170-point cells (STOURIFY-53).
+ *
+ * It can still be `null` for one reason: a photo whose conversion has not
+ * finished yet. That is a *not ready* answer, never a *use the original*
+ * answer — see `thumbFor()` in `src/features/discover/api/exploreSpots.ts`.
  */
 export interface SpotMedia {
   uuid: string

@@ -7,7 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Discover shows real places now, as a grid of photos.** (STOURIFY-53) The tab used to open on a
+  note saying the browsing feature was coming in a later milestone. It now opens on a two-column
+  mosaic of spots read from `GET /api/v1/spots`, and tapping a cell opens that spot.
+
+  Two details do most of the work. **Cells draw the 400x400 thumbnail, never the original upload.**
+  A cell is about 170 points wide and an original is often several megabytes, so this is the
+  difference between a grid that fills in over a phone connection and one that appears to hang. When
+  a photo's thumbnail has not finished converting the cell shows its placeholder tile rather than
+  falling back to the original — the fallback looks harmless and is how a grid quietly goes back to
+  downloading full-size images.
+
+  **And it still works with no signal.** The app already writes every server answer to disk for 24
+  hours, so the grid renders yesterday's page the moment it opens and lets the refresh fail quietly
+  in the background. Like a magazine already in your bag: still readable in a tunnel.
+
+  The filter chips along the top are still decorative. Making one filter needs a category rule the
+  server does not have, and a chip wired to a parameter the server ignores would look like it worked
+  while returning the unfiltered list every time.
+
 ### Fixed
+
+- **Corrected a stale note on the media type that pointed callers the wrong way.** (STOURIFY-53)
+  `SpotMedia.thumb_url` in `src/shared/api/types.ts` carried a comment saying no thumbnail
+  conversion existed, that the field was always empty, and that callers should render the original
+  and shrink it themselves. That was accurate when it was written and stopped being accurate when
+  the conversions shipped. A stale instruction inside a type is worse than none, because it is read
+  at exactly the moment somebody is deciding what to do.
 
 - **A broken sync no longer holds your photos hostage.** (STOURIFY-29) A sync cycle does four things
   in order: send up what you wrote offline, check nothing was refused, fetch what is new on the
