@@ -82,3 +82,47 @@ export async function getProfile(userUuid: string): Promise<ExplorerProfile> {
   const res = await client.get(`/profiles/${userUuid}`)
   return res.data.data
 }
+
+/**
+ * The fields a client may write. Deliberately narrower than `ExplorerProfile`.
+ *
+ * Two absences are the point (STOURIFY-38). `name` is NOT here: a display name
+ * belongs to the platform account and is written at `PUT /me`, so sending it
+ * to this endpoint gets it silently dropped — which is half of the bug this
+ * type exists to prevent recurring. The counts, `viewer` and `can` are not here
+ * either: they are things the server computes about you, not things you set.
+ *
+ * `is_private` and `shows_location_on_spots` are accepted by the endpoint and
+ * left out on purpose — see STOURIFY-57, which has to first settle whether
+ * `is_private` and the Settings screen's `account_visibility` are one setting
+ * or two.
+ */
+export interface ProfileWrite {
+  username?: string
+  bio?: string | null
+  website?: string | null
+  /** A CITY uuid, not the numeric `server_id` the local database also holds. */
+  home_city_uuid?: string | null
+  interests?: string[]
+}
+
+/**
+ * `PATCH /profile` — create or edit the caller's own profile.
+ *
+ * One endpoint for both because the server treats it as an upsert: the first
+ * save from someone who skipped onboarding creates the row, and every later
+ * save edits it. That is what makes the profile header's "Set up profile"
+ * button work with no separate create path.
+ *
+ * Send only what changed. `username` is `sometimes` on an established profile
+ * precisely so a bio edit does not have to restate the handle — restating it
+ * would let an unrelated uniqueness failure block a save that never touched it.
+ *
+ * A rejected save is ordinary rather than exceptional: the server answers 422
+ * with per-field messages ("That username is taken.") that the caller is
+ * expected to render against the field, via `extractValidationErrors`.
+ */
+export async function updateMyProfile(changes: ProfileWrite): Promise<ExplorerProfile> {
+  const res = await client.patch('/profile', changes)
+  return res.data.data
+}
