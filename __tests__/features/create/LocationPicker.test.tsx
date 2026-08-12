@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import type { Database } from '@nozbe/watermelondb'
 import LocationPicker from '@/features/create/components/LocationPicker'
-import { DEFAULT_MAP_CENTER } from '@/features/create/api/mapCenter'
+import { DEFAULT_MAP_CENTER } from '@/shared/map'
 import { createTestDatabase, seedCity, seedExplorerProfile } from '../../support/testDatabase'
 import { TestProviders } from '../../support/TestProviders'
 

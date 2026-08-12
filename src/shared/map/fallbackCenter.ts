@@ -1,7 +1,7 @@
 import { Q, type Database } from '@nozbe/watermelondb'
 import type City from '@/db/models/City'
 import type ExplorerProfile from '@/db/models/ExplorerProfile'
-import type { MapCoordinate } from '@/shared/map'
+import type { MapCoordinate } from './types'
 
 /**
  * Where to point the map when the device will not say where the phone is.
@@ -15,6 +15,11 @@ import type { MapCoordinate } from '@/shared/map'
  * General Santos City is the last resort. It is where Stourify's first spots
  * are, and the same coordinates the repo's emulator testing doc injects, so a
  * developer with no profile sees a map of somewhere with content on it.
+ *
+ * This lives in the map seam rather than in the feature that first needed it:
+ * the spot-creation picker and the Discover map both open on it, and a feature
+ * reaching into another feature's folder is the sideways dependency this
+ * codebase does not allow (root `CLAUDE.md` → *Dependency Direction*).
  */
 export const DEFAULT_MAP_CENTER: MapCoordinate = { latitude: 6.1164, longitude: 125.1716 }
 

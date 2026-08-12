@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Discover has a map now, and a button on the grid that opens it.** (STOURIFY-54) The grid answers
+  "what is there". The map answers "what is near the thing I am looking at", which is the question
+  somebody standing in a city actually has. Pins are the same spots the grid shows — one fetch, one
+  cached page — so tapping a pin floats a small card for that place and opens it, and a recenter
+  control brings the map back and clears the selection.
+
+  **It opens on something even when the phone will not say where it is.** That is what separates it
+  from the Nearby screen, which is about what is within a few kilometres of *you* and correctly
+  refuses to draw a map with no fix. This one falls back in three steps: the device's position, then
+  the explorer's home city read from the local database, then General Santos, where Stourify's first
+  spots are. Every step after the first works with the radio off.
+
+  Under the hood the "where do I point a map with no fix" helper moved out of the spot-creation
+  feature and into the shared map seam (`src/shared/map/fallbackCenter.ts`), because two features now
+  open on it and one feature reaching into another's folder is the sideways dependency this codebase
+  does not allow. No behaviour changed with the move.
+
 - **Discover shows real places now, as a grid of photos.** (STOURIFY-53) The tab used to open on a
   note saying the browsing feature was coming in a later milestone. It now opens on a two-column
   mosaic of spots read from `GET /api/v1/spots`, and tapping a cell opens that spot.

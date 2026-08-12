@@ -164,3 +164,16 @@ it('keeps the search and nearby entry points', async () => {
   fireEvent.press(screen.getByText('Spots near me'))
   expect(navigation.navigate).toHaveBeenCalledWith('Nearby')
 })
+
+/**
+ * The grid and the map are two ways of reading the same spots, and until
+ * STOURIFY-54 the second one had a name in the navigation type and no way in.
+ */
+it('opens the map from the grid', async () => {
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), { timeout: 3000 })
+
+  fireEvent.press(screen.getByText('Explore on a map'))
+  expect(navigation.navigate).toHaveBeenCalledWith('Map')
+})
