@@ -69,8 +69,36 @@ async function publishMediaState(database: Database): Promise<void> {
 }
 
 /**
- * One cycle: **drain outbox → gate check → pull delta**. The order is never
- * reversed.
+ * Phase 2 of a cycle: upload every photo whose host row is already on the
+ * server, then republish the media counters.
+ *
+ * Deliberately swallows everything. Phase 2 must be invisible to the cycle's
+ * own outcome in both directions — it can neither make a failed cycle look
+ * successful nor make a successful one look failed. The second direction is the
+ * subtle one: this runs from `runSyncCycle`'s `finally`, and an exception
+ * thrown there REPLACES whatever exception was already in flight. Without this
+ * catch, a local database fault that broke the drain would surface as a media
+ * error instead, sending the next reader to debug the wrong layer.
+ */
+async function runMediaPhase(database: Database): Promise<void> {
+  try {
+    await drainPendingMedia(database)
+  } catch {
+    // A local read/write failure inside the media drain is not this cycle's
+    // business to report.
+  }
+
+  try {
+    await publishMediaState(database)
+  } catch {
+    // Same again: the counters are a display convenience, never a gate.
+  }
+}
+
+/**
+ * One cycle: **drain outbox → gate check → pull delta → upload photos**. The
+ * order is never reversed, and the last step runs whatever the first three did
+ * — see the `finally` at the bottom for why that is not a detail.
  *
  * The gate is the most important rule in this layer. The engine applies a delta
  * with unconditional server-wins — `Object.assign(r._raw, { ...fields, id })`
@@ -140,24 +168,33 @@ export async function runSyncCycle(options: {
     status.markSynced(Date.now())
     await publishQueueState(options.database)
 
-    // Phase 2, AFTER the pull, OUTSIDE the gate. This must never be moved
-    // ahead of the `return` below or folded into `drain`/`fullyAcked`: a
-    // pending photo is not a row edit, no incoming delta can destroy it, and
-    // wiring it into the gate would resurrect the exact indefinite stall
-    // M2c's Sync Status screen exists to escape (design spec §2.3 rule 3). A
-    // failure here — network or a rejected attach — is swallowed and
-    // surfaced only through `publishMediaState`, never through this cycle's
-    // `error`/`pulled` outcome.
-    try {
-      await drainPendingMedia(options.database)
-    } catch {
-      // A local read/write failure inside the media drain is still not
-      // allowed to make this cycle look like it failed to pull.
-    }
-    await publishMediaState(options.database)
-
     return { trigger: options.trigger, skipped: null, drain, pulled: true, pulledRows: observed.rows, error: null }
   } finally {
+    // Phase 2 lives in the `finally` and nowhere else (STOURIFY-29).
+    //
+    // Two rules meet here, and they point in opposite directions:
+    //
+    //   * A photo must never delay incoming data (design spec §2.3 rule 3).
+    //     Satisfied by position: this runs after the pull attempt on every
+    //     path, so nothing above it ever waits on an upload. Do not hoist it.
+    //
+    //   * Nothing may delay a photo except its own host row not being on the
+    //     server yet — which `drainPendingMedia` checks per row in
+    //     `isHostAcked`. Satisfied by `finally`: the language guarantees this
+    //     runs, so no early return above can jump over it.
+    //
+    // The second rule is the one that was broken. The old code sat this call
+    // in the success path, below the `return` on a failed pull, under a
+    // comment claiming it was "OUTSIDE the gate" — true of the `fullyAcked`
+    // gate, false of the pull's own error path. A dev backend answering `500`
+    // on the delta endpoint therefore held a user's photos for as long as it
+    // kept failing: no error, no failure count, nothing on the Sync Status
+    // screen. They uploaded the moment the pull started working.
+    //
+    // An ordinary statement placed anywhere else would fix today's four exits
+    // and none of tomorrow's. `finally` is what makes it structural.
+    await runMediaPhase(options.database)
+
     // Idempotent, and covers every exit path — including an uncaught
     // exception from `drainOutbox`/`publishQueueState` (e.g. a local DB read
     // failure that is not one of the handled network-failure cases). Without
