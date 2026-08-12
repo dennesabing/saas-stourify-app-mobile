@@ -70,6 +70,12 @@ it('renders a design-system placeholder hero when the spot has no photos, never 
     expect(screen.queryByTestId('spot-hero-image')).toBeNull()
     expect(screen.getByText('No photos yet')).toBeTruthy()
   })
+
+  // A hero with no photos has no gallery to open, so tapping it must do nothing.
+  // The screen enforces that with `disabled` on the hero Pressable; this pins the
+  // behaviour so a refactor cannot drop it silently.
+  fireEvent.press(screen.getByTestId('spot-hero'))
+  expect(navigation.navigate).not.toHaveBeenCalled()
 })
 
 it('opens the gallery when the hero is tapped', async () => {
@@ -78,7 +84,15 @@ it('opens the gallery when the hero is tapped', async () => {
 
   renderScreen()
 
-  await waitFor(() => expect(screen.getByTestId('spot-hero')).toBeTruthy())
+  // Wait for the hero PHOTO, not merely for the hero button. The button is on
+  // screen from the first frame, but it is disabled until the spot's photos
+  // arrive (`disabled={media.length === 0}`) — and React Native applies that
+  // disabled flag to the underlying touch handler in an effect, one flush after
+  // the element already renders as enabled. Waiting for `spot-hero` therefore
+  // returns during the loading state and the press races that flush: green on an
+  // idle machine, dropped under load (STOURIFY-62). `spot-hero-image` exists only
+  // on the has-photos branch, so waiting for it waits for the actual precondition.
+  await waitFor(() => expect(screen.getByTestId('spot-hero-image')).toBeTruthy())
   fireEvent.press(screen.getByTestId('spot-hero'))
 
   expect(navigation.navigate).toHaveBeenCalledWith('PhotoGallery', { spotId: 'spot-1' })
