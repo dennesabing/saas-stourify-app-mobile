@@ -63,6 +63,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it is a single setting shared by every call in the app and is tracked separately as STOURIFY-61.
   The same confusion on the Search and Nearby screens is tracked as STOURIFY-59 and STOURIFY-60.
 
+- **A spot-detail test tapped the hero photo before the screen had finished wiring it up, so the
+  whole mobile suite went red at random.** (STOURIFY-62) The test waited for the hero *button* to
+  appear and then tapped it. That button is on screen from the very first frame, before the spot's
+  photos have loaded, and the screen deliberately keeps it dead until there is a gallery to open. So
+  the wait was satisfied while the screen was still loading, and whether the tap worked came down to
+  how busy the machine was — green when idle, red often enough to block every other mobile change
+  from merging.
+
+  What made it hard to see is that the button *reported itself as enabled* at the moment of the tap.
+  React Native hands a `Pressable`'s `disabled` setting to its underlying touch handler in an effect
+  that runs after the screen is drawn, so for one flush the visible button and the thing that
+  receives touches disagree. It is a lift whose panel lights up a moment before the buttons are
+  actually connected.
+
+  The test now waits for the hero *photo*, which only exists once the spot has loaded — the exact
+  condition the tap depends on — and a second assertion pins the deliberate behaviour it uncovered:
+  a hero with no photos does not open a gallery. No app code changed; there was no user-visible
+  defect to fix, because the disagreement lasts less than a frame.
+
 - **Edit Profile saved to an address that did not exist, and edited the wrong thing.** (STOURIFY-38)
   The screen posted `PUT /user/profile`, a route no file in the project declares, so every save
   answered 404 — you filled the form in, pressed Save, and nothing was stored and nothing said so.
