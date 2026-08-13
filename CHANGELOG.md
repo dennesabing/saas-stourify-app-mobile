@@ -47,6 +47,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A spot that failed to load stopped filling the page with furniture.** (STOURIFY-65) A shop with a
+  hand-written *closed, back soon* note in the window is honest, and you walk away. Tape the same note
+  over a display of empty boxes with last week's prices on them and you stop believing the shop. The
+  spot screen was the second one: under the "Couldn't load this spot" panel it carried on as though
+  the request had worked — a title of `...`, a **See all 0 reviews** button, and **Write a review** and
+  **Save** buttons offering to review and bookmark a place the app had just admitted it could not
+  identify.
+
+  None of that is drawn now. Everything in that strip is either a fact about the spot or an action on
+  it, so when there is no spot, none of it has anything true to say. What stays is the failure panel,
+  the Posts and About tabs, and every post that loaded — because the posts come from a **separate**
+  request that often succeeds, and hiding content that arrived fine is the same mistake in the other
+  direction.
+
+  **The About tab also stopped printing a stray comma.** The coordinates line was two numbers with a
+  comma between them, and with no spot to read there were no numbers — leaving a lone `, ` sitting
+  under the address. It now appears only when there is actually a coordinate to show, which fixes the
+  same line for a spot that loaded perfectly well but has no location recorded. A spot on the equator
+  still shows `0.0000`: zero is a place, not a missing number.
+
 - **A spot that failed to load waited forever, and never said so.** (STOURIFY-64) A lift button that
   lights up and stays lit is worse than a sign on the door. The light says help is coming, so you
   stand there; the sign says use the stairs, so you get where you were going. Open a spot with no

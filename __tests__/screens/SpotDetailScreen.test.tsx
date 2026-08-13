@@ -58,6 +58,7 @@ it('renders a real hero image, the rating and the review count', async () => {
     expect(screen.getByText('Blue Cove')).toBeTruthy()
     expect(screen.getByText('4.5')).toBeTruthy()
     expect(screen.getByText('See all 12 reviews')).toBeTruthy()
+    expect(screen.getByText('✓ Verified')).toBeTruthy()
   })
 
   // The loading placeholder must go once the answer is in. A skeleton left
@@ -117,6 +118,94 @@ it('says the request failed, and offers a retry, when the spot cannot be fetched
   expect(screen.queryAllByLabelText('Loading')).toHaveLength(0)
 })
 
+it('shows no spot facts and no spot actions when the spot cannot be fetched', async () => {
+  ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [{ uuid: 'post-1', caption: 'x', visibility: 'public', is_published: true, published_at: null, likes_count: 0, comments_count: 0, created_at: '', updated_at: '', can: {} }],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 1 },
+  })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByTestId('spot-hero-error')).toBeTruthy())
+
+  // Everything in the details block is a fact about the spot or an action on
+  // it, and there is no spot. `...` and "See all 0 reviews" are the two the
+  // card is named after; the rest come from the same block and would otherwise
+  // sit under the error panel inviting the reader to review and bookmark a
+  // place the app has just admitted it cannot identify.
+  expect(screen.queryByText('...')).toBeNull()
+  expect(screen.queryByText('See all 0 reviews')).toBeNull()
+  expect(screen.queryByText('Write a review')).toBeNull()
+  expect(screen.queryByText('Save')).toBeNull()
+  expect(screen.queryByText('✓ Verified')).toBeNull()
+
+  // …and the presences are what keep this from quietly becoming the
+  // whole-screen error panel that STOURIFY-64 rejected. The posts came from a
+  // second, independent request that succeeded, so they stay.
+  expect(screen.getByText('Posts')).toBeTruthy()
+  expect(screen.getByText('About')).toBeTruthy()
+})
+
+it('renders no coordinates line on the About tab when the spot failed to load', async () => {
+  ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByTestId('spot-hero-error')).toBeTruthy())
+
+  // The About tab is not mounted until it is selected, so this cannot be
+  // folded into the case above: an assertion made on the Posts tab proves
+  // nothing about a subtree that does not exist yet.
+  fireEvent.press(screen.getByText('About'))
+
+  // The line is asserted by its testID, not by the string it prints, and that
+  // is deliberate. STOURIFY-65 was filed saying this renders
+  // "undefined, undefined"; it does not. React drops an `undefined` child
+  // entirely, so what actually reaches the screen is the literal comma and
+  // space left between the two absent numbers — an orphan `, ` under the
+  // address. Asserting the absent string would have passed against the bug.
+  expect(screen.queryByTestId('spot-coordinates')).toBeNull()
+  expect(screen.queryByText(', ')).toBeNull()
+})
+
+it('renders no coordinates line at all for a spot that has none', async () => {
+  ;(getSpot as jest.Mock).mockResolvedValue(makeSpot({ latitude: null, longitude: null }))
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Blue Cove')).toBeTruthy())
+  fireEvent.press(screen.getByText('About'))
+
+  // The second reader of the same bug, and the one nobody filed: a spot that
+  // loaded perfectly well but carries no coordinates printed the same orphan
+  // comma. Optional chaining stops `.toFixed()` throwing on an absent number;
+  // it does not stop the rest of the line being drawn.
+  await waitFor(() => expect(screen.getByText('A quiet cove.')).toBeTruthy())
+  expect(screen.getByText('📍 Coastal Road')).toBeTruthy()
+  expect(screen.queryByTestId('spot-coordinates')).toBeNull()
+  expect(screen.queryByText(', ')).toBeNull()
+})
+
+it('renders the coordinates of a spot on the equator, which are real coordinates', async () => {
+  ;(getSpot as jest.Mock).mockResolvedValue(makeSpot({ latitude: 0, longitude: 0 }))
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Blue Cove')).toBeTruthy())
+  fireEvent.press(screen.getByText('About'))
+
+  // The equator and the prime meridian are places, not missing data. This is
+  // the case a `spot?.latitude && …` guard would silently swallow, which is
+  // why the guard is written with `typeof`.
+  await waitFor(() => expect(screen.getByTestId('spot-coordinates')).toBeTruthy())
+  expect(screen.getByText('0.0000, 0.0000')).toBeTruthy()
+})
+
 it('re-runs the spot request when Try again is pressed', async () => {
   ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))
   ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
@@ -151,6 +240,12 @@ it('keeps showing a spot it already has while the refetch is failing', async () 
   expect(screen.getByText('Blue Cove')).toBeTruthy()
   expect(screen.queryByTestId('spot-hero-error')).toBeNull()
   expect(screen.queryByText("Couldn't load this spot")).toBeNull()
+
+  // The whole details block stays too, not just the hero and the title. A
+  // failed-state rule that hid the reviews button here would be taking a real
+  // number off the screen because a background request went wrong.
+  expect(screen.getByText('See all 12 reviews')).toBeTruthy()
+  expect(screen.getByText('Save')).toBeTruthy()
 })
 
 it('renders a design-system placeholder hero when the spot has no photos, never a bare grey box', async () => {
@@ -256,4 +351,8 @@ it('preserves the Posts and About tabs', async () => {
 
   fireEvent.press(screen.getByText('About'))
   await waitFor(() => expect(screen.getByText('A quiet cove.')).toBeTruthy())
+
+  // A spot that loaded shows its coordinates exactly as it always has. The
+  // guard added for the failed state must not cost the working state anything.
+  expect(screen.getByText('6.1000, 125.2000')).toBeTruthy()
 })
