@@ -47,6 +47,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Search no longer reports "No results" for a search that never ran.** (STOURIFY-59) Ask a shop
+  assistant whether something is in stock, watch them fail to get the stockroom door open, and hear
+  them come back with "we don't have it." That was Search: a request that failed showed the same
+  **No results** message as a search that genuinely matched nothing, so the reader retyped the word,
+  got the same sentence, and concluded the place they were looking for is not in Stourify.
+
+  A failed search now says **Couldn't run your search** and offers a **Try again** button that runs
+  the same search again. The other three states are unchanged and still distinct: the prompt before
+  you have typed two characters, "Searching…" while the request is in the air, and "No results" only
+  when the server actually answered with none. Results already on screen are never covered by the
+  failure message — the reader keeps reading what they have while a later request fails behind it.
+
 - **Nearby no longer answers before it has asked.** (STOURIFY-66) Ask a librarian whether they have a
   book and watch them walk off to check. What you do not want, while they are still walking, is a sign
   on the desk reading "We don't have it." Opening Nearby, the app spends up to eight seconds working

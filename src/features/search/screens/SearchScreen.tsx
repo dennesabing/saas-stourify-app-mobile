@@ -101,7 +101,7 @@ export default function SearchScreen({ navigation }: Props) {
 
   const isSearchable = debouncedQuery.length >= MIN_QUERY_LENGTH
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isError, refetch } = useQuery({
     queryKey: ['discover-search', filter, debouncedQuery],
     // Both branches resolve to the same grouped shape, so exactly one type
     // flows out of the query and the render path needs no cast to read it.
@@ -220,6 +220,66 @@ export default function SearchScreen({ navigation }: Props) {
     [theme],
   )
 
+  /**
+   * Only reached with no rows to show, and the four cases are genuinely
+   * different situations with different remedies — so they get different
+   * words: "we have not been asked yet", "we are still asking", "we could not
+   * ask", and "we asked and there is nothing".
+   *
+   * Before STOURIFY-59 there were three branches and a failed request fell into
+   * the last one, so the screen reported that nothing matched when it had never
+   * found out. A reader told there are no results searches for something else;
+   * a reader told the request failed tries the same search again, which is the
+   * one move that helps. The 15-second timeout in `shared/api/client.ts` makes
+   * that a routine occurrence rather than an exotic one (STOURIFY-61).
+   *
+   * Three orderings here are load-bearing:
+   *
+   * **This lives inside `ListEmptyComponent`**, which renders only when the
+   * list has no rows at all — so content always wins over an error. React Query
+   * keeps serving the results it already holds while a later fetch fails, and
+   * the reader keeps reading them. Hoisting an `isError` check above the
+   * `SectionList` would delete that, and never once show it had, because the
+   * branch is unreachable while online. `FeedScreen`, `DiscoverScreen` and
+   * `NearbyScreen` carry the same warning.
+   *
+   * **`isSearchable` is asked first.** The query is switched off below the
+   * server's two-character minimum, so a query that was never sent is not
+   * empty, not loading and not failed — it is unasked, and the prompt is the
+   * only honest thing to say. "Nothing typed" and "one character typed" share
+   * that prompt on purpose: the remedy is the same sentence for both.
+   *
+   * **`isFetching` is asked before `isError`**, which differs from `FeedScreen`
+   * and `NearbyScreen` and is deliberate. Those two ask `isLoading`, which is
+   * false during a retry, so their failure copy stays up while it runs. Here a
+   * pressed **Try again** shows "Searching…" instead — the acknowledgement of a
+   * button the reader just pressed. Either way the property that matters holds:
+   * "No results" never appears during a failed search or its retry.
+   */
+  const empty = !isSearchable ? (
+    <EmptyState
+      icon="🔍"
+      title="Search Stourify"
+      subtitle="Find spots, cities and people. Type at least two characters."
+    />
+  ) : isFetching ? (
+    // A search that is still in flight says so. Rendering nothing left the
+    // screen blank for the whole request, which on a slow backend is
+    // indistinguishable from a search that returned nothing — found on the
+    // emulator, where the round trip is seconds.
+    <EmptyState icon="⏳" title="Searching…" subtitle={`Looking for "${debouncedQuery}"`} />
+  ) : isError ? (
+    <EmptyState
+      icon="📡"
+      title="Couldn't run your search"
+      subtitle="We couldn't reach Stourify just now. Check your connection and try the same search again."
+      actionLabel="Try again"
+      onAction={() => void refetch()}
+    />
+  ) : (
+    <EmptyState icon="🔍" title="No results" subtitle="Try a different word, or another filter." />
+  )
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
       <View style={{ padding: theme.gutter, gap: theme.spacing[3] }}>
@@ -259,29 +319,7 @@ export default function SearchScreen({ navigation }: Props) {
         renderSectionHeader={renderSectionHeader}
         stickySectionHeadersEnabled={false}
         keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={
-          !isSearchable
-            ? () => (
-                <EmptyState
-                  icon="🔍"
-                  title="Search Stourify"
-                  subtitle="Find spots, cities and people. Type at least two characters."
-                />
-              )
-            : // A search that is still in flight says so. Rendering nothing left
-              // the screen blank for the whole request, which on a slow backend
-              // is indistinguishable from a search that returned nothing —
-              // found on the emulator, where the round trip is seconds.
-              isFetching
-              ? () => <EmptyState icon="⏳" title="Searching…" subtitle={`Looking for "${debouncedQuery}"`} />
-              : () => (
-                  <EmptyState
-                    icon="🔍"
-                    title="No results"
-                    subtitle="Try a different word, or another filter."
-                  />
-                )
-        }
+        ListEmptyComponent={empty}
         contentContainerStyle={sections.length === 0 ? { flex: 1 } : { paddingBottom: theme.spacing[4] }}
       />
     </SafeAreaView>
