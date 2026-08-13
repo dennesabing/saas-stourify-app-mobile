@@ -47,6 +47,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A spot that failed to load waited forever, and never said so.** (STOURIFY-64) A lift button that
+  lights up and stays lit is worse than a sign on the door. The light says help is coming, so you
+  stand there; the sign says use the stairs, so you get where you were going. Open a spot with no
+  connection and the screen was the lit button — two pulsing grey shapes where the photo and the star
+  rating go, no message, no button, and no end to it. Leaving the screen was the only way out.
+
+  The spot screen now says **"Couldn't load this spot"** and offers a **Try again** that asks the
+  server again, the same treatment Discover and the feed already give a request that fails. The
+  rating stops pretending too: it renders nothing rather than a placeholder that can never resolve,
+  which also stops a screen reader announcing "Loading" over a request that finished — badly —
+  minutes ago.
+
+  **A spot the app already has still wins.** Open a spot, go into a tunnel, come back to it: the
+  refetch fails and you keep reading the spot, with no error shown. The failure panel appears only
+  when there is genuinely nothing to show, which is the same rule the feed and Discover follow.
+
 - **A spot you were still waiting on said "No photos yet".** (STOURIFY-63) A departures board that
   has not yet heard from the railway should say so, not print CANCELLED. One of those sends you to
   the platform to wait; the other sends you home. The spot screen was printing the second: open a
@@ -59,9 +75,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cause was the order of two questions: the screen asked "are there photos?" before "has this
   loaded?", and an empty list is the answer to both.
 
-  One thing this deliberately does not fix: a spot request that *fails* now sits on that placeholder
-  rather than saying anything, which is quiet rather than wrong. The honest version — a message and
-  a **Try again** button, as the feed got in STOURIFY-41 — is tracked as STOURIFY-64.
+  One thing this deliberately did not fix: a spot request that *fails* sat on that placeholder rather
+  than saying anything, which is quiet rather than wrong. The honest version — a message and a
+  **Try again** button, as the feed got in STOURIFY-41 — is the STOURIFY-64 entry above, and ships
+  alongside this one.
 
 - **A feed that failed to load said "your feed is empty".** (STOURIFY-41) A shop with the lights off
   and a shop with empty shelves look the same through the window at night. The feed had that problem:

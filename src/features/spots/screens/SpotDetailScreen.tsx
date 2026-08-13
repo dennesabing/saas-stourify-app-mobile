@@ -7,7 +7,7 @@ import { useDatabase } from '@nozbe/watermelondb/react'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
 import { getSpot, getSpotPosts } from '@/shared/api/spots'
-import { Button, Rating, Skeleton, Tag, Text } from '@/shared/components/ui'
+import { Button, EmptyState, Rating, Skeleton, Tag, Text } from '@/shared/components/ui'
 import type { Post } from '@/shared/api/types'
 import { createLocalWishlistItem } from '@/features/spots/api/createLocalWishlistItem'
 import { useIsSpotSaved } from '@/features/spots/hooks/useIsSpotSaved'
@@ -32,7 +32,7 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
   const database = useDatabase()
   const [tab, setTab] = useState<'Posts' | 'About'>('Posts')
 
-  const { data: spot, isLoading } = useQuery({
+  const { data: spot, isLoading, isError, refetch } = useQuery({
     queryKey: ['spot', spotId],
     queryFn: () => getSpot(spotId),
   })
@@ -43,6 +43,25 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
   })
 
   const { isSaved, isQueued } = useIsSpotSaved(spotId)
+
+  /**
+   * The two flags every stuck placeholder on this screen used to be missing.
+   *
+   * They are computed once, together, so they cannot overlap and cannot drift:
+   * the bug this replaces existed in two places precisely because
+   * `isLoading || !spot` was written out twice and both copies were wrong in
+   * the same way (STOURIFY-64).
+   *
+   * **`&& !spot` is the load-bearing half.** React Query keeps serving a
+   * cached spot while a background refetch fails, so `isError` alone is true
+   * in the one situation where the reader is happily looking at content —
+   * offline, on a spot they opened yesterday. Reaching for the error panel
+   * there would take a readable spot off the screen to announce that no spot
+   * could be fetched. `DiscoverScreen` and `FeedScreen` carry the same warning
+   * for their lists; this is that rule for a screen holding one object.
+   */
+  const hasFailed = isError && !spot
+  const isWaiting = !hasFailed && (isLoading || !spot)
 
   const posts = postsData?.data ?? []
   const media = spot?.media ?? []
@@ -96,57 +115,83 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
           </Text>
         </Pressable>
 
-        <Pressable
-          testID="spot-hero"
-          accessibilityRole="button"
-          accessibilityLabel="View photos"
-          onPress={() => navigation.navigate('PhotoGallery', { spotId })}
-          disabled={media.length === 0}
-        >
-          {/*
-            Three states, and the ORDER is the fix. `media` is `spot?.media ?? []`,
-            so it is empty both for a spot with no photos and for a spot nobody has
-            heard back about yet. Asking "are there photos?" first answered the
-            second case with the first case's sentence — "No photos yet" over a spot
-            that may well have twenty (STOURIFY-63). Ask "has it arrived?" first and
-            the two facts stop sharing an answer.
+        {/*
+          A request that came back broken gets words and a button, not a shape
+          that pulses forever. Before STOURIFY-64 a failed fetch left the hero
+          and the rating as grey placeholders with no message and no way out —
+          a lift button that lights up and stays lit.
 
-            The test is `isLoading || !spot`, matching the rating below rather than
-            inventing a second opinion: two elements fed by one query must not
-            disagree about whether that query has come back.
-          */}
-          {isLoading || !spot ? (
-            <View testID="spot-hero-loading">
-              <Skeleton height={HERO_HEIGHT} radius={0} />
-            </View>
-          ) : media.length > 0 ? (
-            <Image
-              testID="spot-hero-image"
-              source={{ uri: media[0].url }}
-              style={{ width: '100%', height: HERO_HEIGHT, backgroundColor: theme.colors.surfaceAlt }}
-              contentFit="cover"
-              transition={theme.motion.fast}
+          The panel REPLACES the hero rather than rendering inside it, because
+          `EmptyState` contains a `Button` and a touch target nested inside
+          another touch target is an arrangement that works until a platform
+          decides otherwise. There is nothing to open in this state anyway.
+        */}
+        {hasFailed ? (
+          <View
+            testID="spot-hero-error"
+            style={{ minHeight: HERO_HEIGHT, backgroundColor: theme.colors.surfaceAlt }}
+          >
+            <EmptyState
+              icon="📡"
+              title="Couldn't load this spot"
+              subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+              actionLabel="Try again"
+              onAction={() => void refetch()}
             />
-          ) : (
-            <View
-              style={{
-                width: '100%',
-                height: HERO_HEIGHT,
-                backgroundColor: theme.colors.surfaceAlt,
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: theme.spacing[1],
-              }}
-            >
-              <Text variant="h2" color="muted">
-                🖼
-              </Text>
-              <Text variant="body" color="muted">
-                No photos yet
-              </Text>
-            </View>
-          )}
-        </Pressable>
+          </View>
+        ) : (
+          <Pressable
+            testID="spot-hero"
+            accessibilityRole="button"
+            accessibilityLabel="View photos"
+            onPress={() => navigation.navigate('PhotoGallery', { spotId })}
+            disabled={media.length === 0}
+          >
+            {/*
+              Three states, and the ORDER is the fix. `media` is `spot?.media ?? []`,
+              so it is empty both for a spot with no photos and for a spot nobody has
+              heard back about yet. Asking "are there photos?" first answered the
+              second case with the first case's sentence — "No photos yet" over a spot
+              that may well have twenty (STOURIFY-63). Ask "has it arrived?" first and
+              the two facts stop sharing an answer.
+
+              The test is `isWaiting`, matching the rating below rather than inventing
+              a second opinion: two elements fed by one query must not disagree about
+              whether that query has come back.
+            */}
+            {isWaiting ? (
+              <View testID="spot-hero-loading">
+                <Skeleton height={HERO_HEIGHT} radius={0} />
+              </View>
+            ) : media.length > 0 ? (
+              <Image
+                testID="spot-hero-image"
+                source={{ uri: media[0].url }}
+                style={{ width: '100%', height: HERO_HEIGHT, backgroundColor: theme.colors.surfaceAlt }}
+                contentFit="cover"
+                transition={theme.motion.fast}
+              />
+            ) : (
+              <View
+                style={{
+                  width: '100%',
+                  height: HERO_HEIGHT,
+                  backgroundColor: theme.colors.surfaceAlt,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: theme.spacing[1],
+                }}
+              >
+                <Text variant="h2" color="muted">
+                  🖼
+                </Text>
+                <Text variant="body" color="muted">
+                  No photos yet
+                </Text>
+              </View>
+            )}
+          </Pressable>
+        )}
 
         <View style={{ padding: theme.gutter, gap: theme.spacing[2] }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2] }}>
@@ -164,10 +209,18 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
             </View>
           )}
 
-          {isLoading || !spot ? (
+          {/*
+            Nothing at all in the failed state, rather than a second failure
+            message six lines under the first. One request went wrong; two
+            notices about it read as two separate faults. What matters is that
+            the skeleton goes: it carries `accessibilityLabel="Loading"`, so a
+            skeleton nobody can resolve keeps announcing a request that
+            finished — badly — minutes ago.
+          */}
+          {hasFailed ? null : isWaiting ? (
             <Skeleton height={20} width="40%" />
           ) : (
-            <Rating value={spot.rating_average ?? 0} reviewCount={spot.reviews_count ?? 0} />
+            <Rating value={spot?.rating_average ?? 0} reviewCount={spot?.reviews_count ?? 0} />
           )}
 
           <View style={{ flexDirection: 'row', gap: theme.spacing[3] }}>
