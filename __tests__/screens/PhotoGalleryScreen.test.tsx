@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { QueryClient } from '@tanstack/react-query'
 import PhotoGalleryScreen from '@/features/spots/screens/PhotoGalleryScreen'
 import { createTestDatabase } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
@@ -29,9 +30,9 @@ function makeSpot(overrides: Partial<any> = {}) {
   }
 }
 
-function renderScreen(spotId = 'spot-1') {
+function renderScreen(spotId = 'spot-1', queryClient?: QueryClient) {
   return render(
-    <TestProviders database={createTestDatabase()}>
+    <TestProviders database={createTestDatabase()} queryClient={queryClient}>
       <PhotoGalleryScreen navigation={navigation} route={{ params: { spotId } } as any} />
     </TestProviders>,
   )
@@ -50,6 +51,14 @@ it('renders every photo full-bleed and a counter', async () => {
     expect(screen.getByTestId('gallery-photo-2')).toBeTruthy()
     expect(screen.getByText('1 / 3')).toBeTruthy()
   })
+
+  // The two placeholders must be gone once real photos are on screen. A
+  // skeleton left mounted under content is invisible in a screenshot and
+  // permanent to a screen reader, which keeps announcing "Loading" over a
+  // gallery that finished arriving.
+  expect(screen.queryByTestId('gallery-loading')).toBeNull()
+  expect(screen.queryByTestId('gallery-error')).toBeNull()
+  expect(screen.queryByText('No photos yet')).toBeNull()
 })
 
 it('goes back when the back affordance is pressed', async () => {
@@ -71,4 +80,88 @@ it('shows an empty state when the spot has no photos', async () => {
   await waitFor(() => {
     expect(screen.getByText('No photos yet')).toBeTruthy()
   })
+
+  // "This spot has no photos" is a claim about the spot, and it is only true
+  // once the spot has actually arrived. The absences are what stop this branch
+  // quietly absorbing the other two again.
+  expect(screen.queryByText("Couldn't load the photos")).toBeNull()
+  expect(screen.queryByTestId('gallery-error')).toBeNull()
+  expect(screen.queryByTestId('gallery-loading')).toBeNull()
+  expect(screen.queryByTestId('gallery-photo-0')).toBeNull()
+})
+
+it('shows a loading treatment, and says nothing about photos, while the spot request is in flight', async () => {
+  // A promise that never settles holds the screen in the state a slow network
+  // puts it in, for as long as the test cares to look at it.
+  ;(getSpot as jest.Mock).mockReturnValue(new Promise(() => {}))
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByTestId('gallery-loading')).toBeTruthy())
+
+  // This is the actual bug, in its quietest form. Before STOURIFY-89 a request
+  // still in flight rendered "No photos yet" — a verdict on a spot nobody had
+  // heard back about. Asserting only that a placeholder appeared would pass
+  // against a screen that rendered both of them stacked.
+  expect(screen.queryByText('No photos yet')).toBeNull()
+  expect(screen.queryByText("Couldn't load the photos")).toBeNull()
+  expect(screen.queryByTestId('gallery-photo-0')).toBeNull()
+})
+
+it('says the request failed, and offers a retry, when the spot cannot be fetched', async () => {
+  ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByTestId('gallery-error')).toBeTruthy())
+  expect(screen.getByText("Couldn't load the photos")).toBeTruthy()
+  expect(screen.getByText('Try again')).toBeTruthy()
+
+  // Each absence names one of the states this one must not be confused with:
+  // still waiting, loaded with photos, loaded with none. "No photos yet" is the
+  // sentence the card is named after — it is a statement about the place, and
+  // what went wrong was the network.
+  expect(screen.queryByTestId('gallery-loading')).toBeNull()
+  expect(screen.queryByTestId('gallery-photo-0')).toBeNull()
+  expect(screen.queryByText('No photos yet')).toBeNull()
+
+  // And nothing anywhere is still pulsing. `Skeleton` renders with the
+  // accessibility label "Loading", so a stuck one keeps announcing a request
+  // that finished — badly — some time ago.
+  expect(screen.queryAllByLabelText('Loading')).toHaveLength(0)
+})
+
+it('re-runs the spot request when Try again is pressed', async () => {
+  ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Try again')).toBeTruthy())
+  expect(getSpot).toHaveBeenCalledTimes(1)
+
+  fireEvent.press(screen.getByText('Try again'))
+
+  // Copy without a working button is a nicer dead end, not a way out.
+  await waitFor(() => expect((getSpot as jest.Mock).mock.calls.length).toBeGreaterThan(1))
+})
+
+it('keeps showing photos it already has while the refetch is failing', async () => {
+  // The offline case, and the whole reason the failure branch is gated on
+  // `!spot` rather than on `isError` alone. Yesterday's spot is in the cache,
+  // today's network is gone: the reader should keep swiping the photos, not be
+  // handed an apology for not having them.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  queryClient.setQueryData(['spot', 'spot-1'], makeSpot())
+
+  ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))
+
+  renderScreen('spot-1', queryClient)
+
+  await waitFor(() => expect(getSpot).toHaveBeenCalled())
+
+  expect(screen.getByTestId('gallery-photo-0')).toBeTruthy()
+  expect(screen.getByText('1 / 3')).toBeTruthy()
+  expect(screen.queryByTestId('gallery-error')).toBeNull()
+  expect(screen.queryByText("Couldn't load the photos")).toBeNull()
+  expect(screen.queryByText('No photos yet')).toBeNull()
 })

@@ -47,6 +47,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The photo gallery no longer says a spot has no photos when it never heard back about the spot.**
+  (STOURIFY-89) Open a spot's photos on a bad connection and the full-screen gallery said *No photos
+  yet — This spot has no photos to show yet.* That is a statement about the place. What had actually
+  happened was a statement about the network: the request for the spot never came back. Told the
+  shelves are empty you go home; told the lights are off you come back in ten minutes, which is the
+  one move that helps.
+
+  The screen kept a single list of photos that was empty in three completely different situations —
+  the spot has not arrived yet, the request broke, and the spot really has no photos — and printed
+  the third one's sentence for all three. It also had no loading treatment at all, so a slow request
+  showed the false sentence too rather than a placeholder.
+
+  It now tells the four situations apart in that order: could not ask, still asking, here are the
+  photos, asked and there are none. The failure state says so plainly and offers a **Try again** that
+  re-runs the request, and a request in flight gets a placeholder. The *No photos yet* sentence is
+  unchanged — a failure state was added beside it, not over it.
+
+  **Photos already loaded survive a failing refresh.** The failure panel appears only when there is
+  no spot to show, so somebody offline on a spot they opened yesterday keeps swiping the photos
+  instead of being handed an apology for not having them. This screen is not a list, so it could not
+  use the `ListEmptyComponent` placement its sibling screens rely on for that protection; it takes
+  `SpotDetailScreen`'s shape instead, which reads the very same request — two screens fed by one
+  request must not disagree about whether it came back.
+
 - **Your posts grid and your blocked list no longer report a failed request as an empty list.**
   (STOURIFY-87) Two more screens in the Profile stack asked their list one question — *are we still
   loading?* — and treated every other answer as "there is genuinely nothing here". So a request that
