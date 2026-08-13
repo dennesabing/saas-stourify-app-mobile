@@ -193,58 +193,79 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
           </Pressable>
         )}
 
-        <View style={{ padding: theme.gutter, gap: theme.spacing[2] }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2] }}>
-            <Text variant="h1" style={{ flex: 1 }} numberOfLines={2}>
-              {title}
-            </Text>
-            {spot?.status === 'active' && <Tag label="✓ Verified" />}
-          </View>
+        {/*
+          Nothing in this block survives a failed request, and that is one
+          decision rather than five. Every child of it either states a fact
+          about the spot — its name, its Verified tag, its categories, its
+          rating — or acts on the spot: see its reviews, write one, save it.
+          With no spot and nothing cached, none of them has anything true to
+          say, and there is no second source that could fill any of them in.
 
-          {categories.length > 0 && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing[1] }}>
-              {categories.map((category) => (
-                <Tag key={category} label={category} />
-              ))}
+          Before STOURIFY-65 they rendered their `??` fallbacks under the error
+          panel: a title of "...", a "See all 0 reviews" button, and two
+          buttons offering to review and bookmark a place the app had just
+          admitted it could not identify.
+
+          The line this stops at is the block below, which is fed by a
+          SEPARATE request (`getSpotPosts`) that may well have succeeded.
+          Hiding posts that loaded fine, because the spot's own details did
+          not, is the same mistake as covering a cached spot — STOURIFY-64
+          rejected exactly that, and this card does not reopen it.
+        */}
+        {hasFailed ? null : (
+          <View style={{ padding: theme.gutter, gap: theme.spacing[2] }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2] }}>
+              <Text variant="h1" style={{ flex: 1 }} numberOfLines={2}>
+                {title}
+              </Text>
+              {spot?.status === 'active' && <Tag label="✓ Verified" />}
             </View>
-          )}
-
-          {/*
-            Nothing at all in the failed state, rather than a second failure
-            message six lines under the first. One request went wrong; two
-            notices about it read as two separate faults. What matters is that
-            the skeleton goes: it carries `accessibilityLabel="Loading"`, so a
-            skeleton nobody can resolve keeps announcing a request that
-            finished — badly — minutes ago.
-          */}
-          {hasFailed ? null : isWaiting ? (
-            <Skeleton height={20} width="40%" />
-          ) : (
-            <Rating value={spot?.rating_average ?? 0} reviewCount={spot?.reviews_count ?? 0} />
-          )}
-
-          <View style={{ flexDirection: 'row', gap: theme.spacing[3] }}>
+  
+            {categories.length > 0 && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing[1] }}>
+                {categories.map((category) => (
+                  <Tag key={category} label={category} />
+                ))}
+              </View>
+            )}
+  
+            {/*
+              Nothing at all in the failed state, rather than a second failure
+              message six lines under the first. One request went wrong; two
+              notices about it read as two separate faults. What matters is that
+              the skeleton goes: it carries `accessibilityLabel="Loading"`, so a
+              skeleton nobody can resolve keeps announcing a request that
+              finished — badly — minutes ago.
+            */}
+            {hasFailed ? null : isWaiting ? (
+              <Skeleton height={20} width="40%" />
+            ) : (
+              <Rating value={spot?.rating_average ?? 0} reviewCount={spot?.reviews_count ?? 0} />
+            )}
+  
+            <View style={{ flexDirection: 'row', gap: theme.spacing[3] }}>
+              <Button
+                label={`See all ${spot?.reviews_count ?? 0} reviews`}
+                variant="secondary"
+                onPress={() => navigation.navigate('Reviews', { spotId })}
+                style={{ flex: 1 }}
+              />
+              <Button
+                label="Write a review"
+                variant="secondary"
+                onPress={() => navigation.navigate('WriteReview', { spotId })}
+                style={{ flex: 1 }}
+              />
+            </View>
+  
             <Button
-              label={`See all ${spot?.reviews_count ?? 0} reviews`}
-              variant="secondary"
-              onPress={() => navigation.navigate('Reviews', { spotId })}
-              style={{ flex: 1 }}
-            />
-            <Button
-              label="Write a review"
-              variant="secondary"
-              onPress={() => navigation.navigate('WriteReview', { spotId })}
-              style={{ flex: 1 }}
+              label={isSaved ? (isQueued ? 'Saved ↑' : 'Saved') : 'Save'}
+              variant={isSaved ? 'secondary' : 'accent'}
+              disabled={isSaved}
+              onPress={onSave}
             />
           </View>
-
-          <Button
-            label={isSaved ? (isQueued ? 'Saved ↑' : 'Saved') : 'Save'}
-            variant={isSaved ? 'secondary' : 'accent'}
-            disabled={isSaved}
-            onPress={onSave}
-          />
-        </View>
+        )}
 
         <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: theme.colors.hairline }}>
           {(['Posts', 'About'] as const).map((t) => (
@@ -287,9 +308,24 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                 📍 {spot.address}
               </Text>
             ) : null}
-            <Text variant="caption" color="muted">
-              {spot?.latitude?.toFixed(4)}, {spot?.longitude?.toFixed(4)}
-            </Text>
+            {/*
+              Only draw a coordinate when there is one. `spot?.latitude?.toFixed(4)`
+              cannot throw on an absent number, but it cannot suppress the rest
+              of the line either: React drops the `undefined` and renders the
+              comma that was sitting between the two of them, so a spot that
+              failed to load — and a spot that simply has no coordinates —
+              showed a lone ", " under the address (STOURIFY-65).
+
+              `typeof … === 'number'` rather than a truthiness check, because
+              latitude 0 is the equator and longitude 0 is Greenwich. Both are
+              real coordinates, and a `spot?.latitude && …` guard would hide
+              them as though they were missing.
+            */}
+            {typeof spot?.latitude === 'number' && typeof spot?.longitude === 'number' ? (
+              <Text testID="spot-coordinates" variant="caption" color="muted">
+                {spot.latitude.toFixed(4)}, {spot.longitude.toFixed(4)}
+              </Text>
+            ) : null}
           </View>
         )}
       </ScrollView>
