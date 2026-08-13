@@ -47,6 +47,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Your posts grid and your blocked list no longer report a failed request as an empty list.**
+  (STOURIFY-87) Two more screens in the Profile stack asked their list one question — *are we still
+  loading?* — and treated every other answer as "there is genuinely nothing here". So a request that
+  timed out produced a confident falsehood: *You have not posted yet.* to somebody with a full grid,
+  and *Nobody blocked — you have not blocked anyone.* to somebody who had.
+
+  The blocked list is the one worth naming. That is safety copy, and getting it wrong tells a person
+  checking that a block still stands that it does not. Now each screen tells the three situations
+  apart — still asking, could not ask, asked and there is nothing — and the middle one says so and
+  offers a **Try again** that re-runs the request. Both empty sentences are unchanged; a failure
+  state was added beside them, not over them.
+
+  **The blocked list also had its structure corrected, and that is the larger half of this change.**
+  Its loading check sat *above* the list, deciding whether the list existed at all rather than what
+  to show when it was empty. That check has been moved inside the list's own empty component, where
+  every other screen in the app keeps it. The distinction matters because the app keeps serving rows
+  it already holds while a later request fails: a check above the list can wipe out content the
+  reader could still be reading, and would never once show that it had, because that branch is
+  unreachable while the network is up.
+
+  The posts grid gained the shared empty-state block so it could carry a retry at all — it had been
+  a bare line of text. Its failure message names the *posts*, not the profile, because the header
+  above it may have loaded perfectly and two failure messages about one profile would read as two
+  separate faults.
+
 - **Comments and Activity no longer report a failed request as an empty list.** (STOURIFY-86) A shop
   with the lights off looks exactly like a shop with empty shelves. Told the shelves are empty, you
   go home; told the lights are off, you come back. Both screens asked their list one question — *are

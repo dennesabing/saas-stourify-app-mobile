@@ -34,7 +34,7 @@ export default function BlockedAccountsScreen({ navigation }: Props) {
   const theme = useTheme()
   const queryClient = useQueryClient()
 
-  const blocksQuery = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: BLOCKS_QUERY_KEY,
     queryFn: getBlocks,
   })
@@ -54,7 +54,7 @@ export default function BlockedAccountsScreen({ navigation }: Props) {
     },
   })
 
-  const blocks = blocksQuery.data?.data ?? []
+  const blocks = data?.data ?? []
 
   const renderRow = useCallback(
     ({ item }: { item: Block }) => {
@@ -114,6 +114,57 @@ export default function BlockedAccountsScreen({ navigation }: Props) {
     [theme, unblockMutation],
   )
 
+  /**
+   * Only reached with no rows to show, and the three cases are genuinely
+   * different situations with different remedies — so they get different
+   * words: "we are still asking", "we could not ask", and "we asked and there
+   * is nothing".
+   *
+   * Before STOURIFY-87 there were two branches and they were in the wrong
+   * place, which made this the worst sentence in the family to get wrong. A
+   * failed `GET /blocks` fell into the empty one, so somebody opening this
+   * screen to check that a block still stands was told they had blocked
+   * nobody. That is safety copy, and it was confidently wrong. The 15-second
+   * timeout in `shared/api/client.ts` makes it routine rather than exotic.
+   *
+   * Two orderings here are load-bearing, and they are the same two `FeedScreen`
+   * documents at length — read `FeedScreen.tsx:106-132` before changing this.
+   *
+   * **This lives inside `ListEmptyComponent`**, which only renders when the
+   * list has no rows at all, so content always wins over an error. The loading
+   * check used to sit **above** the `FlatList`, deciding whether the list
+   * existed at all; STOURIFY-87 unwound that before adding anything beside it,
+   * because a branch that can replace the whole list is one edit away from
+   * hiding rows the reader could still read — and it would never once show
+   * that it had, since the branch is unreachable while the network is up.
+   *
+   * **`isLoading` is asked before `isError`.** `isLoading` is true only for a
+   * first fetch with nothing cached, so a slow first load shows placeholders
+   * rather than a failure. `isError` then stays true through a retry until one
+   * succeeds, which holds the failure message up while the retry is in flight
+   * instead of flickering to the empty message and back.
+   */
+  const empty = isLoading ? (
+    <View style={{ padding: theme.gutter, gap: theme.spacing[3] }}>
+      <Skeleton height={56} />
+      <Skeleton height={56} />
+    </View>
+  ) : isError ? (
+    <EmptyState
+      icon="📡"
+      title="Couldn't load your blocked list"
+      subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+      actionLabel="Try again"
+      onAction={() => void refetch()}
+    />
+  ) : (
+    <EmptyState
+      icon="🙂"
+      title="Nobody blocked"
+      subtitle="You have not blocked anyone. If someone bothers you, open their profile and choose Block."
+    />
+  )
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
       <View
@@ -138,28 +189,15 @@ export default function BlockedAccountsScreen({ navigation }: Props) {
         <Text variant="h2">Blocked accounts</Text>
       </View>
 
-      {blocksQuery.isLoading ? (
-        <View style={{ padding: theme.gutter, gap: theme.spacing[3] }}>
-          <Skeleton height={56} />
-          <Skeleton height={56} />
-        </View>
-      ) : (
-        <FlatList
-          testID="blocked-accounts-list"
-          data={blocks}
-          keyExtractor={(block) => block.uuid}
-          renderItem={renderRow}
-          ItemSeparatorComponent={() => <Divider />}
-          contentContainerStyle={blocks.length === 0 ? { flex: 1 } : undefined}
-          ListEmptyComponent={
-            <EmptyState
-              icon="🙂"
-              title="Nobody blocked"
-              subtitle="You have not blocked anyone. If someone bothers you, open their profile and choose Block."
-            />
-          }
-        />
-      )}
+      <FlatList
+        testID="blocked-accounts-list"
+        data={blocks}
+        keyExtractor={(block) => block.uuid}
+        renderItem={renderRow}
+        ItemSeparatorComponent={() => <Divider />}
+        contentContainerStyle={blocks.length === 0 ? { flex: 1 } : undefined}
+        ListEmptyComponent={empty}
+      />
     </SafeAreaView>
   )
 }

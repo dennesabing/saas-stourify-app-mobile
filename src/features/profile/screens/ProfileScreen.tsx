@@ -270,6 +270,49 @@ export default function ProfileScreen({ route, navigation }: Props) {
 
   const subjectName = profile?.name ?? profile?.username ?? 'this explorer'
 
+  /**
+   * The grid's own three outcomes — and they are the POSTS query's, not the
+   * profile query's.
+   *
+   * This screen makes two requests, and until STOURIFY-87 only one of them told
+   * the truth about failing. The profile query above got an honest failure
+   * state with a retry in STOURIFY-82; the posts query said "You have not
+   * posted yet." to somebody whose posts request had just timed out — a claim
+   * about their posting history that nobody had checked.
+   *
+   * **The failure copy names the posts, deliberately.** The header above may
+   * have loaded perfectly, and two whole-screen "we could not load this
+   * profile" messages about one profile would read as two separate faults
+   * rather than one partial load.
+   *
+   * **It lives inside `ListEmptyComponent`**, which only renders when the grid
+   * has no tiles at all, so content always wins over an error. React Query
+   * keeps serving posts it already holds while a later fetch fails; hoisting an
+   * `isError` check above the `FlatList` would delete that protection and never
+   * once show it had, because the branch is unreachable while online.
+   * `FeedScreen.tsx:106-132` is the canonical write-up.
+   *
+   * **`isLoading` is asked before `isError`**, and its branch is deliberately
+   * nothing at all: a first load renders the header with an empty grid under
+   * it, which is quieter than skeleton tiles and is what this screen has always
+   * done. `isError` then stays true through a retry until one succeeds, holding
+   * the failure message up rather than flickering to the empty message.
+   */
+  const emptyGrid = postsQuery.isLoading ? null : postsQuery.isError ? (
+    <EmptyState
+      icon="📡"
+      title="Couldn't load the posts"
+      subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+      actionLabel="Try again"
+      onAction={() => void postsQuery.refetch()}
+    />
+  ) : (
+    <EmptyState
+      icon="📷"
+      title={isOwn ? 'You have not posted yet.' : 'No posts to show.'}
+    />
+  )
+
   return renderFrame(
     <>
     <FlatList
@@ -300,15 +343,7 @@ export default function ProfileScreen({ route, navigation }: Props) {
           onMore={() => setMenuOpen(true)}
         />
       }
-      ListEmptyComponent={
-        postsQuery.isLoading ? null : (
-          <View style={{ padding: theme.spacing[7], alignItems: 'center' }}>
-            <Text variant="body" color="muted">
-              {isOwn ? 'You have not posted yet.' : 'No posts to show.'}
-            </Text>
-          </View>
-        )
-      }
+      ListEmptyComponent={emptyGrid}
     />
 
     {/* The overflow menu. Unblock is deliberately absent: once a block stands,
