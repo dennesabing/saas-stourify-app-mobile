@@ -125,13 +125,18 @@ export default function NearbyScreen({ navigation }: Props) {
     return () => { cancelled = true }
   }, [attempt])
 
+  // Named once and read in two places — the query's gate below and the strip's
+  // first branch — so the two can never drift apart. The strip has to know
+  // whether the request was ever made, and this is the fact that decides it.
+  const hasPosition = !!location
+
   // Spots, not posts. `/spots/nearby` is the only proximity route the server
   // has; the feed has no nearby variant and never had one (STOURIFY-8). The
   // server orders by distance, so the response order is rendered as received.
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['nearby', location?.lat, location?.lng, radius],
     queryFn: () => getNearbySpots(location!.lat, location!.lng, radius),
-    enabled: !!location,
+    enabled: hasPosition,
   })
 
   const spots = data?.data ?? []
@@ -183,9 +188,10 @@ export default function NearbyScreen({ navigation }: Props) {
   )
 
   /**
-   * The strip with nothing in it. Three situations, three different sentences —
-   * "we are still asking", "we could not ask", and "we asked and there is
-   * nothing here".
+   * The strip with nothing in it. Four situations — "we have not asked yet",
+   * "we are asking", "we could not ask", and "we asked and there is nothing
+   * here" — and only the last of them is about the area the viewer is standing
+   * in.
    *
    * Before STOURIFY-60 there were two branches and a failed request fell into
    * the empty one, so the strip said "No spots nearby" — a claim about the area
@@ -193,7 +199,16 @@ export default function NearbyScreen({ navigation }: Props) {
    * reader told the area is empty walks somewhere else, which is the one move
    * that cannot help.
    *
-   * Two orderings here are load-bearing, and they match `FeedScreen` and
+   * **`hasPosition` is asked before everything else** (STOURIFY-66). The spots
+   * request is switched off until a position exists, and `isLoading` means
+   * *pending AND fetching* — so a query that has never started reads `false`,
+   * the identical value a query that finished with nothing reads. Without this
+   * branch the strip printed "No spots nearby" for the eight seconds the phone
+   * spends working out where it is: a confident answer to a question that had
+   * not been put. It renders nothing rather than a spinner of its own, because
+   * the map above is already showing one for the same wait.
+   *
+   * Two further orderings are load-bearing, and they match `FeedScreen` and
    * `DiscoverScreen` for the same reasons:
    *
    * **This lives inside `ListEmptyComponent`**, which renders only when the
@@ -214,6 +229,8 @@ export default function NearbyScreen({ navigation }: Props) {
    * that. A retry the reader cannot reach is worse than the wrong sentence.
    */
   const stripEmpty = useCallback(() => {
+    if (!hasPosition) return null
+
     if (isLoading) return null
 
     if (isError) {
@@ -235,7 +252,7 @@ export default function NearbyScreen({ navigation }: Props) {
         <Text style={styles.emptyText}>No spots nearby</Text>
       </View>
     )
-  }, [isLoading, isError, refetch])
+  }, [hasPosition, isLoading, isError, refetch])
 
   // The full-screen states carry a themed background rather than the map
   // chrome's dark literal: the design-system `EmptyState` draws its title in

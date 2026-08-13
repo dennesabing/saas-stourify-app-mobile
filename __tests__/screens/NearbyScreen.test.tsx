@@ -252,6 +252,50 @@ describe('the spots it renders', () => {
     expect(navigation.navigate).toHaveBeenCalledWith('SpotDetail', { spotId: 'port' })
   })
 
+  /**
+   * The card's bug (STOURIFY-66). The spots request is switched off until a
+   * position exists, and React Query's `isLoading` means *pending AND
+   * fetching* — so a query that has not started reads `false`, exactly like a
+   * query that finished and found nothing. The strip then answers a question
+   * nobody has finished asking.
+   *
+   * `grantLocationAtGenSan()` is deliberately not used: it hands the screen a
+   * position immediately, and the state under test is the gap before one
+   * arrives. Both position calls are held unresolved so the screen cannot
+   * reach `ready` by any route.
+   */
+  it('says nothing at all while it is still working out where you are', async () => {
+    // Fake timers, like the never-settles test above, and for the same reason:
+    // `readPosition` races the position call against a real eight-second
+    // timeout that is only cleared when the race settles. Held unresolved, that
+    // timer outlives the test and keeps the node process alive after the suite
+    // finishes — jest reports it as "did not exit one second after the test run
+    // has completed". The clock is never advanced; it just must not be real.
+    jest.useFakeTimers()
+    ;(Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
+      status: 'granted',
+    })
+    ;(Location.getCurrentPositionAsync as jest.Mock).mockReturnValue(new Promise(() => {}))
+    ;(Location.getLastKnownPositionAsync as jest.Mock).mockReturnValue(new Promise(() => {}))
+
+    try {
+      renderScreen()
+
+      // Let the permission promise settle, so the screen is past the prompt and
+      // genuinely waiting on the position rather than not started.
+      await act(async () => {})
+
+      expect(screen.queryByText(STRIP_EMPTY_COPY)).toBeNull()
+      expect(screen.queryByText(STRIP_FAILURE_COPY)).toBeNull()
+      // The assertion that makes this a test of *not asked* rather than of *said
+      // nothing*: without it the same test passes against a screen that fetched
+      // and hid the answer.
+      expect(getNearbySpots).not.toHaveBeenCalled()
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
   it('says so plainly when the radius holds no spots', async () => {
     grantLocationAtGenSan()
 
