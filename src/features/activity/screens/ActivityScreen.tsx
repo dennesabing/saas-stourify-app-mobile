@@ -25,7 +25,7 @@ export default function ActivityScreen({ navigation }: Props) {
   const theme = useTheme()
   const queryClient = useQueryClient()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: FOLLOW_REQUESTS_QUERY_KEY,
     queryFn: getFollowRequests,
   })
@@ -93,6 +93,54 @@ export default function ActivityScreen({ navigation }: Props) {
     [acceptMutation, declineMutation, navigation, theme],
   )
 
+  /**
+   * Only reached with no rows to show, and the three cases are genuinely
+   * different situations with different remedies — so they get different
+   * words: "we are still asking", "we could not ask", and "we asked and there
+   * is nothing".
+   *
+   * Before STOURIFY-86 there were two branches, and a failed request fell into
+   * the empty one: a reader whose request had just timed out was told nobody
+   * wants to follow them, which is a claim about their account rather than
+   * about the network. The 15-second timeout in `shared/api/client.ts` makes
+   * that routine.
+   *
+   * Two orderings here are load-bearing, and they are the same two `FeedScreen`
+   * documents at length — read `FeedScreen.tsx:106-132` before changing this.
+   *
+   * **This lives inside `ListEmptyComponent`**, which only renders when the
+   * list has no rows at all, so content always wins over an error. React Query
+   * keeps serving requests it already holds while a later fetch fails; hoisting
+   * an `isError` check above the `FlatList` would delete that protection and
+   * never once show it had, because the branch is unreachable while online.
+   *
+   * **`isLoading` is asked before `isError`.** `isLoading` is true only for a
+   * first fetch with nothing cached, so a slow first load shows skeletons
+   * rather than a failure. `isError` then stays true through a retry until one
+   * succeeds, which holds the failure message up while the retry is in flight
+   * instead of flickering to the empty message and back.
+   */
+  const empty = isLoading ? (
+    <View style={{ padding: theme.gutter, gap: theme.spacing[4] }}>
+      <Skeleton height={72} />
+      <Skeleton height={72} />
+    </View>
+  ) : isError ? (
+    <EmptyState
+      icon="📡"
+      title="Couldn't load your requests"
+      subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+      actionLabel="Try again"
+      onAction={() => void refetch()}
+    />
+  ) : (
+    <EmptyState
+      icon="🔔"
+      title="Nothing yet"
+      subtitle="Follows, likes, comments and badge unlocks will land here."
+    />
+  )
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
       <FlatList
@@ -103,22 +151,7 @@ export default function ActivityScreen({ navigation }: Props) {
           requests.length === 0 ? { flex: 1 } : { padding: theme.gutter, gap: theme.spacing[3] }
         }
         ItemSeparatorComponent={() => <View style={{ height: theme.spacing[3] }} />}
-        ListEmptyComponent={
-          isLoading
-            ? () => (
-                <View style={{ padding: theme.gutter, gap: theme.spacing[4] }}>
-                  <Skeleton height={72} />
-                  <Skeleton height={72} />
-                </View>
-              )
-            : () => (
-                <EmptyState
-                  icon="🔔"
-                  title="Nothing yet"
-                  subtitle="Follows, likes, comments and badge unlocks will land here."
-                />
-              )
-        }
+        ListEmptyComponent={empty}
       />
     </SafeAreaView>
   )
