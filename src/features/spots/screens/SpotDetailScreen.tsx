@@ -103,7 +103,23 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
           onPress={() => navigation.navigate('PhotoGallery', { spotId })}
           disabled={media.length === 0}
         >
-          {media.length > 0 ? (
+          {/*
+            Three states, and the ORDER is the fix. `media` is `spot?.media ?? []`,
+            so it is empty both for a spot with no photos and for a spot nobody has
+            heard back about yet. Asking "are there photos?" first answered the
+            second case with the first case's sentence — "No photos yet" over a spot
+            that may well have twenty (STOURIFY-63). Ask "has it arrived?" first and
+            the two facts stop sharing an answer.
+
+            The test is `isLoading || !spot`, matching the rating below rather than
+            inventing a second opinion: two elements fed by one query must not
+            disagree about whether that query has come back.
+          */}
+          {isLoading || !spot ? (
+            <View testID="spot-hero-loading">
+              <Skeleton height={HERO_HEIGHT} radius={0} />
+            </View>
+          ) : media.length > 0 ? (
             <Image
               testID="spot-hero-image"
               source={{ uri: media[0].url }}
