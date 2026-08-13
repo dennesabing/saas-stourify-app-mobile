@@ -67,6 +67,14 @@ async function readPosition(): Promise<Coords | null> {
 const YOU_PIN_ID = 'viewer-location'
 
 /**
+ * The failure row's two lines. Held as constants because the row's
+ * `accessibilityLabel` says the same thing as its visible text, and a screen
+ * reader announcing something the screen does not show is its own small lie.
+ */
+const STRIP_FAILURE_TITLE = "Couldn't load nearby spots"
+const STRIP_RETRY_HINT = 'Tap to retry'
+
+/**
  * The strip's secondary line. `distance_km` is present only on responses from
  * `/spots/nearby`, and only there does "how far away" mean anything — a missing
  * value is "not applicable", never zero, so it renders nothing at all.
@@ -120,7 +128,7 @@ export default function NearbyScreen({ navigation }: Props) {
   // Spots, not posts. `/spots/nearby` is the only proximity route the server
   // has; the feed has no nearby variant and never had one (STOURIFY-8). The
   // server orders by distance, so the response order is rendered as received.
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['nearby', location?.lat, location?.lng, radius],
     queryFn: () => getNearbySpots(location!.lat, location!.lng, radius),
     enabled: !!location,
@@ -173,6 +181,61 @@ export default function NearbyScreen({ navigation }: Props) {
     ),
     [navigation],
   )
+
+  /**
+   * The strip with nothing in it. Three situations, three different sentences —
+   * "we are still asking", "we could not ask", and "we asked and there is
+   * nothing here".
+   *
+   * Before STOURIFY-60 there were two branches and a failed request fell into
+   * the empty one, so the strip said "No spots nearby" — a claim about the area
+   * the viewer is standing in — when the truth was a claim about the network. A
+   * reader told the area is empty walks somewhere else, which is the one move
+   * that cannot help.
+   *
+   * Two orderings here are load-bearing, and they match `FeedScreen` and
+   * `DiscoverScreen` for the same reasons:
+   *
+   * **This lives inside `ListEmptyComponent`**, which renders only when the
+   * list has no rows at all — so content always wins over an error. A refetch
+   * that fails while spots are on screen leaves those spots alone. Hoisting an
+   * `isError` check above the `FlatList` would delete that, and would never
+   * once show that it had, because the branch is unreachable while online.
+   *
+   * **`isLoading` is asked before `isError`.** `isLoading` is true only for a
+   * first fetch with nothing cached, so a slow first load must not show a
+   * failure. `isError` then stays true through a retry until one succeeds,
+   * which keeps the failure row up while the retry is in flight rather than
+   * flickering to "No spots nearby" and back.
+   *
+   * The failure row is local to this screen rather than the design-system
+   * `EmptyState` the other two use: the strip is capped at 200px, and an
+   * `EmptyState` block's icon, heading, paragraph and button do not fit inside
+   * that. A retry the reader cannot reach is worse than the wrong sentence.
+   */
+  const stripEmpty = useCallback(() => {
+    if (isLoading) return null
+
+    if (isError) {
+      return (
+        <TouchableOpacity
+          style={styles.emptyStrip}
+          onPress={() => void refetch()}
+          accessibilityRole="button"
+          accessibilityLabel={`${STRIP_FAILURE_TITLE}. ${STRIP_RETRY_HINT}.`}
+        >
+          <Text style={styles.errorText}>{STRIP_FAILURE_TITLE}</Text>
+          <Text style={styles.retryText}>{STRIP_RETRY_HINT}</Text>
+        </TouchableOpacity>
+      )
+    }
+
+    return (
+      <View style={styles.emptyStrip}>
+        <Text style={styles.emptyText}>No spots nearby</Text>
+      </View>
+    )
+  }, [isLoading, isError, refetch])
 
   // The full-screen states carry a themed background rather than the map
   // chrome's dark literal: the design-system `EmptyState` draws its title in
@@ -260,15 +323,7 @@ export default function NearbyScreen({ navigation }: Props) {
         horizontal
         keyExtractor={(item) => item.uuid}
         renderItem={renderItem}
-        ListEmptyComponent={
-          !isLoading
-            ? () => (
-                <View style={styles.emptyStrip}>
-                  <Text style={styles.emptyText}>No spots nearby</Text>
-                </View>
-              )
-            : null
-        }
+        ListEmptyComponent={stripEmpty}
         contentContainerStyle={{ padding: 8 }}
         style={styles.strip}
       />
@@ -288,5 +343,13 @@ const styles = StyleSheet.create({
   strip: { maxHeight: 200, backgroundColor: '#0f1923' },
   emptyStrip: { padding: 32 },
   emptyText: { color: '#aaa' },
+  // Literals, matching the strip chrome above rather than the theme. The
+  // strip's own background is a hardcoded dark `#0f1923` that does not follow
+  // the palette, so a token drawn from the light theme would land near-black on
+  // it and vanish — the regression STOURIFY-20's live run caught on this very
+  // screen. `#00b4d8` is the accent the radius buttons and the map spinner
+  // already use. See the ASSUMPTION note on STOURIFY-60.
+  errorText: { color: '#fff', fontSize: 14 },
+  retryText: { color: '#00b4d8', fontSize: 13, marginTop: 4 },
   mapPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#0d1820' },
 })

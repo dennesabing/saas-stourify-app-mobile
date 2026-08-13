@@ -47,6 +47,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Nearby stopped telling you the area is empty when it was the request that failed.** (STOURIFY-60)
+  "No petrol for 50 miles" is a useful sign. Hung on a station whose power is out, it is a lie — there
+  is petrol, the pump just could not answer. The strip of spots along the bottom of the Nearby map put
+  up **No spots nearby** in both situations, and only one of them is about where you are standing. A
+  reader told the area is empty walks somewhere else, which is the single move that cannot help.
+
+  A failed request now gets its own row — **Couldn't load nearby spots · Tap to retry** — and tapping
+  it asks again. A request that genuinely comes back with nothing still says "No spots nearby". This
+  is the same three-way split Discover and the feed already use, in a shape that fits a strip 200
+  pixels tall: the full block those screens use would be clipped here, and a retry the reader cannot
+  reach is worse than the wrong sentence.
+
+  Spots already on screen are never covered by the failure row. Lose signal with the strip full and
+  the spots stay exactly where they were.
+
 - **A spot that failed to load stopped filling the page with furniture.** (STOURIFY-65) A shop with a
   hand-written *closed, back soon* note in the window is honest, and you walk away. Tape the same note
   over a display of empty boxes with last week's prices on them and you stop believing the shop. The

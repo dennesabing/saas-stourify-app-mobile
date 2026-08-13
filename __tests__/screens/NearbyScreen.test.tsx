@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native'
+import { QueryClient } from '@tanstack/react-query'
 import NearbyScreen from '@/features/nearby/screens/NearbyScreen'
 import { createTestDatabase } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
@@ -46,6 +47,14 @@ const route = {} as any
 /** The copy that must appear ONLY when permission was actually refused. */
 const PERMISSION_COPY = 'Location access needed'
 
+/**
+ * The strip's two no-rows sentences. They are held as constants and always
+ * asserted in pairs — one present, the other absent — because a screen that
+ * rendered both would satisfy either assertion on its own and is not a fix.
+ */
+const STRIP_EMPTY_COPY = 'No spots nearby'
+const STRIP_FAILURE_COPY = "Couldn't load nearby spots"
+
 function position(latitude: number, longitude: number) {
   return { coords: { latitude, longitude } }
 }
@@ -88,9 +97,9 @@ function grantLocationAtGenSan() {
   )
 }
 
-function renderScreen() {
+function renderScreen(queryClient?: QueryClient) {
   return render(
-    <TestProviders database={createTestDatabase()}>
+    <TestProviders database={createTestDatabase()} queryClient={queryClient}>
       <NearbyScreen navigation={navigation} route={route} />
     </TestProviders>,
   )
@@ -248,6 +257,84 @@ describe('the spots it renders', () => {
 
     renderScreen()
 
-    await waitFor(() => expect(screen.getByText('No spots nearby')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText(STRIP_EMPTY_COPY)).toBeTruthy())
+    expect(screen.queryByText(STRIP_FAILURE_COPY)).toBeNull()
+  })
+
+  /**
+   * The card's bug, stated as a test. "No spots nearby" is a claim about the
+   * area the viewer is standing in; a request that failed says nothing about
+   * the area at all. Told the first, a reader walks somewhere else — which is
+   * the one move that cannot help.
+   */
+  it('does not claim the area is empty when the request failed', async () => {
+    grantLocationAtGenSan()
+    ;(getNearbySpots as jest.Mock).mockRejectedValue(new Error('offline'))
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText(STRIP_FAILURE_COPY)).toBeTruthy())
+    expect(screen.queryByText(STRIP_EMPTY_COPY)).toBeNull()
+  })
+
+  it('asks again when the failure row is tapped', async () => {
+    grantLocationAtGenSan()
+    ;(getNearbySpots as jest.Mock).mockRejectedValue(new Error('offline'))
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText(STRIP_FAILURE_COPY)).toBeTruthy())
+    expect(getNearbySpots).toHaveBeenCalledTimes(1)
+
+    fireEvent.press(screen.getByText(STRIP_FAILURE_COPY))
+
+    await waitFor(() => expect(getNearbySpots).toHaveBeenCalledTimes(2))
+  })
+
+  /**
+   * The rule this whole family of cards is built on: an error never covers
+   * content the reader could already read.
+   *
+   * React Query keeps serving the spots it has while a refetch fails, so the
+   * strip has rows and `ListEmptyComponent` is never reached. Hoisting the
+   * `isError` check above the `FlatList` would throw those rows away — and
+   * would never once show that it had, because the branch is unreachable while
+   * the network is up. This test is what makes that mistake visible.
+   *
+   * The warm cache is staged the way the feed's persisted-cache test stages
+   * one: a `QueryClient` handed the exact key the screen will ask for.
+   */
+  it('keeps showing the spots it already has when a refetch fails', async () => {
+    grantLocationAtGenSan()
+
+    // `gcTime` is deliberately NOT zero here, unlike `TestProviders`' default
+    // client. The seeded entry has no observer between `setQueryData` and the
+    // screen's first fetch, and a zero collection window throws it away in that
+    // gap — the cache would be empty before the screen ever looked at it.
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 0 } },
+    })
+    queryClient.setQueryData(['nearby', GENSAN.latitude, GENSAN.longitude, 10], GENSAN_PAGE)
+    ;(getNearbySpots as jest.Mock).mockRejectedValue(new Error('offline'))
+
+    const view = renderScreen(queryClient)
+
+    try {
+      // The refetch fires on mount because the seeded entry is already stale.
+      await waitFor(() => expect(getNearbySpots).toHaveBeenCalled())
+
+      expect(screen.getByLabelText('Plaza Heneral Santos')).toBeTruthy()
+      expect(screen.getByLabelText('Lagao Gymnasium')).toBeTruthy()
+      expect(screen.queryByText(STRIP_FAILURE_COPY)).toBeNull()
+      expect(screen.queryByText(STRIP_EMPTY_COPY)).toBeNull()
+    } finally {
+      // Unmount and empty the cache by hand. A non-zero `gcTime` schedules a
+      // five-minute collection timer the moment the last observer goes away,
+      // and that timer keeps the whole node process alive after the suite has
+      // finished — jest reports it as "did not exit one second after the test
+      // run has completed". `clear()` destroys the queries and their timers.
+      view.unmount()
+      queryClient.clear()
+    }
   })
 })
