@@ -47,6 +47,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Nearby no longer answers before it has asked.** (STOURIFY-66) Ask a librarian whether they have a
+  book and watch them walk off to check. What you do not want, while they are still walking, is a sign
+  on the desk reading "We don't have it." Opening Nearby, the app spends up to eight seconds working
+  out where you are — and the strip of spots along the bottom already said **No spots nearby**, about
+  ground it could not yet name.
+
+  The strip now stays quiet until the request has actually been made. The map above it is already
+  showing a spinner for that same wait, so a second one underneath would only repeat it. Once a
+  position arrives, the strip behaves exactly as before: spots if there are any, "No spots nearby" if
+  the area is genuinely empty, and the retry row if the request failed.
+
 - **Nearby stopped telling you the area is empty when it was the request that failed.** (STOURIFY-60)
   "No petrol for 50 miles" is a useful sign. Hung on a station whose power is out, it is a lie — there
   is petrol, the pump just could not answer. The strip of spots along the bottom of the Nearby map put
