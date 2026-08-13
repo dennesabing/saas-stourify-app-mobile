@@ -50,8 +50,8 @@ function blockRow(over: Record<string, unknown> = {}) {
   }
 }
 
-function renderScreen() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+function renderScreen(queryClient?: QueryClient) {
+  const qc = queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
   return render(
     <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
       <ThemeProvider scheme="light">
@@ -94,6 +94,100 @@ test('Unblock addresses the block row uuid, never the user uuid', async () => {
 
   await waitFor(() => expect(unblockUser).toHaveBeenCalledWith('block-1'))
   expect(unblockUser).not.toHaveBeenCalledWith('user-other')
+})
+
+/**
+ * The three situations this screen used to answer with one sentence
+ * (STOURIFY-87).
+ *
+ * "You have not blocked anyone" is safety copy, and it is the worst sentence in
+ * this family to get wrong: somebody opening this screen to check that a block
+ * still stands was told it does not, when in fact the list simply never
+ * arrived. The 15-second timeout in `shared/api/client.ts` makes that routine.
+ *
+ * Each case asserts the presence of its own copy AND the absence of the
+ * others', so two states cannot collapse into one branch and still pass.
+ */
+describe('a failed blocked-list fetch is not an empty blocked list', () => {
+  test('says the request failed, and offers a retry that re-runs the query', async () => {
+    ;(getBlocks as jest.Mock).mockRejectedValue(new Error('timeout of 15000ms exceeded'))
+
+    renderScreen()
+
+    expect(await screen.findByText("Couldn't load your blocked list")).toBeTruthy()
+    expect(screen.queryByText(/have not blocked anyone/i)).toBeNull()
+    expect(screen.queryByText('Nobody blocked')).toBeNull()
+
+    expect(getBlocks).toHaveBeenCalledTimes(1)
+
+    fireEvent.press(screen.getByText('Try again'))
+
+    await waitFor(() => expect(getBlocks).toHaveBeenCalledTimes(2))
+  })
+
+  test('still says nobody blocked when the request succeeds with no rows', async () => {
+    ;(getBlocks as jest.Mock).mockResolvedValue(page([]))
+
+    renderScreen()
+
+    expect(await screen.findByText('Nobody blocked')).toBeTruthy()
+    expect(screen.queryByText("Couldn't load your blocked list")).toBeNull()
+    expect(screen.queryByText('Try again')).toBeNull()
+  })
+
+  /**
+   * This is also the case that proves the loading check was actually moved
+   * INTO `ListEmptyComponent` rather than an error branch being bolted on
+   * beside it where it stood.
+   *
+   * Until STOURIFY-87 this screen decided **above** the `FlatList` whether to
+   * render the list at all, so during a cold load the list did not exist —
+   * only a pair of placeholders where it should have been. The list being
+   * mounted throughout is the visible difference the unwind makes, and it is
+   * what makes the placement rule enforceable here: a branch that can hide the
+   * whole list is one edit away from hiding rows somebody could still read.
+   */
+  test('shows the loading placeholders inside the list, and claims neither, while the request is in flight', async () => {
+    // Never settles, so the screen stays in its first-load state.
+    ;(getBlocks as jest.Mock).mockReturnValue(new Promise(() => {}))
+
+    renderScreen()
+
+    // `Skeleton` announces itself as "Loading"; this screen renders two.
+    await waitFor(() => expect(screen.getAllByLabelText('Loading')).toHaveLength(2))
+    // The list itself is still there, with the placeholders as its empty
+    // component — it is not replaced by them.
+    expect(screen.getByTestId('blocked-accounts-list')).toBeTruthy()
+    expect(screen.queryByText('Nobody blocked')).toBeNull()
+    expect(screen.queryByText("Couldn't load your blocked list")).toBeNull()
+    expect(screen.queryByText('Try again')).toBeNull()
+  })
+
+  /**
+   * Content wins over an error: the failure branch lives inside
+   * `ListEmptyComponent`, which never renders while the list holds rows.
+   *
+   * Stated honestly, this case passes both before and after the unwind —
+   * `isLoading` is false once anything is cached, so today's hoisted check is
+   * not reached. It is here as a regression guard rather than as proof: it is
+   * the assertion that fails the day somebody "tidies up" by lifting the
+   * `isError` branch above the list, which is the mistake this whole family of
+   * cards exists to prevent and the one no ordinary use would ever reveal.
+   */
+  test('keeps showing the blocked list when a later fetch fails', async () => {
+    ;(getBlocks as jest.Mock).mockRejectedValue(new Error('offline'))
+
+    const seeded = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+    seeded.setQueryData(['blocks'], page([blockRow()]))
+
+    renderScreen(seeded)
+
+    await waitFor(() => expect(getBlocks).toHaveBeenCalled())
+
+    expect(screen.getByText('Grace Santos')).toBeTruthy()
+    expect(screen.queryByText("Couldn't load your blocked list")).toBeNull()
+    expect(screen.queryByText('Nobody blocked')).toBeNull()
+  })
 })
 
 test('a row whose explorer relation never loaded still renders instead of crashing', async () => {

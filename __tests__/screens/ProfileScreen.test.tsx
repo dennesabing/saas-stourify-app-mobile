@@ -109,8 +109,8 @@ const navigation = {
  */
 let resetSpy: jest.SpyInstance
 
-function renderProfile(userId?: string) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+function renderProfile(userId?: string, queryClient?: QueryClient) {
+  const qc = queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
   resetSpy = jest.spyOn(qc, 'resetQueries')
   return render(
     <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
@@ -341,6 +341,119 @@ test('my own profile failing to load offers a retry rather than only Go back', a
   fireEvent.press(retry)
 
   await waitFor(() => expect(getMyProfile).toHaveBeenCalledTimes(2))
+})
+
+// ---------------------------------------------------------------------------
+// The posts grid, which is a SECOND query with its own outcomes (STOURIFY-87)
+// ---------------------------------------------------------------------------
+
+/**
+ * One screen, two requests, and until STOURIFY-87 only one of them told the
+ * truth about failing.
+ *
+ * The profile query above got an honest failure state with a retry in
+ * STOURIFY-82. The posts query eleven lines below still said "You have not
+ * posted yet." to somebody whose posts request had just timed out — a claim
+ * about their posting history that nobody had checked.
+ *
+ * Every case here lets the PROFILE query succeed, so the two failures cannot be
+ * confused: the header renders normally and only the grid area reports trouble.
+ * That separation is the point — two whole-screen failure messages about one
+ * profile would read as two faults.
+ */
+describe('a failed posts fetch is not an empty posts grid', () => {
+  function postFixture(over: Record<string, unknown> = {}) {
+    return { uuid: 'post-1', caption: 'Sunset at Gumasa', media: [], ...over }
+  }
+
+  function postsPage(rows: unknown[]) {
+    return { data: rows, links: {}, meta: { current_page: 1, last_page: 1, total: rows.length } }
+  }
+
+  beforeEach(() => {
+    ;(getMyProfile as jest.Mock).mockResolvedValue(
+      profileFixture({
+        user_uuid: ME_UUID,
+        viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null },
+      }),
+    )
+    ;(getProfile as jest.Mock).mockResolvedValue(profileFixture())
+  })
+
+  test('says the posts failed, and offers a retry that re-runs that query', async () => {
+    ;(getPosts as jest.Mock).mockRejectedValue(new Error('timeout of 15000ms exceeded'))
+
+    renderProfile()
+
+    expect(await screen.findByText("Couldn't load the posts")).toBeTruthy()
+    expect(screen.queryByText('You have not posted yet.')).toBeNull()
+    // The header loaded fine, so the screen must not also claim the profile failed.
+    expect(screen.queryByText(/could not load your profile/i)).toBeNull()
+    expect(screen.getByText('@santos_grace')).toBeTruthy()
+
+    expect(getPosts).toHaveBeenCalledTimes(1)
+
+    fireEvent.press(screen.getByText('Try again'))
+
+    await waitFor(() => expect(getPosts).toHaveBeenCalledTimes(2))
+    // The retry belongs to the posts query alone.
+    expect(getMyProfile).toHaveBeenCalledTimes(1)
+  })
+
+  test("says the posts failed on somebody else's profile too", async () => {
+    ;(getUserPosts as jest.Mock).mockRejectedValue(new Error('offline'))
+
+    renderProfile(OTHER_UUID)
+
+    expect(await screen.findByText("Couldn't load the posts")).toBeTruthy()
+    expect(screen.queryByText('No posts to show.')).toBeNull()
+  })
+
+  test('still says you have not posted yet when the request succeeds with no posts', async () => {
+    ;(getPosts as jest.Mock).mockResolvedValue(emptyPage())
+
+    renderProfile()
+
+    expect(await screen.findByText('You have not posted yet.')).toBeTruthy()
+    expect(screen.queryByText("Couldn't load the posts")).toBeNull()
+    expect(screen.queryByText('Try again')).toBeNull()
+  })
+
+  test('claims neither while the posts request is still in flight', async () => {
+    // Never settles, so the grid stays in its first-load state.
+    ;(getPosts as jest.Mock).mockReturnValue(new Promise(() => {}))
+
+    renderProfile()
+
+    // This grid's loading treatment is deliberately nothing at all — so the
+    // assertion is that the screen rendered and yet made no claim either way.
+    expect(await screen.findByText('@santos_grace')).toBeTruthy()
+    expect(screen.queryByText('You have not posted yet.')).toBeNull()
+    expect(screen.queryByText("Couldn't load the posts")).toBeNull()
+    expect(screen.queryByText('Try again')).toBeNull()
+  })
+
+  /**
+   * The error branch lives inside `ListEmptyComponent`, which never renders
+   * while the grid holds rows — so posts the reader could already see must
+   * survive a failing refetch rather than being covered by a message.
+   */
+  test('keeps showing posts already on screen when a later fetch fails', async () => {
+    ;(getPosts as jest.Mock).mockRejectedValue(new Error('offline'))
+
+    const seeded = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+    seeded.setQueryData(['explorer-posts', 'me'], postsPage([postFixture()]))
+
+    renderProfile(undefined, seeded)
+
+    await waitFor(() => expect(getPosts).toHaveBeenCalled())
+
+    // The header settles after the posts request is issued — wait for it, or
+    // the assertions below read a screen still showing the profile skeletons.
+    expect(await screen.findByLabelText('Post: Sunset at Gumasa')).toBeTruthy()
+    expect(screen.queryByText("Couldn't load the posts")).toBeNull()
+    expect(screen.queryByText('You have not posted yet.')).toBeNull()
+  })
 })
 
 // ---------------------------------------------------------------------------
