@@ -6,17 +6,21 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { OnboardingStackParamList } from '@/shared/navigation/types'
 import { Button, Chip, Text } from '@/shared/components/ui'
 import { INTEREST_OPTIONS } from '@/shared/constants/interests'
-import { syncNow } from '@/sync/scheduler'
-import type ExplorerProfile from '@/db/models/ExplorerProfile'
+import { persistProfileChoice } from '@/features/onboarding/persistProfileChoice'
 import { useTheme } from '@/theme/ThemeProvider'
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'Interests'>
 
 /**
- * Writes straight to the local `sto_explorer_profiles` row and never to the
- * network. `sto_explorer_profiles` is a synced, pushable table (M2), so the
- * choice survives a bad connection and drains through the existing push
- * queue the same way `CreateSpotScreen` writes a spot.
+ * Prefers the local `sto_explorer_profiles` row, because it is a synced,
+ * pushable table (M2) — so the choice survives a bad connection and drains
+ * through the existing push queue the same way `CreateSpotScreen` writes a
+ * spot.
+ *
+ * It used to write ONLY there, and only `if (profiles.length > 0)` — which for
+ * a brand-new account, the one case this screen exists for, is never true. The
+ * choice went nowhere (STOURIFY-82). `persistProfileChoice` owns that fallback
+ * now; see it for why the two writers exist and why a failure is swallowed.
  */
 export default function InterestsScreen({ navigation }: Props) {
   const theme = useTheme()
@@ -30,20 +34,7 @@ export default function InterestsScreen({ navigation }: Props) {
   }
 
   async function persistAndAdvance(interests: string[]): Promise<void> {
-    if (interests.length > 0) {
-      const profiles = await database.get<ExplorerProfile>('sto_explorer_profiles').query().fetch()
-
-      if (profiles.length > 0) {
-        await database.write(async () => {
-          await profiles[0].update((row: any) => {
-            row._setRaw('interests', JSON.stringify(interests))
-          })
-        })
-
-        // A nudge, not a dependency: the row is already durable locally.
-        void syncNow(database)
-      }
-    }
+    await persistProfileChoice(database, { kind: 'interests', interests })
 
     navigation.navigate('HomeCity')
   }

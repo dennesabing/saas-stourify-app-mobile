@@ -46,12 +46,19 @@ const GRID_GAP = 2
  * "Follow" no matter the relationship. The explorer identity lives on
  * `GET /profile` and `GET /profiles/{user}`.
  *
- * Three read outcomes are ordinary rather than exceptional, and each gets its
+ * Four read outcomes are ordinary rather than exceptional, and each gets its
  * own render:
  *
- * - **`null` from `GET /profile`** — registered but mid-onboarding. Not an
- *   error; the profile row is written by the onboarding flow.
- * - **404** — that explorer never created a profile.
+ * - **`null` from `GET /profile`** — no profile row. Not an error, and since
+ *   STOURIFY-82 not the normal first-run state either: registration now creates
+ *   the row. This branch remains for accounts registered before that shipped,
+ *   and it offers *Set up profile*.
+ * - **any failure on MY OWN profile** — a bad connection or a server fault. It
+ *   says so in the first person and offers a retry. It used to share the
+ *   stranger's message below, which is how a brand-new user came to be told
+ *   "This explorer has not set up their profile yet" about themselves, with no
+ *   way forward (STOURIFY-82).
+ * - **404 on somebody else's** — that explorer never created a profile.
  * - **403** — a block stands between the two parties. The server's wording is
  *   identical from either side by design (STOURIFY-36), so the client must not
  *   try to explain it either.
@@ -212,6 +219,24 @@ export default function ProfileScreen({ route, navigation }: Props) {
 
   if (profileQuery.isError) {
     const status = (profileQuery.error as { response?: { status?: number } })?.response?.status
+
+    // Your own profile failing to load and a stranger's not existing are
+    // different facts, and until STOURIFY-82 they shared one message. A newly
+    // registered user tapping Profile was told "This explorer has not set up
+    // their profile yet" — third person, about themselves — with *Go back* as
+    // the only control, which is not a way out of anything. A read that failed
+    // is worth retrying; a profile that is not there is not.
+    if (isOwn) {
+      return renderFrame(
+        <EmptyState
+          icon="🧭"
+          title="We could not load your profile"
+          subtitle="Check your connection and try again."
+          actionLabel="Try again"
+          onAction={() => void profileQuery.refetch()}
+        />,
+      )
+    }
 
     return renderFrame(
       <EmptyState

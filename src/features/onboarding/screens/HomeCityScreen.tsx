@@ -6,8 +6,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { OnboardingStackParamList } from '@/shared/navigation/types'
 import { useCities } from '@/features/onboarding/hooks/useCities'
 import { Button, Chip, EmptyState, Text } from '@/shared/components/ui'
-import { syncNow } from '@/sync/scheduler'
-import type ExplorerProfile from '@/db/models/ExplorerProfile'
+import { persistProfileChoice } from '@/features/onboarding/persistProfileChoice'
 import { useTheme } from '@/theme/ThemeProvider'
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'HomeCity'>
@@ -18,6 +17,11 @@ type Props = NativeStackScreenProps<OnboardingStackParamList, 'HomeCity'>
  * construction. An empty local table means the first delta has not landed
  * yet (a fresh account), never "there are no cities" — so it shows a
  * still-syncing state, not a bare empty list.
+ *
+ * Saving the choice is the one part that is not local-only, and it used to be:
+ * it wrote to the local profile row `if (profiles.length > 0)`, a guard that is
+ * never true on a brand-new account, so the city went nowhere (STOURIFY-82).
+ * `persistProfileChoice` handles both cases.
  */
 export default function HomeCityScreen({ navigation }: Props) {
   const theme = useTheme()
@@ -29,17 +33,11 @@ export default function HomeCityScreen({ navigation }: Props) {
     const city = cities.find((c) => c.id === selectedCityId)
 
     if (city && city.serverId !== null) {
-      const profiles = await database.get<ExplorerProfile>('sto_explorer_profiles').query().fetch()
-
-      if (profiles.length > 0) {
-        await database.write(async () => {
-          await profiles[0].update((row: any) => {
-            row._setRaw('home_city_id', city.serverId)
-          })
-        })
-
-        void syncNow(database)
-      }
+      await persistProfileChoice(database, {
+        kind: 'homeCity',
+        cityServerId: city.serverId,
+        cityUuid: city.uuid,
+      })
     }
 
     navigation.navigate('FollowSuggestions')

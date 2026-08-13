@@ -47,6 +47,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Onboarding stops throwing away the interests and home city you just picked.** (STOURIFY-82) Both
+  screens saved into the local copy of the profile table, and both were wrapped in a check that a
+  profile row was already there. For a brand-new account it never is — nothing has synced one down
+  yet — so the check was false every time and the answers went nowhere. A save guarded on the very
+  thing it is supposed to be saving never runs.
+
+  A new `features/onboarding/persistProfileChoice.ts` owns the choice between the two writers: the
+  local row when it exists, because that path works with no connection and drains through the normal
+  push queue, and `PATCH /profile` when it does not. A failed send is swallowed rather than surfaced —
+  these are four taps in somebody's first thirty seconds, and blocking the flow on a flaky connection
+  would be worse than the bug being fixed.
+
+- **Your own Profile tab no longer describes you in the third person, or dead-ends.** (STOURIFY-82) A
+  failed read of your own profile showed the message written for visiting a stranger — *"This explorer
+  has not set up their profile yet"* — with **Go back** as the only control. It now says
+  **We could not load your profile** and offers **Try again**, because a read that failed is worth
+  retrying and a profile that is not there is not. The stranger's 404 and the blocked-pair 403 are
+  unchanged.
+
 - **Search no longer reports "No results" for a search that never ran.** (STOURIFY-59) Ask a shop
   assistant whether something is in stock, watch them fail to get the stockroom door open, and hear
   them come back with "we don't have it." That was Search: a request that failed showed the same
