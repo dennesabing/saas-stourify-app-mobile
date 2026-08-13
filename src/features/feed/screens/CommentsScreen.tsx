@@ -55,7 +55,7 @@ export default function CommentsScreen({ route }: Props) {
   const { user } = useAuthStore()
   const [text, setText] = useState('')
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: COMMENTS_QUERY_KEY(postId),
     queryFn: () => getComments(postId),
   })
@@ -109,6 +109,44 @@ export default function CommentsScreen({ route }: Props) {
     if (trimmed) postMutation.mutate(trimmed)
   }
 
+  /**
+   * Only reached with no rows to show, and the three cases are genuinely
+   * different situations with different remedies — so they get different
+   * words: "we are still asking", "we could not ask", and "we asked and there
+   * is nothing".
+   *
+   * Before STOURIFY-86 there were two branches, and a failed request fell into
+   * the empty one: a reader whose request had just timed out was told the post
+   * has no comments, which is a claim about the post rather than about the
+   * network. The 15-second timeout in `shared/api/client.ts` makes that routine.
+   *
+   * Two orderings here are load-bearing, and they are the same two `FeedScreen`
+   * documents at length — read `FeedScreen.tsx:106-132` before changing this.
+   *
+   * **This lives inside `ListEmptyComponent`**, which only renders when the
+   * list has no rows at all, so content always wins over an error. React Query
+   * keeps serving comments it already holds while a later fetch fails; hoisting
+   * an `isError` check above the `FlatList` would delete that protection and
+   * never once show it had, because the branch is unreachable while online.
+   *
+   * **`isLoading` is asked before `isError`.** `isLoading` is true only for a
+   * first fetch with nothing cached, so a slow first load stays quiet rather
+   * than claiming a failure. `isError` then stays true through a retry until
+   * one succeeds, which holds the failure message up while the retry is in
+   * flight instead of flickering to the empty message and back.
+   */
+  const empty = isLoading ? null : isError ? (
+    <EmptyState
+      icon="📡"
+      title="Couldn't load the comments"
+      subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+      actionLabel="Try again"
+      onAction={() => void refetch()}
+    />
+  ) : (
+    <EmptyState icon="💬" title="No comments yet" subtitle="Be the first to say something" />
+  )
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
       <View style={{ padding: theme.gutter }}>
@@ -119,11 +157,7 @@ export default function CommentsScreen({ route }: Props) {
         data={rows}
         keyExtractor={(row) => row.comment.id}
         contentContainerStyle={rows.length === 0 ? { flex: 1 } : { paddingHorizontal: theme.gutter, gap: theme.spacing[3] }}
-        ListEmptyComponent={
-          !isLoading
-            ? () => <EmptyState icon="💬" title="No comments yet" subtitle="Be the first to say something" />
-            : null
-        }
+        ListEmptyComponent={empty}
         renderItem={({ item }) => (
           <View
             style={{

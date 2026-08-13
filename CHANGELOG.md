@@ -47,6 +47,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Comments and Activity no longer report a failed request as an empty list.** (STOURIFY-86) A shop
+  with the lights off looks exactly like a shop with empty shelves. Told the shelves are empty, you
+  go home; told the lights are off, you come back. Both screens asked their list one question — *are
+  we still loading?* — and treated every other answer as "there is genuinely nothing here", so a
+  request that timed out produced a confident falsehood: *No comments yet* on a post that may be full
+  of them, *Nothing yet* to somebody with follow requests waiting.
+
+  Each screen now tells the three situations apart — still asking, could not ask, asked and there is
+  nothing — and the middle one says so plainly and offers a **Try again** that re-runs the request.
+  The empty sentences are unchanged; a failure state was added beside them, not over them.
+
+  The new branch sits **inside** `ListEmptyComponent`, which renders only when the list has no rows
+  at all, so comments or requests already loaded stay readable when a later fetch fails. Putting the
+  check above the list instead would silently delete that protection, and never show it had, because
+  that branch is unreachable while the network is up. Same shape as `FeedScreen`, `DiscoverScreen`,
+  `NearbyScreen` and `SearchScreen` before them.
+
 - **Onboarding stops throwing away the interests and home city you just picked.** (STOURIFY-82) Both
   screens saved into the local copy of the profile table, and both were wrapped in a check that a
   profile row was already there. For a brand-new account it never is — nothing has synced one down
