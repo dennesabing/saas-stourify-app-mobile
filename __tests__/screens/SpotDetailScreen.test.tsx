@@ -58,6 +58,33 @@ it('renders a real hero image, the rating and the review count', async () => {
     expect(screen.getByText('4.5')).toBeTruthy()
     expect(screen.getByText('See all 12 reviews')).toBeTruthy()
   })
+
+  // The loading placeholder must go once the answer is in. A skeleton left
+  // mounted under real content is invisible in a screenshot and permanent in a
+  // screen reader, which announces "Loading" over a spot that has finished.
+  expect(screen.queryByTestId('spot-hero-loading')).toBeNull()
+  expect(screen.queryByText('No photos yet')).toBeNull()
+})
+
+it('shows a loading hero, and says nothing about photos, while the spot request is still in flight', async () => {
+  // A promise that never settles is the whole point: it holds the screen in the
+  // state a slow network puts it in, for as long as the test looks at it.
+  ;(getSpot as jest.Mock).mockReturnValue(new Promise(() => {}))
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByTestId('spot-hero-loading')).toBeTruthy())
+
+  // The two absences are the actual bug. "No photos yet" is a claim about a spot
+  // nobody has heard back about yet, and asserting only that the placeholder
+  // appeared would pass against a hero that rendered both of them stacked.
+  expect(screen.queryByText('No photos yet')).toBeNull()
+  expect(screen.queryByTestId('spot-hero-image')).toBeNull()
+
+  // Nothing has loaded, so there is no gallery to open.
+  fireEvent.press(screen.getByTestId('spot-hero'))
+  expect(navigation.navigate).not.toHaveBeenCalled()
 })
 
 it('renders a design-system placeholder hero when the spot has no photos, never a bare grey box', async () => {
@@ -70,6 +97,11 @@ it('renders a design-system placeholder hero when the spot has no photos, never 
     expect(screen.queryByTestId('spot-hero-image')).toBeNull()
     expect(screen.getByText('No photos yet')).toBeTruthy()
   })
+
+  // …and only once the request has come back. The sentence is true here and was
+  // false a moment ago; this pins the difference so the two states cannot
+  // collapse back into one branch.
+  expect(screen.queryByTestId('spot-hero-loading')).toBeNull()
 
   // A hero with no photos has no gallery to open, so tapping it must do nothing.
   // The screen enforces that with `disabled` on the hero Pressable; this pins the

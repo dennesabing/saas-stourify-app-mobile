@@ -47,6 +47,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A spot you were still waiting on said "No photos yet".** (STOURIFY-63) A departures board that
+  has not yet heard from the railway should say so, not print CANCELLED. One of those sends you to
+  the platform to wait; the other sends you home. The spot screen was printing the second: open a
+  spot on a slow connection and the top of the screen announced it had no photos, before anyone had
+  asked the server whether it did. A spot with twenty photos looked like a spot with none for as
+  long as the request took, and anyone who tapped away in that window never found out otherwise.
+
+  The hero now waits visibly — the same pulsing placeholder the star rating just below it has always
+  used — and only says "No photos yet" once the answer is actually in, unchanged from before. The
+  cause was the order of two questions: the screen asked "are there photos?" before "has this
+  loaded?", and an empty list is the answer to both.
+
+  One thing this deliberately does not fix: a spot request that *fails* now sits on that placeholder
+  rather than saying anything, which is quiet rather than wrong. The honest version — a message and
+  a **Try again** button, as the feed got in STOURIFY-41 — is tracked as STOURIFY-64.
+
 - **A feed that failed to load said "your feed is empty".** (STOURIFY-41) A shop with the lights off
   and a shop with empty shelves look the same through the window at night. The feed had that problem:
   when the request to the server failed, it put up the same sign it uses when the server answers and
