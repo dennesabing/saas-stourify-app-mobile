@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { QueryClient } from '@tanstack/react-query'
 import SpotDetailScreen from '@/features/spots/screens/SpotDetailScreen'
 import type WishlistItem from '@/db/models/WishlistItem'
 import { createTestDatabase } from '../support/testDatabase'
@@ -36,9 +37,9 @@ function makeSpot(overrides: Partial<any> = {}) {
   }
 }
 
-function renderScreen(database = createTestDatabase(), spotId = 'spot-1') {
+function renderScreen(database = createTestDatabase(), spotId = 'spot-1', queryClient?: QueryClient) {
   return render(
-    <TestProviders database={database}>
+    <TestProviders database={database} queryClient={queryClient}>
       <SpotDetailScreen navigation={navigation} route={{ params: { spotId } } as any} />
     </TestProviders>,
   )
@@ -64,6 +65,7 @@ it('renders a real hero image, the rating and the review count', async () => {
   // screen reader, which announces "Loading" over a spot that has finished.
   expect(screen.queryByTestId('spot-hero-loading')).toBeNull()
   expect(screen.queryByText('No photos yet')).toBeNull()
+  expect(screen.queryByTestId('spot-hero-error')).toBeNull()
 })
 
 it('shows a loading hero, and says nothing about photos, while the spot request is still in flight', async () => {
@@ -85,6 +87,70 @@ it('shows a loading hero, and says nothing about photos, while the spot request 
   // Nothing has loaded, so there is no gallery to open.
   fireEvent.press(screen.getByTestId('spot-hero'))
   expect(navigation.navigate).not.toHaveBeenCalled()
+
+  // Still asking is not the same as asked and failed. The failure copy belongs
+  // to a request that came back broken, and this one has not come back at all.
+  expect(screen.queryByText("Couldn't load this spot")).toBeNull()
+})
+
+it('says the request failed, and offers a retry, when the spot cannot be fetched', async () => {
+  ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByTestId('spot-hero-error')).toBeTruthy())
+  expect(screen.getByText("Couldn't load this spot")).toBeTruthy()
+  expect(screen.getByText('Try again')).toBeTruthy()
+
+  // The three absences are what make this a fix rather than a fourth thing on
+  // screen. Each names one of the states this one must not be confused with:
+  // still waiting, loaded with photos, loaded with none.
+  expect(screen.queryByTestId('spot-hero-loading')).toBeNull()
+  expect(screen.queryByTestId('spot-hero-image')).toBeNull()
+  expect(screen.queryByText('No photos yet')).toBeNull()
+
+  // And nothing anywhere on the screen is still pulsing. `Skeleton` renders
+  // with the accessibility label "Loading", so a screen reader would otherwise
+  // keep announcing a request that finished — badly — some time ago. This is
+  // the rating, which asked the same stuck question the hero did.
+  expect(screen.queryAllByLabelText('Loading')).toHaveLength(0)
+})
+
+it('re-runs the spot request when Try again is pressed', async () => {
+  ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Try again')).toBeTruthy())
+  expect(getSpot).toHaveBeenCalledTimes(1)
+
+  fireEvent.press(screen.getByText('Try again'))
+
+  // Copy without a working button is a nicer dead end, not a way out.
+  await waitFor(() => expect((getSpot as jest.Mock).mock.calls.length).toBeGreaterThan(1))
+})
+
+it('keeps showing a spot it already has while the refetch is failing', async () => {
+  // The offline case, and the reason the failure branch is gated on `!spot`
+  // rather than on `isError` alone. Yesterday's spot is in the persisted cache,
+  // today's network is gone: the reader should read the spot, not an apology
+  // for not having one.
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  queryClient.setQueryData(['spot', 'spot-1'], makeSpot())
+
+  ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+
+  renderScreen(createTestDatabase(), 'spot-1', queryClient)
+
+  await waitFor(() => expect(getSpot).toHaveBeenCalled())
+
+  expect(screen.getByTestId('spot-hero-image')).toBeTruthy()
+  expect(screen.getByText('Blue Cove')).toBeTruthy()
+  expect(screen.queryByTestId('spot-hero-error')).toBeNull()
+  expect(screen.queryByText("Couldn't load this spot")).toBeNull()
 })
 
 it('renders a design-system placeholder hero when the spot has no photos, never a bare grey box', async () => {
@@ -102,6 +168,9 @@ it('renders a design-system placeholder hero when the spot has no photos, never 
   // false a moment ago; this pins the difference so the two states cannot
   // collapse back into one branch.
   expect(screen.queryByTestId('spot-hero-loading')).toBeNull()
+
+  // …and the request succeeded, so nothing may suggest it did not.
+  expect(screen.queryByTestId('spot-hero-error')).toBeNull()
 
   // A hero with no photos has no gallery to open, so tapping it must do nothing.
   // The screen enforces that with `disabled` on the hero Pressable; this pins the
