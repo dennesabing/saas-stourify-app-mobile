@@ -314,6 +314,35 @@ test('an explorer with no profile row reads as not found, not as a crash', async
   expect(await screen.findByText(/no profile/i)).toBeTruthy()
 })
 
+/**
+ * The wording that started STOURIFY-82. A newly registered user tapped their
+ * own Profile tab and was told "This explorer has not set up their profile
+ * yet" — somebody else's sentence, about them — with *Go back* as the only
+ * control. Third-person copy on your own screen is not a style slip; it tells
+ * the reader they are looking at the wrong thing.
+ */
+test('my own profile failing to load does not describe me in the third person', async () => {
+  ;(getMyProfile as jest.Mock).mockRejectedValue({ response: { status: 500 } })
+
+  renderProfile()
+
+  expect(await screen.findByText(/could not load your profile/i)).toBeTruthy()
+  expect(screen.queryByText(/this explorer/i)).toBeNull()
+})
+
+test('my own profile failing to load offers a retry rather than only Go back', async () => {
+  ;(getMyProfile as jest.Mock).mockRejectedValue({ response: { status: 500 } })
+
+  renderProfile()
+
+  const retry = await screen.findByText('Try again')
+  ;(getMyProfile as jest.Mock).mockResolvedValue(profileFixture({ user_uuid: ME_UUID }))
+
+  fireEvent.press(retry)
+
+  await waitFor(() => expect(getMyProfile).toHaveBeenCalledTimes(2))
+})
+
 // ---------------------------------------------------------------------------
 // Block and report (STOURIFY-37)
 // ---------------------------------------------------------------------------

@@ -5,6 +5,9 @@ import { createTestDatabase, seedExplorerProfile } from '../../support/testDatab
 import { TestProviders } from '../../support/TestProviders'
 
 jest.mock('@/sync/scheduler', () => ({ syncNow: jest.fn(async () => undefined) }))
+jest.mock('@/shared/api/profiles', () => ({ updateMyProfile: jest.fn(async () => ({})) }))
+
+import { updateMyProfile } from '@/shared/api/profiles'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 
@@ -50,7 +53,14 @@ it('Skip advances to Home city without writing anything', async () => {
   expect(profile.interests).toEqual([])
 })
 
-it('never touches the database when no local explorer profile exists yet', async () => {
+/**
+ * This test used to assert the opposite — that nothing was written when no
+ * local row existed — and in doing so it pinned the bug in place (STOURIFY-82).
+ * That is the case a brand-new account is ALWAYS in, so "writes nothing" meant
+ * every real first-run selection was discarded. It now goes to the server
+ * instead; `persistProfileChoice` owns the choice between the two writers.
+ */
+it('sends the interests to the server when the local profile has not synced yet', async () => {
   const database = createTestDatabase()
 
   render(
@@ -64,5 +74,6 @@ it('never touches the database when no local explorer profile exists yet', async
 
   await waitFor(() => expect(navigation.navigate).toHaveBeenCalledWith('HomeCity'))
 
+  expect(updateMyProfile).toHaveBeenCalledWith({ interests: ['Nature'] })
   expect(await database.get<ExplorerProfile>('sto_explorer_profiles').query().fetchCount()).toBe(0)
 })
