@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Release builds ship two architectures instead of four, and Gradle runs one worker with no
+  daemon.** `reactNativeArchitectures` drops to `arm64-v8a,x86_64` and `android/app/build.gradle`
+  gains a matching `ndk { abiFilters … }`. Every Android phone since roughly 2019 is arm64;
+  `x86_64` exists only so the emulator can run the same APK. Building `armeabi-v7a` and `x86` as
+  well compiled all native code twice over for devices this app does not target.
+
+  The daemon is off because it is a long-lived JVM that caches the environment it started with —
+  change `.env` and it keeps handing Metro the old API URL, so the APK ships a bundle pointing at
+  the wrong backend while every file on disk says otherwise. A cold JVM costs about fifteen seconds
+  and removes a class of bug where the fix is real but the artifact does not contain it.
+
+  Verified in the built APK: `lib/arm64-v8a` and `lib/x86_64` only, 66 MB.
+
+- Per-release APK notes now live in `changelogs/<version>.changelog.md`, next to a `README.md`
+  explaining the split from this file. This one is for developers and answers "what changed in the
+  codebase"; those are for the person installing the APK and answer "what is different on my
+  phone". The builder script refuses to build without one, because a release note has no technical
+  dependency on anything — which is exactly why it gets skipped.
+
 ### Added
 
 - **Discover has a map now, and a button on the grid that opens it.** (STOURIFY-54) The grid answers

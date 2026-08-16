@@ -162,6 +162,15 @@ android {
         manifestPlaceholders += [GOOGLE_MAPS_API_KEY: resolveGoogleMapsApiKey()]
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+
+        // The belt to `reactNativeArchitectures`' braces. That gradle.properties value tells
+        // the React Native plugin which ABIs to BUILD; this tells AGP which ones may be
+        // PACKAGED. They are not the same list — a third-party AAR ships prebuilt .so files
+        // the RN property never sees, and those would otherwise ride along, re-inflating the
+        // APK with armeabi-v7a/x86 libraries nothing here can call. Keep both in sync.
+        ndk {
+            abiFilters "arm64-v8a", "x86_64"
+        }
     }
     signingConfigs {
         debug {
