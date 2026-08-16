@@ -20,5 +20,52 @@ allprojects {
   }
 }
 
+// ── Build every native library for 16 KB memory pages ────────────────────────
+//
+// A phone hands out memory in fixed-size blocks called PAGES, the way a printer
+// works in whole sheets rather than in single lines. Android used to use 4 KB
+// sheets; devices from Android 15 onwards use 16 KB, which is faster. A compiled
+// library states in its own header which size it expects, and one built for 4 KB
+// cannot be laid onto 16 KB sheets — the boundaries do not line up, so the loader
+// refuses it and the app dies on launch. Google Play now REQUIRES 16 KB support,
+// so this is a rejected submission, not a slow app.
+//
+// React Native's and Expo's Gradle plugins already pass the linker the flag that
+// asks for 16 KB (`-Wl,-z,max-page-size=16384`, which NDK r27 turns on when you
+// set ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES). A dependency that brings its own
+// plain `com.android.library` build does not inherit any of that, and there is no
+// warning when it does not — the library just comes out at 4096.
+//
+// That is exactly what STOURIFY-80 measured. Out of 44 native libraries in the
+// release APK, 42 were already at 16384 and two were not: both copies of
+// `libwatermelondb-jsi.so`, whose Gradle build lives in node_modules and so
+// cannot be edited here. Hence injecting the flag from the ROOT project, where it
+// reaches every module including the ones we do not own.
+//
+// Rejected: patch node_modules/@nozbe/watermelondb/native/android-jsi/build.gradle.
+//   Tempting because: it fixes the exact file that is wrong, in one line.
+//   Why it lost: node_modules is not committed, so the fix would vanish on the
+//   next `npm install` and come back as a mystery Play rejection. It would also
+//   only ever cover the one dependency that happens to be broken today.
+//
+// Verify with: bash scripts/check-apk-16kb-alignment.sh
+subprojects { subproject ->
+  ["com.android.library", "com.android.application"].each { pluginId ->
+    subproject.plugins.withId(pluginId) {
+      subproject.android {
+        defaultConfig {
+          externalNativeBuild {
+            // `arguments` APPENDS rather than replaces, so a module that already
+            // passes its own CMake arguments keeps them.
+            cmake {
+              arguments "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
