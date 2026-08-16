@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The app's package name is now `com.zivsluck.stourify`, was `app.stourify.mobile`**
+  (STOURIFY-94). A package name is the app's permanent identity on a device — the thing Android
+  uses to tell one installed app from another — so it now sits under the operator's own
+  reverse-domain namespace, alongside the other products on that domain. Changed in
+  `app.json` (Android `package` and iOS `bundleIdentifier`), `android/app/build.gradle`
+  (`namespace` + `applicationId`), the `.maestro` flow's `appId`, and the Kotlin source tree,
+  which moves by hand to `com/zivsluck/stourify/` because this pipeline commits `android/`
+  instead of running `expo prebuild`.
+
+  Two consequences, both of which look like an unrelated bug if you do not know the rename
+  happened. Android treats the new package as a different app, so **an existing install must be
+  uninstalled before the new APK will install** — anything created offline and not yet synced is
+  lost with it. And the Google Maps key is restricted to a package-name + SHA-1 pair, so **until
+  the new pair is added in the Cloud console every map is a grey canvas** on an otherwise good
+  build. Nothing in this repo can catch that second one; `docs/google-maps-api-key.md` now says
+  so at the restriction table.
+
+- `.gitignore` now covers `.env.bak-*`. The APK builder copies `.env` aside before rewriting it,
+  and that copy carries the same secrets as the original — it was left stageable.
+
+- **Release builds ship two architectures instead of four, and Gradle runs one worker with no
+  daemon.** `reactNativeArchitectures` drops to `arm64-v8a,x86_64` and `android/app/build.gradle`
+  gains a matching `ndk { abiFilters … }`. Every Android phone since roughly 2019 is arm64;
+  `x86_64` exists only so the emulator can run the same APK. Building `armeabi-v7a` and `x86` as
+  well compiled all native code twice over for devices this app does not target.
+
+  The daemon is off because it is a long-lived JVM that caches the environment it started with —
+  change `.env` and it keeps handing Metro the old API URL, so the APK ships a bundle pointing at
+  the wrong backend while every file on disk says otherwise. A cold JVM costs about fifteen seconds
+  and removes a class of bug where the fix is real but the artifact does not contain it.
+
+  Verified in the built APK: `lib/arm64-v8a` and `lib/x86_64` only, 66 MB.
+
+- Per-release APK notes now live in `changelogs/<version>.changelog.md`, next to a `README.md`
+  explaining the split from this file. This one is for developers and answers "what changed in the
+  codebase"; those are for the person installing the APK and answer "what is different on my
+  phone". The builder script refuses to build without one, because a release note has no technical
+  dependency on anything — which is exactly why it gets skipped.
+
 ### Added
 
 - **Discover has a map now, and a button on the grid that opens it.** (STOURIFY-54) The grid answers

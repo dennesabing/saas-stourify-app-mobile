@@ -1,4 +1,4 @@
-appId: app.stourify.mobile
+appId: com.zivsluck.stourify
 ---
 # Registers a brand-new account, walks it through the full onboarding flow
 # (skipping every optional step), and asserts it lands on the feed — the
