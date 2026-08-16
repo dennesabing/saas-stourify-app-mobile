@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Every native library in the release APK is now built for 16 KB memory pages** (STOURIFY-80).
+  A phone hands out memory in fixed-size blocks called *pages* — 4 KB on older Android, 16 KB on
+  devices from Android 15 onwards, which is faster. A library compiled for the old block size will
+  not load on the new one, and Google Play now **requires** 16 KB support, so a single stale
+  library is a rejected submission rather than a slow app.
+
+  Measured against a real release APK: 42 of its 44 native libraries were already correct, because
+  React Native's and Expo's Gradle plugins pass the linker the flag that asks for 16 KB. The two
+  that were not are both copies of `libwatermelondb-jsi.so` — a dependency that brings its own
+  plain Android library build and therefore inherits none of that, silently, with no warning at
+  build time.
+
+  `android/build.gradle` now injects `-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON` into **every**
+  Android subproject's native build, rather than into the one that happened to be wrong. The
+  dependency's own Gradle file lives in `node_modules`, which is not committed, so a fix there
+  would disappear at the next `npm install` and return as a mystery Play rejection.
+
+  Check any build with `bash scripts/check-apk-16kb-alignment.sh` from the repo root.
+
 ### Changed
 
 - **The app's package name is now `com.zivsluck.stourify`, was `app.stourify.mobile`**
