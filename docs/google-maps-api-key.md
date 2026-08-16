@@ -109,8 +109,22 @@ Application restrictions → Android apps**, adding a package name + SHA-1 pair.
 
 | Build | Package name | SHA-1 |
 |---|---|---|
-| Debug | `app.stourify.mobile` | `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25` |
-| Release | `app.stourify.mobile` | the release/upload certificate's SHA-1 — see below |
+| Debug | `com.zivsluck.stourify` | `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25` |
+| Release | `com.zivsluck.stourify` | the release/upload certificate's SHA-1 — see below |
+
+> **The package name changed on 2026-08-16** (STOURIFY-94), from `app.stourify.mobile` to
+> `com.zivsluck.stourify`. A key restriction is a package-name **and** SHA-1 pair, so the old entry
+> no longer matches anything this project builds. **Until somebody updates the restriction in the
+> Cloud console, every map surface fails on a build that is otherwise perfectly good.**
+>
+> This failure is worth recognising on sight, because nothing about it points at the key: the build
+> succeeds, the app installs, the app starts, and the map is a grey canvas — or the process dies on
+> mount, which is the same shape as STOURIFY-21. No compiler, linter or test catches it, because the
+> restriction lives in Google's console and not in this repository. The only check is to open a map
+> on a device.
+>
+> Adding the new pair is a change in the console, not here. Leave the old pair in place only for as
+> long as somebody still runs a build predating the rename.
 
 The debug SHA-1 above is from `android/app/debug.keystore`, which is committed and shared by every
 developer. Re-derive it any time with:

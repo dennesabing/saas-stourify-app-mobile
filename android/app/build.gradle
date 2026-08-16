@@ -134,24 +134,35 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'app.stourify.mobile'
+    namespace 'com.zivsluck.stourify'
     defaultConfig {
         // The Play Store identity, and it is PERMANENT after first publish —
         // a wrong value cannot be corrected without a new listing and the loss
         // of every install. It must match `expo.android.package` in app.json.
         //
-        // This was left at the scaffold default `com.mobile` until 2026-07-29,
-        // when the first attempt to actually run the app on a device caught it.
+        // History, because this value has moved twice and each move cost a
+        // reinstall. It was the scaffold default `com.mobile` until 2026-07-29,
+        // when the first attempt to run the app on a device caught it. It was
+        // `app.stourify.mobile` from 2026-08-11 (STOURIFY-21) until 2026-08-16,
+        // when it was set to `com.zivsluck.stourify` (STOURIFY-94) to sit under
+        // the operator's own reverse-domain namespace alongside the other
+        // products on that domain.
         //
-        // `namespace` was held at `com.mobile` by hand for a while, on the view
-        // that the Kotlin source package is not the app identity. That is true,
-        // but `expo prebuild` derives `namespace` from `expo.android.package`
-        // and moves the source tree to match, so holding it back only produced
-        // a diff that came straight back on the next prebuild. Since 2026-08-11
-        // (STOURIFY-21) both are `app.stourify.mobile` and this file is left as
-        // prebuild writes it. Note the launcher activity is therefore
-        // `app.stourify.mobile.MainActivity`, not `com.mobile.MainActivity`.
-        applicationId 'app.stourify.mobile'
+        // `namespace` tracks it deliberately. Holding namespace back by hand was
+        // tried and abandoned: `expo prebuild` derives it from
+        // `expo.android.package` and moves the Kotlin source tree to match, so a
+        // hand-held value only produced a diff that returned on the next
+        // prebuild. This pipeline does not run prebuild (`android/` is
+        // committed), so the source tree under `src/main/java/` and the `package`
+        // declarations in MainActivity.kt / MainApplication.kt are moved by hand
+        // to match — they are at `com/zivsluck/stourify/`. The launcher activity
+        // is therefore `com.zivsluck.stourify.MainActivity`.
+        //
+        // Changing this again means every installed copy must be uninstalled
+        // before the new one will install, losing anything created offline and
+        // not yet synced. It also invalidates any Google Maps API key restricted
+        // by package name.
+        applicationId 'com.zivsluck.stourify'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 3

@@ -14,7 +14,7 @@
       "expo-font"
     ],
     "ios": {
-      "bundleIdentifier": "app.stourify.mobile",
+      "bundleIdentifier": "com.zivsluck.stourify",
       "buildNumber": "2",
       "supportsTablet": false,
       "infoPlist": {
@@ -24,7 +24,7 @@
       }
     },
     "android": {
-      "package": "app.stourify.mobile",
+      "package": "com.zivsluck.stourify",
       "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#F3F7FB"

@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The app's package name is now `com.zivsluck.stourify`, was `app.stourify.mobile`**
+  (STOURIFY-94). A package name is the app's permanent identity on a device — the thing Android
+  uses to tell one installed app from another — so it now sits under the operator's own
+  reverse-domain namespace, alongside the other products on that domain. Changed in
+  `app.json` (Android `package` and iOS `bundleIdentifier`), `android/app/build.gradle`
+  (`namespace` + `applicationId`), the `.maestro` flow's `appId`, and the Kotlin source tree,
+  which moves by hand to `com/zivsluck/stourify/` because this pipeline commits `android/`
+  instead of running `expo prebuild`.
+
+  Two consequences, both of which look like an unrelated bug if you do not know the rename
+  happened. Android treats the new package as a different app, so **an existing install must be
+  uninstalled before the new APK will install** — anything created offline and not yet synced is
+  lost with it. And the Google Maps key is restricted to a package-name + SHA-1 pair, so **until
+  the new pair is added in the Cloud console every map is a grey canvas** on an otherwise good
+  build. Nothing in this repo can catch that second one; `docs/google-maps-api-key.md` now says
+  so at the restriction table.
+
+- `.gitignore` now covers `.env.bak-*`. The APK builder copies `.env` aside before rewriting it,
+  and that copy carries the same secrets as the original — it was left stageable.
+
 - **Release builds ship two architectures instead of four, and Gradle runs one worker with no
   daemon.** `reactNativeArchitectures` drops to `arm64-v8a,x86_64` and `android/app/build.gradle`
   gains a matching `ndk { abiFilters … }`. Every Android phone since roughly 2019 is arm64;

@@ -32,6 +32,9 @@ yarn-error.*
 # Environment variables
 .env
 .env.local
+# The APK builder copies .env aside before it rewrites it. That copy holds the same
+# secrets as .env itself, so it must be as unstageable as the original.
+.env.bak-*
 
 # local env files
 .env*.local

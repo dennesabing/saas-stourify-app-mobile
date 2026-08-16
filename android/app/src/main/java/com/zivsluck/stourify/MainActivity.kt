@@ -1,4 +1,4 @@
-package app.stourify.mobile
+package com.zivsluck.stourify
 
 import android.os.Build
 import android.os.Bundle
