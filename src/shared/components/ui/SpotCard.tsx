@@ -61,14 +61,46 @@ export default function SpotCard({
         />
 
         <View style={{ padding: theme.spacing[3], gap: theme.spacing[1], flex: 1 }}>
-          {category ? <Tag label={category} /> : null}
+          {/*
+            The grid draws two of these abreast, so anything that changes height
+            between one card and the next knocks everything below it out of
+            line. A printed form leaves a blank box for a middle name even when
+            there is no middle name, precisely so the fields under it still line
+            up — the strip below is that blank box, and the title's two-line
+            minimum is the same idea one row lower (STOURIFY-101).
 
-          <Text variant="h2" color="ink" numberOfLines={2}>
+            A wide list row has nothing beside it to line up with, so it keeps
+            the old behaviour and wastes no space.
+          */}
+          {isWide ? (
+            category ? (
+              <Tag label={category} />
+            ) : null
+          ) : (
+            <View
+              testID="spot-card-tag-slot"
+              style={{ height: theme.typography.micro.lineHeight + theme.spacing[1] * 2 }}
+            >
+              {category ? <Tag label={category} /> : null}
+            </View>
+          )}
+
+          <Text
+            variant="h2"
+            color="ink"
+            numberOfLines={2}
+            style={isWide ? undefined : { minHeight: theme.typography.h2.lineHeight * 2 }}
+          >
             {title}
           </Text>
 
           {rating != null ? (
-            <Rating value={rating} reviewCount={reviewCount ?? undefined} compact={isWide} />
+            <Rating
+              value={rating}
+              reviewCount={reviewCount ?? undefined}
+              compact={isWide}
+              stacked={!isWide}
+            />
           ) : null}
 
           <View style={styles.metaRow}>

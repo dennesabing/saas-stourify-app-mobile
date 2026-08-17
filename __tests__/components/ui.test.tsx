@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native'
-import { Button, Chip, EmptyState, Input, SpotCard, Tag } from '@/shared/components/ui'
+import { Button, Chip, EmptyState, Input, Rating, SpotCard, Tag } from '@/shared/components/ui'
 import { ThemeProvider } from '@/theme/ThemeProvider'
-import { minTouchTarget } from '@/theme/tokens'
+import { minTouchTarget, spacing, typography } from '@/theme/tokens'
 
 function renderThemed(ui: React.ReactElement) {
   return render(<ThemeProvider scheme="light">{ui}</ThemeProvider>)
@@ -128,6 +128,92 @@ describe('SpotCard', () => {
     renderThemed(<SpotCard title="Hidden Cove" />)
 
     expect(screen.queryByText('Queued ↑')).toBeNull()
+  })
+
+  /**
+   * Discover draws these two abreast. A printed form leaves a blank box for a
+   * middle name even when there is no middle name, so that every field beneath
+   * it still lines up; the tag strip is that blank box. Drawing it only when a
+   * spot happens to have a category is what pushed one card's title lower than
+   * its neighbour's (STOURIFY-101).
+   */
+  it('reserves the tag strip in the grid layout even with no category', () => {
+    renderThemed(<SpotCard title="Hidden Cove" />)
+
+    const slot = screen.getByTestId('spot-card-tag-slot')
+    expect(styleOf(slot).height).toBe(typography.micro.lineHeight + spacing[1] * 2)
+  })
+
+  it('still draws the tag inside that strip when there is a category', () => {
+    renderThemed(<SpotCard title="Hidden Cove" category="Shopping" />)
+
+    expect(screen.getByTestId('spot-card-tag-slot')).toBeTruthy()
+    expect(screen.getByText('Shopping')).toBeTruthy()
+  })
+
+  /**
+   * The same alignment problem one row lower: a title that fits on one line and
+   * one that needs two leave the stars below them at different heights. Two
+   * lines are reserved whichever it turns out to be.
+   */
+  it('reserves two lines for the title in the grid layout', () => {
+    renderThemed(<SpotCard title="Hidden Cove" />)
+
+    expect(styleOf(screen.getByText('Hidden Cove')).minHeight).toBe(typography.h2.lineHeight * 2)
+  })
+
+  /**
+   * A grid cell has about 120 points of room inside it and the stars, the score
+   * and "· 12 reviews" want more like 150, so the row ran off the card's edge.
+   * The figures move underneath the stars.
+   */
+  it('stacks the rating figures under the stars in the grid layout', () => {
+    renderThemed(<SpotCard title="Hidden Cove" rating={4.5} reviewCount={12} />)
+
+    expect(screen.getByTestId('rating-figures')).toBeTruthy()
+    expect(screen.getByText('4.5 · 12 reviews')).toBeTruthy()
+  })
+
+  /**
+   * A list row is as wide as the screen and nothing sits beside it, so there is
+   * nothing to line up with and no room problem to solve. Reserving space there
+   * would only waste it.
+   */
+  it('leaves the wide list layout alone', () => {
+    renderThemed(<SpotCard title="Hidden Cove" rating={4.5} reviewCount={12} layout="wide" />)
+
+    expect(screen.queryByTestId('spot-card-tag-slot')).toBeNull()
+    expect(screen.queryByTestId('rating-figures')).toBeNull()
+    expect(styleOf(screen.getByText('Hidden Cove')).minHeight).toBeUndefined()
+  })
+})
+
+describe('Rating', () => {
+  it('reads as one sentence to a screen reader however it is arranged', () => {
+    renderThemed(<Rating value={4.5} reviewCount={12} stacked />)
+
+    expect(screen.getByLabelText('Rated 4.5 out of 5 from 12 reviews')).toBeTruthy()
+  })
+
+  /**
+   * Whichever arrangement is in use, no line of it may push past whatever is
+   * holding it — the defect this card was raised for. One line each, allowed to
+   * shrink, cut with an ellipsis as the last resort.
+   */
+  it('cannot spill out of a narrow container', () => {
+    renderThemed(<Rating value={4.5} reviewCount={12} stacked />)
+
+    const figures = screen.getByText('4.5 · 12 reviews')
+    expect(figures.props.numberOfLines).toBe(1)
+    expect(styleOf(figures).flexShrink).toBe(1)
+  })
+
+  it('keeps the single-row arrangement for everyone who was already using it', () => {
+    renderThemed(<Rating value={4.5} reviewCount={12} />)
+
+    expect(screen.queryByTestId('rating-figures')).toBeNull()
+    expect(screen.getByText('4.5')).toBeTruthy()
+    expect(screen.getByText('· 12 reviews')).toBeTruthy()
   })
 })
 

@@ -166,6 +166,25 @@ it('keeps the search and nearby entry points', async () => {
 })
 
 /**
+ * The two entry points sit abreast, each taking half the row, and "Spots near
+ * me" is right at the edge of what fits. It used to wrap onto a second line,
+ * which left the button beside it a different height and stopped the row
+ * reading as a row (STOURIFY-101).
+ *
+ * The shared button already refuses to wrap. This pins it on the screen that
+ * actually reported the fault, because that is the arrangement — half a row,
+ * this label — that a future change to the header would break first.
+ */
+it('keeps the nearby entry point on one line', async () => {
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), { timeout: 3000 })
+
+  expect(screen.getByText('Spots near me').props.numberOfLines).toBe(1)
+  expect(screen.getByText('Search spots').props.numberOfLines).toBe(1)
+})
+
+/**
  * The grid and the map are two ways of reading the same spots, and until
  * STOURIFY-54 the second one had a name in the navigation type and no way in.
  */
