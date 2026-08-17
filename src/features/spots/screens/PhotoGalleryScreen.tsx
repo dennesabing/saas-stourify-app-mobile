@@ -62,7 +62,6 @@ export default function PhotoGalleryScreen({ route, navigation }: Props) {
    */
   const hasFailed = isError && !spot
   const isWaiting = !hasFailed && (isLoading || !spot)
-  const hasPhotos = !hasFailed && !isWaiting && media.length > 0
 
   function onViewableItemsChanged({ viewableItems }: { viewableItems: ViewToken[] }) {
     const first = viewableItems[0]
@@ -70,8 +69,20 @@ export default function PhotoGalleryScreen({ route, navigation }: Props) {
   }
 
   return (
+    /*
+      One background, and it is the theme's own (STOURIFY-102).
+
+      This used to switch to `theme.colors.ink` as soon as there were photos to
+      show. `ink` is the role for *text*, so a light-themed app opened a
+      near-black screen — and because photos are drawn with `contentFit="contain"`,
+      every photo that is not exactly the screen's shape framed itself in that
+      near-black. Reusing the text colour for a surface is how a palette starts
+      meaning two things at once; if a deliberately dark viewer is ever wanted it
+      needs a token that says so.
+    */
     <SafeAreaView
-      style={{ flex: 1, backgroundColor: hasPhotos ? theme.colors.ink : theme.colors.surface }}
+      testID="gallery-root"
+      style={{ flex: 1, backgroundColor: theme.colors.surface }}
       edges={['top']}
     >
       <Pressable
@@ -138,7 +149,7 @@ export default function PhotoGalleryScreen({ route, navigation }: Props) {
               <Image
                 testID={`gallery-photo-${itemIndex}`}
                 source={{ uri: item.url }}
-                style={{ width, height }}
+                style={{ width, height, backgroundColor: theme.colors.surface }}
                 contentFit="contain"
               />
             )}

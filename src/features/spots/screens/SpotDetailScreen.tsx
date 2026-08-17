@@ -237,15 +237,48 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               skeleton nobody can resolve keeps announcing a request that
               finished — badly — minutes ago.
             */}
-            {hasFailed ? null : isWaiting ? (
-              <Skeleton height={20} width="40%" />
-            ) : (
-              <Rating value={spot?.rating_average ?? 0} reviewCount={spot?.reviews_count ?? 0} />
-            )}
-  
-            <View style={{ flexDirection: 'row', gap: theme.spacing[3] }}>
+            {/*
+              The rating and Save share one line, the way a shelf edge carries
+              both a price and the button you press to take the item
+              (STOURIFY-102). Save used to be a full-width row of its own below
+              the review buttons, with the whole right-hand side of this line
+              left empty.
+
+              The row renders in the waiting state too, with a skeleton standing
+              in for the rating, so Save does not appear late and shift
+              everything under it downwards once the request lands.
+            */}
+            <View
+              testID="spot-rating-row"
+              style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[3] }}
+            >
+              <View style={{ flex: 1 }}>
+                {isWaiting ? (
+                  <Skeleton height={20} width="40%" />
+                ) : (
+                  <Rating value={spot?.rating_average ?? 0} reviewCount={spot?.reviews_count ?? 0} />
+                )}
+              </View>
               <Button
-                label={`See all ${spot?.reviews_count ?? 0} reviews`}
+                icon="🔖"
+                label={isSaved ? (isQueued ? 'Saved ↑' : 'Saved') : 'Save'}
+                variant={isSaved ? 'secondary' : 'accent'}
+                disabled={isSaved}
+                onPress={onSave}
+              />
+            </View>
+
+            {/*
+              The count is gone from this label on purpose. At half the row's
+              width there is room for about fifteen characters, and
+              "See all 12 reviews" is eighteen — so it either wrapped onto a
+              second line (the reported defect) or would now be cut short by an
+              ellipsis. The number is already one line above, in the rating row's
+              "· 12 reviews", so nothing is lost by saying it once.
+            */}
+            <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
+              <Button
+                label="See all reviews"
                 variant="secondary"
                 onPress={() => navigation.navigate('Reviews', { spotId })}
                 style={{ flex: 1 }}
@@ -257,13 +290,6 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                 style={{ flex: 1 }}
               />
             </View>
-  
-            <Button
-              label={isSaved ? (isQueued ? 'Saved ↑' : 'Saved') : 'Save'}
-              variant={isSaved ? 'secondary' : 'accent'}
-              disabled={isSaved}
-              onPress={onSave}
-            />
           </View>
         )}
 
