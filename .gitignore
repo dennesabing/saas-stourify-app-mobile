@@ -41,3 +41,4 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+android/.kotlin/errors
