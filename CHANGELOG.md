@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Spot cards in the Discover grid line up, and their review figures stay on the card**
+  (STOURIFY-101).
+
+  Two cards sit abreast in the grid, so anything that changes height between one and the next
+  knocks everything below it out of line — and one of them ran out of room entirely.
+
+  - **The category tag always occupies its strip.** The little "Shopping" pill was drawn only
+    when a spot had a category, so a card with one pushed its title about 22 points lower than
+    the card beside it. `SpotCard` now reserves that strip whether or not there is a tag, the way
+    a printed form leaves a blank box for a middle name so every field beneath it still lines up.
+  - **The title reserves two lines.** Same problem one row lower: a one-line title and a
+    two-line title left the stars underneath them at different heights.
+  - **The review figures moved under the stars.** `Rating` put five stars, the score and
+    "· 12 reviews" on a single row that could neither shrink nor wrap. A grid cell has about 120
+    points of room inside and that row wants nearer 150, so the end of it simply ran off the
+    card's edge. `Rating` gained a `stacked` arrangement — stars on one line, "4.5 · 12 reviews"
+    on the next — which `SpotCard` uses in the grid layout. Both arrangements are now capped at
+    one line and allowed to shrink, so nothing can spill in any holder.
+
+  The `wide` list layout is deliberately untouched: a list row is as wide as the screen with
+  nothing beside it, so there is nothing to line up with and reserving space would only waste it.
+  "Spots near me" was reported on the same card as wrapping onto two lines; STOURIFY-102's
+  one-line button label had already fixed it, and this card confirmed the words still fit
+  without being cut short.
+
+  Files: `src/shared/components/ui/SpotCard.tsx`, `src/shared/components/ui/Rating.tsx`.
+
 - **Three tidy-ups on the spot screen and the photo viewer** (STOURIFY-102).
 
   A shop window with three small things wrong with it: a sign too wide for its board, a "keep
