@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FlatList, Pressable, View } from 'react-native'
+import { FlatList, KeyboardAvoidingView, Pressable, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
@@ -149,65 +149,69 @@ export default function CommentsScreen({ route }: Props) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
-      <View style={{ padding: theme.gutter }}>
-        <Text variant="h1">Comments</Text>
-      </View>
-
-      <FlatList
-        data={rows}
-        keyExtractor={(row) => row.comment.id}
-        contentContainerStyle={rows.length === 0 ? { flex: 1 } : { paddingHorizontal: theme.gutter, gap: theme.spacing[3] }}
-        ListEmptyComponent={empty}
-        renderItem={({ item }) => (
-          <View
-            style={{
-              flexDirection: 'row',
-              gap: theme.spacing[2],
-              marginLeft: item.depth * theme.spacing[6],
-            }}
-          >
-            <Avatar name={item.comment.user?.name} size={28} />
-            <View style={{ flex: 1 }}>
-              <Text variant="caption" color="primary">
-                {item.comment.user?.name ?? 'User'}
-              </Text>
-              <Text variant="body">{item.comment.body}</Text>
-            </View>
-          </View>
-        )}
-      />
-
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: theme.spacing[2],
-          padding: theme.gutter,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.hairline,
-        }}
-      >
-        <View style={{ flex: 1 }}>
-          <Input placeholder="Add a comment..." value={text} onChangeText={setText} />
+      {/* STOURIFY-100: the composer is docked at the bottom, so under edge-to-edge —
+          where Android no longer shrinks the window — the keyboard covers it outright. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <View style={{ padding: theme.gutter }}>
+          <Text variant="h1">Comments</Text>
         </View>
-        <Pressable
-          onPress={handlePost}
-          disabled={!text.trim()}
-          accessibilityRole="button"
-          accessibilityLabel="Post comment"
+
+        <FlatList
+          data={rows}
+          keyExtractor={(row) => row.comment.id}
+          contentContainerStyle={rows.length === 0 ? { flex: 1 } : { paddingHorizontal: theme.gutter, gap: theme.spacing[3] }}
+          ListEmptyComponent={empty}
+          renderItem={({ item }) => (
+            <View
+              style={{
+                flexDirection: 'row',
+                gap: theme.spacing[2],
+                marginLeft: item.depth * theme.spacing[6],
+              }}
+            >
+              <Avatar name={item.comment.user?.name} size={28} />
+              <View style={{ flex: 1 }}>
+                <Text variant="caption" color="primary">
+                  {item.comment.user?.name ?? 'User'}
+                </Text>
+                <Text variant="body">{item.comment.body}</Text>
+              </View>
+            </View>
+          )}
+        />
+
+        <View
           style={{
-            minHeight: theme.minTouchTarget,
-            minWidth: theme.minTouchTarget,
+            flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: 'center',
-            opacity: text.trim() ? 1 : 0.5,
+            gap: theme.spacing[2],
+            padding: theme.gutter,
+            borderTopWidth: 1,
+            borderTopColor: theme.colors.hairline,
           }}
         >
-          <Text variant="h2" color="primary">
-            ↑
-          </Text>
-        </Pressable>
-      </View>
+          <View style={{ flex: 1 }}>
+            <Input placeholder="Add a comment..." value={text} onChangeText={setText} />
+          </View>
+          <Pressable
+            onPress={handlePost}
+            disabled={!text.trim()}
+            accessibilityRole="button"
+            accessibilityLabel="Post comment"
+            style={{
+              minHeight: theme.minTouchTarget,
+              minWidth: theme.minTouchTarget,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: text.trim() ? 1 : 0.5,
+            }}
+          >
+            <Text variant="h2" color="primary">
+              ↑
+            </Text>
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   )
 }

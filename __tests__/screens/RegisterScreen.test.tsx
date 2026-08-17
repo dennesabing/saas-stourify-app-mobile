@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { KeyboardAvoidingView } from 'react-native'
 import RegisterScreen from '@/features/auth/screens/RegisterScreen'
 import * as authApi from '@/shared/api/auth'
 import { onLogin } from '@/sync/session'
@@ -142,4 +143,15 @@ it('says so when registration is closed, instead of failing on submit', async ()
   await waitFor(() => {
     expect(screen.getByText('Registration is currently closed.')).toBeTruthy()
   })
+})
+
+it('moves its fields clear of the keyboard — STOURIFY-100', () => {
+  // The reported bug: focusing "Confirm password" put the field behind the
+  // keyboard. The app draws edge-to-edge, so Android no longer shrinks the
+  // window when the keyboard opens (`adjustResize` is inert) and the screen has
+  // to shift its own content. A `KeyboardAvoidingView` in the tree is what does
+  // that; before the fix there was not one anywhere in `src/`.
+  renderScreen()
+
+  expect(screen.UNSAFE_getByType(KeyboardAvoidingView)).toBeTruthy()
 })

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Image, ScrollView, ActivityIndicator,
+  Image, ScrollView, ActivityIndicator, KeyboardAvoidingView,
 } from 'react-native'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
@@ -69,65 +69,69 @@ export default function PostComposeScreen({ route, navigation }: Props) {
     onError: (err) => setError(extractApiError(err)),
   })
 
+  // STOURIFY-100: edge-to-edge means Android no longer shrinks the window when the
+  // keyboard opens, so the caption box has to be lifted clear of it here.
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>New Post</Text>
-        <TouchableOpacity onPress={() => createMutation.mutate()} disabled={createMutation.isPending}>
-          <Text style={styles.share}>Share</Text>
-        </TouchableOpacity>
-      </View>
-
-      {mediaAssets[0] && (
-        <Image source={{ uri: mediaAssets[0].uri }} style={styles.preview} resizeMode="cover" />
-      )}
-
-      <TextInput
-        style={styles.caption}
-        placeholder="Write a caption..."
-        placeholderTextColor="#666"
-        value={caption}
-        onChangeText={setCaption}
-        multiline
-      />
-
-      <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('SpotPicker')}>
-        <Text style={styles.rowIcon}>📍</Text>
-        <Text style={styles.rowLabel}>Tag a Spot</Text>
-        <Text style={styles.rowValue}>{pendingSpot?.title ?? 'None ›'}</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.sectionLabel}>Visibility</Text>
-      <View style={styles.visibilityRow}>
-        {VISIBILITY_OPTIONS.map((opt) => (
-          <TouchableOpacity
-            key={opt.value}
-            style={[styles.visOpt, visibility === opt.value && styles.visOptActive]}
-            onPress={() => setVisibility(opt.value)}
-          >
-            <Text style={[styles.visText, visibility === opt.value && styles.visTextActive]}>
-              {opt.label}
-            </Text>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+      <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={styles.back}>← Back</Text>
           </TouchableOpacity>
-        ))}
-      </View>
+          <Text style={styles.title}>New Post</Text>
+          <TouchableOpacity onPress={() => createMutation.mutate()} disabled={createMutation.isPending}>
+            <Text style={styles.share}>Share</Text>
+          </TouchableOpacity>
+        </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+        {mediaAssets[0] && (
+          <Image source={{ uri: mediaAssets[0].uri }} style={styles.preview} resizeMode="cover" />
+        )}
 
-      <TouchableOpacity
-        style={styles.shareBtn}
-        onPress={() => createMutation.mutate()}
-        disabled={createMutation.isPending}
-      >
-        {createMutation.isPending
-          ? <ActivityIndicator color="#fff" />
-          : <Text style={styles.shareBtnText}>Share Post</Text>
-        }
-      </TouchableOpacity>
-    </ScrollView>
+        <TextInput
+          style={styles.caption}
+          placeholder="Write a caption..."
+          placeholderTextColor="#666"
+          value={caption}
+          onChangeText={setCaption}
+          multiline
+        />
+
+        <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('SpotPicker')}>
+          <Text style={styles.rowIcon}>📍</Text>
+          <Text style={styles.rowLabel}>Tag a Spot</Text>
+          <Text style={styles.rowValue}>{pendingSpot?.title ?? 'None ›'}</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.sectionLabel}>Visibility</Text>
+        <View style={styles.visibilityRow}>
+          {VISIBILITY_OPTIONS.map((opt) => (
+            <TouchableOpacity
+              key={opt.value}
+              style={[styles.visOpt, visibility === opt.value && styles.visOptActive]}
+              onPress={() => setVisibility(opt.value)}
+            >
+              <Text style={[styles.visText, visibility === opt.value && styles.visTextActive]}>
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        <TouchableOpacity
+          style={styles.shareBtn}
+          onPress={() => createMutation.mutate()}
+          disabled={createMutation.isPending}
+        >
+          {createMutation.isPending
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.shareBtnText}>Share Post</Text>
+          }
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
 

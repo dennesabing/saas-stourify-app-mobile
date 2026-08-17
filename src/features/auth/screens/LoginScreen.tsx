@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { ScrollView, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { View } from 'react-native'
 import { useForm, Controller } from 'react-hook-form'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { RootStackParamList } from '@/shared/navigation/types'
@@ -8,7 +7,7 @@ import { useAuthStore } from '@/shared/store/auth'
 import * as authApi from '@/shared/api/auth'
 import { extractApiError, extractValidationErrors } from '@/shared/api/client'
 import { onLogin } from '@/sync/session'
-import { Button, Input, Text } from '@/shared/components/ui'
+import { Button, Input, KeyboardAwareScreen, Text } from '@/shared/components/ui'
 import { useTheme } from '@/theme/ThemeProvider'
 
 type FormData = { email: string; password: string }
@@ -51,62 +50,60 @@ export default function LoginScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: theme.gutter, justifyContent: 'center' }}>
-        <View style={{ gap: theme.spacing[5] }}>
-          <Text variant="h1">Welcome back</Text>
+    <KeyboardAwareScreen centered>
+      <View style={{ gap: theme.spacing[5] }}>
+        <Text variant="h1">Welcome back</Text>
 
-          <Controller
-            control={control}
-            name="email"
-            rules={{ required: 'Email is required', pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email' } }}
-            render={({ field: { onChange, value } }) => (
-              <Input
-                label="Email"
-                placeholder="you@example.com"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={value}
-                onChangeText={onChange}
-                error={errors.email?.message}
-              />
-            )}
-          />
+        <Controller
+          control={control}
+          name="email"
+          rules={{ required: 'Email is required', pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email' } }}
+          render={({ field: { onChange, value } }) => (
+            <Input
+              label="Email"
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={value}
+              onChangeText={onChange}
+              error={errors.email?.message}
+            />
+          )}
+        />
 
-          <Controller
-            control={control}
-            name="password"
-            rules={{ required: 'Password is required', minLength: { value: 8, message: 'Min 8 characters' } }}
-            render={({ field: { onChange, value } }) => (
-              <Input
-                label="Password"
-                placeholder="Your password"
-                secureTextEntry
-                autoCapitalize="none"
-                value={value}
-                onChangeText={onChange}
-                error={errors.password?.message}
-              />
-            )}
-          />
+        <Controller
+          control={control}
+          name="password"
+          rules={{ required: 'Password is required', minLength: { value: 8, message: 'Min 8 characters' } }}
+          render={({ field: { onChange, value } }) => (
+            <Input
+              label="Password"
+              placeholder="Your password"
+              secureTextEntry
+              autoCapitalize="none"
+              value={value}
+              onChangeText={onChange}
+              error={errors.password?.message}
+            />
+          )}
+        />
 
-          <Button label="Forgot password?" variant="ghost" onPress={() => navigation.navigate('ForgotPassword')} />
+        <Button label="Forgot password?" variant="ghost" onPress={() => navigation.navigate('ForgotPassword')} />
 
-          {serverError ? (
-            <Text variant="caption" color="danger">
-              {serverError}
-            </Text>
-          ) : null}
+        {serverError ? (
+          <Text variant="caption" color="danger">
+            {serverError}
+          </Text>
+        ) : null}
 
-          <Button label="Sign in" onPress={handleSubmit(onSubmit)} loading={loading} fullWidth />
+        <Button label="Sign in" onPress={handleSubmit(onSubmit)} loading={loading} fullWidth />
 
-          <Button
-            label="New here? Create an account"
-            variant="ghost"
-            onPress={() => navigation.navigate('Register')}
-          />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        <Button
+          label="New here? Create an account"
+          variant="ghost"
+          onPress={() => navigation.navigate('Register')}
+        />
+      </View>
+    </KeyboardAwareScreen>
   )
 }

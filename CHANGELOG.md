@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The on-screen keyboard no longer covers the field you are typing into** (STOURIFY-100).
+  Reported against "Confirm password" on the registration screen; it was never limited to that
+  field.
+
+  Picture the screen as a sheet of paper in a tray. Android used to shrink the tray when the
+  keyboard slid up, so the paper got shorter and everything still fit above it — that is what
+  `android:windowSoftInputMode="adjustResize"` in the manifest asks for, and it is still there.
+  It stopped working when the app went **edge-to-edge** (`edgeToEdgeEnabled=true`, which Expo
+  SDK 54 requires): the app now draws all the way to the physical edges of the screen, keyboard
+  included, Android no longer resizes anything, and the app is handed the keyboard's height to
+  deal with itself. Nothing in the app did — there was not one `KeyboardAvoidingView` in `src/`.
+
+  New shared `KeyboardAwareScreen` primitive (`src/shared/components/ui/`) carries the fix, so a
+  new form inherits it instead of repeating the bug. Applied to the four auth screens, Create
+  Spot, Write Review, Post Compose and Edit Profile; the comment composer on Comments, the
+  delete-account dialog in Settings, and the `Sheet` primitive (which covers Report and every
+  future sheet with a field in it) each got the same treatment in the shape that suited them.
+
+  The shared component also sets `keyboardShouldPersistTaps="handled"`, which fixes a second,
+  quieter annoyance: a tap on a button below the fields used to be spent dismissing the keyboard,
+  so everything needed two taps.
+
+  Left alone on purpose: Search, Spot Picker and Follow Suggestions. Their search box is pinned to
+  the top of the screen, where the keyboard cannot reach it.
+
 - **Every native library in the release APK is now built for 16 KB memory pages** (STOURIFY-80).
   A phone hands out memory in fixed-size blocks called *pages* — 4 KB on older Android, 16 KB on
   devices from Android 15 onwards, which is faster. A library compiled for the old block size will

@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { Pressable, ScrollView, TextInput, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { Pressable, TextInput, View } from 'react-native'
 import { useDatabase } from '@nozbe/watermelondb/react'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
-import { Button, Text } from '@/shared/components/ui'
+import { Button, KeyboardAwareScreen, Text } from '@/shared/components/ui'
 import { createLocalReview } from '@/features/reviews/api/createLocalReview'
 import { useTheme } from '@/theme/ThemeProvider'
 
@@ -46,75 +45,73 @@ export default function WriteReviewScreen({ route, navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
-      <ScrollView contentContainerStyle={{ padding: theme.gutter, gap: theme.spacing[4] }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[3] }}>
+    <KeyboardAwareScreen edges={['top']} contentContainerStyle={{ gap: theme.spacing[4] }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[3] }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          onPress={() => navigation.goBack()}
+          style={{ minHeight: theme.minTouchTarget, justifyContent: 'center' }}
+        >
+          <Text variant="body" color="primary">
+            ← Back
+          </Text>
+        </Pressable>
+        <Text variant="h1">Write a review</Text>
+      </View>
+
+      <Text variant="body" color="muted">
+        Saved on this device straight away. It uploads itself when you are back online.
+      </Text>
+
+      <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
+        {STAR_LABELS.map((value) => (
           <Pressable
+            key={value}
             accessibilityRole="button"
-            accessibilityLabel="Back"
-            onPress={() => navigation.goBack()}
-            style={{ minHeight: theme.minTouchTarget, justifyContent: 'center' }}
+            accessibilityLabel={`Rate ${value} stars`}
+            accessibilityState={{ selected: rating >= value }}
+            onPress={() => setRating(value)}
+            style={{
+              minWidth: theme.minTouchTarget,
+              minHeight: theme.minTouchTarget,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
-            <Text variant="body" color="primary">
-              ← Back
+            <Text variant="h1" style={{ color: rating >= value ? theme.colors.accent2 : theme.colors.hairline }}>
+              ★
             </Text>
           </Pressable>
-          <Text variant="h1">Write a review</Text>
-        </View>
+        ))}
+      </View>
 
-        <Text variant="body" color="muted">
-          Saved on this device straight away. It uploads itself when you are back online.
+      <TextInput
+        style={{
+          minHeight: 120,
+          textAlignVertical: 'top',
+          backgroundColor: theme.colors.card,
+          borderColor: theme.colors.hairline,
+          borderWidth: 1,
+          borderRadius: theme.radius.button,
+          padding: theme.spacing[4],
+          color: theme.colors.ink,
+          ...theme.typography.body,
+        }}
+        placeholder="Share what made this spot worth the trip"
+        placeholderTextColor={theme.colors.muted}
+        value={body}
+        onChangeText={setBody}
+        multiline
+      />
+
+      {error !== null ? (
+        <Text variant="caption" color="danger">
+          {error}
         </Text>
+      ) : null}
 
-        <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
-          {STAR_LABELS.map((value) => (
-            <Pressable
-              key={value}
-              accessibilityRole="button"
-              accessibilityLabel={`Rate ${value} stars`}
-              accessibilityState={{ selected: rating >= value }}
-              onPress={() => setRating(value)}
-              style={{
-                minWidth: theme.minTouchTarget,
-                minHeight: theme.minTouchTarget,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Text variant="h1" style={{ color: rating >= value ? theme.colors.accent2 : theme.colors.hairline }}>
-                ★
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <TextInput
-          style={{
-            minHeight: 120,
-            textAlignVertical: 'top',
-            backgroundColor: theme.colors.card,
-            borderColor: theme.colors.hairline,
-            borderWidth: 1,
-            borderRadius: theme.radius.button,
-            padding: theme.spacing[4],
-            color: theme.colors.ink,
-            ...theme.typography.body,
-          }}
-          placeholder="Share what made this spot worth the trip"
-          placeholderTextColor={theme.colors.muted}
-          value={body}
-          onChangeText={setBody}
-          multiline
-        />
-
-        {error !== null ? (
-          <Text variant="caption" color="danger">
-            {error}
-          </Text>
-        ) : null}
-
-        <Button label="Post review" onPress={onSave} />
-      </ScrollView>
-    </SafeAreaView>
+      <Button label="Post review" onPress={onSave} />
+    </KeyboardAwareScreen>
   )
 }

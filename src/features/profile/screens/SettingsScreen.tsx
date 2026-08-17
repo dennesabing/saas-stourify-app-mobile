@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, Linking } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, Linking, KeyboardAvoidingView } from 'react-native'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { ProfileStackParamList } from '@/shared/navigation/types'
@@ -205,7 +205,9 @@ export default function SettingsScreen({ navigation }: Props) {
         animationType="fade"
         onRequestClose={() => setConfirmingDelete(false)}
       >
-        <View style={styles.modalBackdrop}>
+        {/* STOURIFY-100: a modal has its own window, and under edge-to-edge nothing
+            resizes it — without this the keyboard covers both confirmation fields. */}
+        <KeyboardAvoidingView style={styles.modalBackdrop} behavior="padding">
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Delete your account?</Text>
             <Text style={styles.modalBody}>
@@ -254,7 +256,7 @@ export default function SettingsScreen({ navigation }: Props) {
               <Text style={styles.cancelButtonLabel}>Cancel</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   )

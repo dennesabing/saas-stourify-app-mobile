@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { ScrollView, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { View } from 'react-native'
 import { Controller, useForm } from 'react-hook-form'
 import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
@@ -10,7 +9,7 @@ import { useOnboardingStore } from '@/shared/store/onboarding'
 import * as authApi from '@/shared/api/auth'
 import { extractApiError, extractValidationErrors } from '@/shared/api/client'
 import { onLogin } from '@/sync/session'
-import { Button, Input, Text } from '@/shared/components/ui'
+import { Button, Input, KeyboardAwareScreen, Text } from '@/shared/components/ui'
 import { useTheme } from '@/theme/ThemeProvider'
 
 type FormData = { name: string; email: string; password: string; password_confirmation: string; code: string }
@@ -84,122 +83,120 @@ export default function RegisterScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: theme.gutter, justifyContent: 'center' }}>
-        <View style={{ gap: theme.spacing[5] }}>
-          <Text variant="h1">Create Account</Text>
+    <KeyboardAwareScreen centered>
+      <View style={{ gap: theme.spacing[5] }}>
+        <Text variant="h1">Create Account</Text>
 
-          <Controller
-            control={control}
-            name="name"
-            rules={{ required: 'Name is required' }}
-            render={({ field: { onChange, value } }) => (
-              <Input
-                label="Name"
-                placeholder="Your name"
-                autoCapitalize="words"
-                value={value}
-                onChangeText={onChange}
-                error={errors.name?.message}
-              />
-            )}
-          />
-
-          <Controller
-            control={control}
-            name="email"
-            rules={{ required: 'Email is required', pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email' } }}
-            render={({ field: { onChange, value } }) => (
-              <Input
-                label="Email"
-                placeholder="you@example.com"
-                autoCapitalize="none"
-                keyboardType="email-address"
-                value={value}
-                onChangeText={onChange}
-                error={errors.email?.message}
-              />
-            )}
-          />
-
-          <Controller
-            control={control}
-            name="password"
-            rules={{ required: 'Password is required', minLength: { value: 8, message: 'Min 8 characters' } }}
-            render={({ field: { onChange, value } }) => (
-              <Input
-                label="Password"
-                placeholder="At least 8 characters"
-                secureTextEntry
-                autoCapitalize="none"
-                value={value}
-                onChangeText={onChange}
-                error={errors.password?.message}
-              />
-            )}
-          />
-
-          <Controller
-            control={control}
-            name="password_confirmation"
-            rules={{
-              required: 'Password confirmation is required',
-              validate: (v) => v === password || 'Passwords do not match',
-            }}
-            render={({ field: { onChange, value } }) => (
-              <Input
-                label="Confirm password"
-                placeholder="Repeat your password"
-                secureTextEntry
-                autoCapitalize="none"
-                value={value}
-                onChangeText={onChange}
-                error={errors.password_confirmation?.message}
-              />
-            )}
-          />
-
-          {invitationOnly ? (
-            <Controller
-              control={control}
-              name="code"
-              rules={{ required: 'Invitation code is required' }}
-              render={({ field: { onChange, value } }) => (
-                <Input
-                  label="Invitation code"
-                  placeholder="Invitation code"
-                  autoCapitalize="none"
-                  value={value}
-                  onChangeText={onChange}
-                  error={errors.code?.message}
-                />
-              )}
+        <Controller
+          control={control}
+          name="name"
+          rules={{ required: 'Name is required' }}
+          render={({ field: { onChange, value } }) => (
+            <Input
+              label="Name"
+              placeholder="Your name"
+              autoCapitalize="words"
+              value={value}
+              onChangeText={onChange}
+              error={errors.name?.message}
             />
-          ) : null}
+          )}
+        />
 
-          {!registrationEnabled ? (
-            <Text variant="body" color="danger">
-              Registration is currently closed.
-            </Text>
-          ) : null}
+        <Controller
+          control={control}
+          name="email"
+          rules={{ required: 'Email is required', pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email' } }}
+          render={({ field: { onChange, value } }) => (
+            <Input
+              label="Email"
+              placeholder="you@example.com"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              value={value}
+              onChangeText={onChange}
+              error={errors.email?.message}
+            />
+          )}
+        />
 
-          {serverError ? (
-            <Text variant="caption" color="danger">
-              {serverError}
-            </Text>
-          ) : null}
+        <Controller
+          control={control}
+          name="password"
+          rules={{ required: 'Password is required', minLength: { value: 8, message: 'Min 8 characters' } }}
+          render={({ field: { onChange, value } }) => (
+            <Input
+              label="Password"
+              placeholder="At least 8 characters"
+              secureTextEntry
+              autoCapitalize="none"
+              value={value}
+              onChangeText={onChange}
+              error={errors.password?.message}
+            />
+          )}
+        />
 
-          <Button
-            label="Create account"
-            onPress={handleSubmit(onSubmit)}
-            loading={loading}
-            disabled={!registrationEnabled}
-            fullWidth
+        <Controller
+          control={control}
+          name="password_confirmation"
+          rules={{
+            required: 'Password confirmation is required',
+            validate: (v) => v === password || 'Passwords do not match',
+          }}
+          render={({ field: { onChange, value } }) => (
+            <Input
+              label="Confirm password"
+              placeholder="Repeat your password"
+              secureTextEntry
+              autoCapitalize="none"
+              value={value}
+              onChangeText={onChange}
+              error={errors.password_confirmation?.message}
+            />
+          )}
+        />
+
+        {invitationOnly ? (
+          <Controller
+            control={control}
+            name="code"
+            rules={{ required: 'Invitation code is required' }}
+            render={({ field: { onChange, value } }) => (
+              <Input
+                label="Invitation code"
+                placeholder="Invitation code"
+                autoCapitalize="none"
+                value={value}
+                onChangeText={onChange}
+                error={errors.code?.message}
+              />
+            )}
           />
+        ) : null}
 
-          <Button label="Already have an account? Login" variant="ghost" onPress={() => navigation.navigate('Login')} />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        {!registrationEnabled ? (
+          <Text variant="body" color="danger">
+            Registration is currently closed.
+          </Text>
+        ) : null}
+
+        {serverError ? (
+          <Text variant="caption" color="danger">
+            {serverError}
+          </Text>
+        ) : null}
+
+        <Button
+          label="Create account"
+          onPress={handleSubmit(onSubmit)}
+          loading={loading}
+          disabled={!registrationEnabled}
+          fullWidth
+        />
+
+        <Button label="Already have an account? Login" variant="ghost" onPress={() => navigation.navigate('Login')} />
+      </View>
+    </KeyboardAwareScreen>
   )
 }
