@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Three tidy-ups on the spot screen and the photo viewer** (STOURIFY-102).
+
+  A shop window with three small things wrong with it: a sign too wide for its board, a "keep
+  this shop" button stranded on a shelf of its own, and a picture frame painted the wrong colour.
+
+  - **Button labels stay on one line.** `Button` now renders its label with `numberOfLines={1}`
+    and lets it shrink, so a long label is shortened with an ellipsis instead of wrapping onto a
+    second line and making two side-by-side buttons different heights. Every button in the app
+    inherits this, not just the two that were reported. `Button` also gained an optional `icon`
+    prop for icon-plus-text buttons; the icon is decoration and is left out of the button's
+    accessibility label.
+  - **Save sits beside the rating.** On the spot screen, `Save` moved out of its own full-width
+    row and onto the rating line as a compact icon-plus-text button, filling space that was
+    empty. The reviews button also dropped the count from its own label — `See all 12 reviews`
+    became `See all reviews` — because the count is already printed one line above in the rating
+    row, and eighteen characters never fitted in half a phone's width.
+  - **Photos use the theme background.** The full-screen photo viewer painted itself with
+    `theme.colors.ink`, the *text* colour, so a light-themed app opened a near-black screen and
+    framed every photo in near-black bars (photos are drawn with `contentFit="contain"`). It now
+    uses `theme.colors.surface`, as does the photo itself. The feed's `PostCard` photo, which
+    declared no background at all and borrowed whatever sat behind it while loading, now uses
+    `theme.colors.surfaceAlt`.
+
+  Files: `src/shared/components/ui/Button.tsx`, `src/shared/components/ui/PostCard.tsx`,
+  `src/features/spots/screens/SpotDetailScreen.tsx`,
+  `src/features/spots/screens/PhotoGalleryScreen.tsx`.
+
 - **The on-screen keyboard no longer covers the field you are typing into** (STOURIFY-100).
   Reported against "Confirm password" on the registration screen; it was never limited to that
   field.

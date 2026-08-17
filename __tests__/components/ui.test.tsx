@@ -48,6 +48,34 @@ describe('Button', () => {
 
     expect(screen.getByRole('button')).toBeDisabled()
   })
+
+  /**
+   * A shop sign that wraps its last word onto a second line looks careless, and
+   * two side-by-side buttons whose labels wrap differently end up different
+   * heights. A button label is a label, not a paragraph: it gets one line, and
+   * if it genuinely cannot fit it is shortened with an ellipsis rather than
+   * pushed downwards (STOURIFY-102).
+   */
+  it('keeps its label on a single line', () => {
+    renderThemed(<Button label="See all reviews" />)
+
+    expect(screen.getByText('See all reviews').props.numberOfLines).toBe(1)
+  })
+
+  it('renders a leading icon when given one', () => {
+    renderThemed(<Button icon="🔖" label="Save" />)
+
+    expect(screen.getByText('🔖')).toBeTruthy()
+    expect(screen.getByText('Save')).toBeTruthy()
+  })
+
+  it('still announces only its label when it has an icon', () => {
+    renderThemed(<Button icon="🔖" label="Save" />)
+
+    // The icon is decoration. The button's accessibility label stays the words,
+    // so a screen reader says "Save" and not the emoji's own name.
+    expect(screen.getByLabelText('Save')).toBeTruthy()
+  })
 })
 
 describe('Chip', () => {

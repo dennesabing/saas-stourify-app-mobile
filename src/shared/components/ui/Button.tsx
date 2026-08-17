@@ -7,6 +7,14 @@ export type ButtonSize = 'md' | 'lg'
 
 interface Props {
   label: string
+  /**
+   * A short decorative glyph drawn before the label — an emoji or a symbol
+   * character, not an icon component. It makes an icon-plus-text button out of
+   * the row this component already lays out, so a caller never hand-rolls one
+   * (STOURIFY-102). It is deliberately excluded from the accessibility label:
+   * a screen reader should say "Save", not "bookmark Save".
+   */
+  icon?: string
   onPress?: () => void
   variant?: ButtonVariant
   size?: ButtonSize
@@ -20,6 +28,7 @@ interface Props {
 
 export default function Button({
   label,
+  icon,
   onPress,
   variant = 'primary',
   size = 'md',
@@ -78,7 +87,19 @@ export default function Button({
         />
       ) : (
         <View style={styles.content}>
-          <Text variant="button" color={labelColor}>
+          {icon ? (
+            <Text variant="button" color={labelColor}>
+              {icon}
+            </Text>
+          ) : null}
+          {/*
+            One line, always. Two buttons side by side each take half the row,
+            and a label long enough to wrap makes them different heights — the
+            defect this fixes (STOURIFY-102). `flexShrink` on both the label and
+            the row around it is what lets React Native ellipsize the text
+            instead of letting it push past the button's edge.
+          */}
+          <Text variant="button" color={labelColor} numberOfLines={1} style={styles.label}>
             {label}
           </Text>
         </View>
@@ -89,5 +110,6 @@ export default function Button({
 
 const styles = StyleSheet.create({
   base: { alignItems: 'center', justifyContent: 'center' },
-  content: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  content: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  label: { flexShrink: 1 },
 })

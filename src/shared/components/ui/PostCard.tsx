@@ -115,7 +115,11 @@ function PostCard({ post, onPress, onLikePress, onAuthorPress, onMorePress }: Pr
       {photo ? (
         <Image
           source={{ uri: photo.thumb_url ?? photo.url }}
-          style={styles.photo}
+          // The colour is theme-dependent, so it cannot live in the static
+          // StyleSheet below. Without it the box declared no background at all
+          // and showed whatever sat behind it while the image loaded
+          // (STOURIFY-102).
+          style={[styles.photo, { backgroundColor: theme.colors.surfaceAlt }]}
           resizeMode="cover"
           accessible
           accessibilityRole="image"

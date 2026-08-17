@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native'
 import { QueryClient } from '@tanstack/react-query'
 import SpotDetailScreen from '@/features/spots/screens/SpotDetailScreen'
 import type WishlistItem from '@/db/models/WishlistItem'
@@ -57,7 +57,7 @@ it('renders a real hero image, the rating and the review count', async () => {
     expect(screen.getByTestId('spot-hero-image')).toBeTruthy()
     expect(screen.getByText('Blue Cove')).toBeTruthy()
     expect(screen.getByText('4.5')).toBeTruthy()
-    expect(screen.getByText('See all 12 reviews')).toBeTruthy()
+    expect(screen.getByText('See all reviews')).toBeTruthy()
     expect(screen.getByText('✓ Verified')).toBeTruthy()
   })
 
@@ -131,12 +131,12 @@ it('shows no spot facts and no spot actions when the spot cannot be fetched', as
   await waitFor(() => expect(screen.getByTestId('spot-hero-error')).toBeTruthy())
 
   // Everything in the details block is a fact about the spot or an action on
-  // it, and there is no spot. `...` and "See all 0 reviews" are the two the
+  // it, and there is no spot. `...` and "See all reviews" are the two the
   // card is named after; the rest come from the same block and would otherwise
   // sit under the error panel inviting the reader to review and bookmark a
   // place the app has just admitted it cannot identify.
   expect(screen.queryByText('...')).toBeNull()
-  expect(screen.queryByText('See all 0 reviews')).toBeNull()
+  expect(screen.queryByText('See all reviews')).toBeNull()
   expect(screen.queryByText('Write a review')).toBeNull()
   expect(screen.queryByText('Save')).toBeNull()
   expect(screen.queryByText('✓ Verified')).toBeNull()
@@ -244,7 +244,7 @@ it('keeps showing a spot it already has while the refetch is failing', async () 
   // The whole details block stays too, not just the hero and the title. A
   // failed-state rule that hid the reviews button here would be taking a real
   // number off the screen because a background request went wrong.
-  expect(screen.getByText('See all 12 reviews')).toBeTruthy()
+  expect(screen.getByText('See all reviews')).toBeTruthy()
   expect(screen.getByText('Save')).toBeTruthy()
 })
 
@@ -300,12 +300,35 @@ it('navigates to the reviews list and to write review', async () => {
 
   renderScreen()
 
-  await waitFor(() => expect(screen.getByText('See all 12 reviews')).toBeTruthy())
-  fireEvent.press(screen.getByText('See all 12 reviews'))
+  await waitFor(() => expect(screen.getByText('See all reviews')).toBeTruthy())
+  fireEvent.press(screen.getByText('See all reviews'))
   expect(navigation.navigate).toHaveBeenCalledWith('Reviews', { spotId: 'spot-1' })
 
   fireEvent.press(screen.getByText('Write a review'))
   expect(navigation.navigate).toHaveBeenCalledWith('WriteReview', { spotId: 'spot-1' })
+})
+
+/**
+ * Save used to sit on a row of its own below the reviews buttons, while the
+ * rating line beside it was mostly empty space. Reading a spot is one glance —
+ * "how good is it, and do I want to keep it?" — so the two belong on the same
+ * line, the way a price and an add-to-basket button share a shelf edge
+ * (STOURIFY-102).
+ */
+it('puts Save on the same row as the rating, as an icon-and-text button', async () => {
+  ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByTestId('spot-rating-row')).toBeTruthy())
+
+  const row = within(screen.getByTestId('spot-rating-row'))
+  // The score comes from the Rating component, the words from the button — both
+  // inside the one row is the whole claim.
+  expect(row.getByText('4.5')).toBeTruthy()
+  expect(row.getByText('Save')).toBeTruthy()
+  expect(row.getByText('🔖')).toBeTruthy()
 })
 
 it('saves to the wishlist as a local write, never touching the network', async () => {

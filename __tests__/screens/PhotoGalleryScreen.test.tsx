@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { QueryClient } from '@tanstack/react-query'
 import PhotoGalleryScreen from '@/features/spots/screens/PhotoGalleryScreen'
+import { palette } from '@/theme/tokens'
 import { createTestDatabase } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
 
@@ -164,4 +165,42 @@ it('keeps showing photos it already has while the refetch is failing', async () 
   expect(screen.queryByTestId('gallery-error')).toBeNull()
   expect(screen.queryByText("Couldn't load the photos")).toBeNull()
   expect(screen.queryByText('No photos yet')).toBeNull()
+})
+
+/**
+ * The viewer used to paint itself with `theme.colors.ink` — the *text* colour,
+ * which happens to be near-black. In a light-themed app that reads as a room
+ * whose walls were painted with the ink from the sign on the door: dark for a
+ * reason that has nothing to do with the room. Photos are drawn with
+ * `contentFit="contain"`, so the bars beside a photo that is not the screen's
+ * shape showed that near-black too (STOURIFY-102).
+ */
+describe('background', () => {
+  /** Flattens RN's array-of-styles into one object. */
+  function styleOf(element: { props: { style?: unknown } }): Record<string, unknown> {
+    const flatten = (input: unknown): Record<string, unknown> =>
+      Array.isArray(input) ? Object.assign({}, ...input.map(flatten)) : ((input ?? {}) as Record<string, unknown>)
+    return flatten(element.props.style)
+  }
+
+  it('uses the theme surface behind the photos', async () => {
+    ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('gallery-photo-0')).toBeTruthy())
+
+    expect(styleOf(screen.getByTestId('gallery-root')).backgroundColor).toBe(palette.light.surface)
+    expect(styleOf(screen.getByTestId('gallery-photo-0')).backgroundColor).toBe(palette.light.surface)
+  })
+
+  it('uses the same theme surface when there are no photos', async () => {
+    ;(getSpot as jest.Mock).mockResolvedValue(makeSpot({ media: [] }))
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('No photos yet')).toBeTruthy())
+
+    expect(styleOf(screen.getByTestId('gallery-root')).backgroundColor).toBe(palette.light.surface)
+  })
 })

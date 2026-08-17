@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native'
 import PostCard from '@/shared/components/ui/PostCard'
 import { ThemeProvider } from '@/theme/ThemeProvider'
+import { palette } from '@/theme/tokens'
 import type { Post, Spot } from '@/shared/api/types'
 
 function renderThemed(ui: React.ReactElement) {
@@ -97,6 +98,25 @@ test('renders the first attached photo', () => {
   renderThemed(<PostCard post={post} onPress={() => {}} />)
   const photo = screen.getByLabelText('Photo in post by Ana Martinez')
   expect(photo.props.source).toEqual(expect.objectContaining({ uri: 'https://cdn.example.com/a.jpg' }))
+})
+
+/**
+ * An empty picture frame on a wall still shows the wall behind it. This photo
+ * box declared no colour at all, so while an image was still downloading — or
+ * failed to — it borrowed whatever happened to be underneath. Giving it a theme
+ * colour means the gap is a deliberate part of the design rather than an
+ * accident of stacking order (STOURIFY-102).
+ */
+test('draws the photo on a theme background', () => {
+  const post: Post = {
+    ...mockPost,
+    media: [{ uuid: 'm1', url: 'https://cdn.example.com/a.jpg', thumb_url: null }],
+  }
+  renderThemed(<PostCard post={post} onPress={() => {}} />)
+
+  const style = screen.getByLabelText('Photo in post by Ana Martinez').props.style
+  const flat = Array.isArray(style) ? Object.assign({}, ...style.flat(Infinity)) : style
+  expect(flat.backgroundColor).toBe(palette.light.surfaceAlt)
 })
 
 test('renders no photo when the post has no media', () => {
