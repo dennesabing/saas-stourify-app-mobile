@@ -1,12 +1,11 @@
 import { useState } from 'react'
-import { ScrollView, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { View } from 'react-native'
 import { Controller, useForm } from 'react-hook-form'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { RootStackParamList } from '@/shared/navigation/types'
 import * as authApi from '@/shared/api/auth'
 import { extractApiError } from '@/shared/api/client'
-import { Button, Input, Text } from '@/shared/components/ui'
+import { Button, Input, KeyboardAwareScreen, Text } from '@/shared/components/ui'
 import { useTheme } from '@/theme/ThemeProvider'
 
 type FormData = { email: string }
@@ -46,52 +45,50 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: theme.gutter, justifyContent: 'center' }}>
-        <View style={{ gap: theme.spacing[5] }}>
-          <Text variant="h1">Reset your password</Text>
+    <KeyboardAwareScreen centered>
+      <View style={{ gap: theme.spacing[5] }}>
+        <Text variant="h1">Reset your password</Text>
 
-          <Controller
-            control={control}
-            name="email"
-            rules={{
-              required: 'Email is required',
-              pattern: { value: /\S+@\S+\.\S+/, message: 'Enter a valid email address' },
-            }}
-            render={({ field: { onChange, value } }) => (
-              <Input
-                label="Email"
-                placeholder="you@example.com"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={value}
-                onChangeText={onChange}
-                error={errors.email?.message}
-              />
-            )}
-          />
-
-          {serverError ? (
-            <Text variant="caption" color="danger">
-              {serverError}
-            </Text>
-          ) : null}
-
-          {sent ? (
-            <View style={{ gap: theme.spacing[3] }}>
-              <Text variant="body">If an account exists for that email, we have sent a reset link.</Text>
-              <Button
-                label="I have a reset code"
-                variant="secondary"
-                onPress={() => navigation.navigate('ResetPassword', { email: sentEmail })}
-                fullWidth
-              />
-            </View>
-          ) : (
-            <Button label="Send reset link" onPress={handleSubmit(onSubmit)} loading={loading} fullWidth />
+        <Controller
+          control={control}
+          name="email"
+          rules={{
+            required: 'Email is required',
+            pattern: { value: /\S+@\S+\.\S+/, message: 'Enter a valid email address' },
+          }}
+          render={({ field: { onChange, value } }) => (
+            <Input
+              label="Email"
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={value}
+              onChangeText={onChange}
+              error={errors.email?.message}
+            />
           )}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        />
+
+        {serverError ? (
+          <Text variant="caption" color="danger">
+            {serverError}
+          </Text>
+        ) : null}
+
+        {sent ? (
+          <View style={{ gap: theme.spacing[3] }}>
+            <Text variant="body">If an account exists for that email, we have sent a reset link.</Text>
+            <Button
+              label="I have a reset code"
+              variant="secondary"
+              onPress={() => navigation.navigate('ResetPassword', { email: sentEmail })}
+              fullWidth
+            />
+          </View>
+        ) : (
+          <Button label="Send reset link" onPress={handleSubmit(onSubmit)} loading={loading} fullWidth />
+        )}
+      </View>
+    </KeyboardAwareScreen>
   )
 }

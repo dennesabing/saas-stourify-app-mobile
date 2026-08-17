@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useDatabase } from '@nozbe/watermelondb/react'
-import { Button, Chip, Text } from '@/shared/components/ui'
+import { Button, Chip, KeyboardAwareScreen, Text } from '@/shared/components/ui'
 import type { CreateStackParamList } from '@/shared/navigation/types'
 import type { MapCoordinate } from '@/shared/map'
 import { useAuthStore } from '@/shared/store/auth'
@@ -168,115 +167,113 @@ export default function CreateSpotScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
-      <ScrollView contentContainerStyle={{ padding: theme.gutter, gap: theme.spacing[4] }}>
-        <Text variant="h1">New spot</Text>
-        <Text variant="body" color="muted">
-          Saved on this device straight away. It uploads itself when you are back online.
+    <KeyboardAwareScreen edges={['top']} contentContainerStyle={{ gap: theme.spacing[4] }}>
+      <Text variant="h1">New spot</Text>
+      <Text variant="body" color="muted">
+        Saved on this device straight away. It uploads itself when you are back online.
+      </Text>
+
+      <TextInput
+        style={inputStyle}
+        placeholder="Spot name"
+        placeholderTextColor={theme.colors.muted}
+        value={title}
+        onChangeText={setTitle}
+      />
+
+      <TextInput
+        style={[inputStyle, styles.multiline]}
+        placeholder="What makes it worth the trip?"
+        placeholderTextColor={theme.colors.muted}
+        value={description}
+        onChangeText={setDescription}
+        multiline
+      />
+
+      <LocationPicker value={coordinate} onChange={onCoordinateChange} />
+
+      <View style={{ gap: theme.spacing[2] }}>
+        <Text variant="h2">Categories</Text>
+        <Text variant="caption" color="muted">
+          {`Optional — up to ${MAX_SPOT_CATEGORIES}.`}
         </Text>
+        <View style={styles.chips}>
+          {SPOT_CATEGORIES.map((category) => (
+            <Chip
+              key={category}
+              label={category}
+              selected={categories.includes(category)}
+              onPress={() => toggleCategory(category)}
+            />
+          ))}
+        </View>
+      </View>
 
-        <TextInput
-          style={inputStyle}
-          placeholder="Spot name"
-          placeholderTextColor={theme.colors.muted}
-          value={title}
-          onChangeText={setTitle}
-        />
+      <View style={{ gap: theme.spacing[2] }}>
+        <Text variant="h2">Photos</Text>
+        <Text variant="caption" color="muted">
+          {`${photos.length} of ${MAX_DRAFT_PHOTOS}`}
+        </Text>
+      </View>
 
-        <TextInput
-          style={[inputStyle, styles.multiline]}
-          placeholder="What makes it worth the trip?"
-          placeholderTextColor={theme.colors.muted}
-          value={description}
-          onChangeText={setDescription}
-          multiline
-        />
-
-        <LocationPicker value={coordinate} onChange={onCoordinateChange} />
-
-        <View style={{ gap: theme.spacing[2] }}>
-          <Text variant="h2">Categories</Text>
-          <Text variant="caption" color="muted">
-            {`Optional — up to ${MAX_SPOT_CATEGORIES}.`}
-          </Text>
-          <View style={styles.chips}>
-            {SPOT_CATEGORIES.map((category) => (
-              <Chip
-                key={category}
-                label={category}
-                selected={categories.includes(category)}
-                onPress={() => toggleCategory(category)}
-              />
+      {photos.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={{ flexDirection: 'row', gap: theme.spacing[3] }}>
+            {photos.map((photo) => (
+              <Pressable
+                key={photo.id}
+                onPress={() => navigation.navigate('PhotoReview')}
+                accessibilityRole="imagebutton"
+                accessibilityLabel={photo.filename}
+              >
+                <Image
+                  source={{ uri: photo.localPath }}
+                  style={[
+                    styles.thumbnail,
+                    { borderRadius: theme.radius.button, backgroundColor: theme.colors.surfaceAlt },
+                  ]}
+                  resizeMode="cover"
+                />
+              </Pressable>
             ))}
           </View>
-        </View>
+        </ScrollView>
+      ) : (
+        <Text variant="caption" color="muted">
+          No photos yet. They are saved on this device the moment you take them, signal or not.
+        </Text>
+      )}
 
-        <View style={{ gap: theme.spacing[2] }}>
-          <Text variant="h2">Photos</Text>
-          <Text variant="caption" color="muted">
-            {`${photos.length} of ${MAX_DRAFT_PHOTOS}`}
-          </Text>
-        </View>
+      {atCap ? (
+        <Text variant="caption" color="muted">
+          {`That is all ${MAX_DRAFT_PHOTOS} photos. Remove one to take another.`}
+        </Text>
+      ) : null}
 
-        {photos.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ flexDirection: 'row', gap: theme.spacing[3] }}>
-              {photos.map((photo) => (
-                <Pressable
-                  key={photo.id}
-                  onPress={() => navigation.navigate('PhotoReview')}
-                  accessibilityRole="imagebutton"
-                  accessibilityLabel={photo.filename}
-                >
-                  <Image
-                    source={{ uri: photo.localPath }}
-                    style={[
-                      styles.thumbnail,
-                      { borderRadius: theme.radius.button, backgroundColor: theme.colors.surfaceAlt },
-                    ]}
-                    resizeMode="cover"
-                  />
-                </Pressable>
-              ))}
-            </View>
-          </ScrollView>
-        ) : (
-          <Text variant="caption" color="muted">
-            No photos yet. They are saved on this device the moment you take them, signal or not.
-          </Text>
-        )}
+      <Button
+        label="Add photos"
+        variant="secondary"
+        onPress={() => navigation.navigate('CameraCapture')}
+        accessibilityLabel="Add photos"
+        disabled={atCap}
+        fullWidth
+      />
 
-        {atCap ? (
-          <Text variant="caption" color="muted">
-            {`That is all ${MAX_DRAFT_PHOTOS} photos. Remove one to take another.`}
-          </Text>
-        ) : null}
+      {error !== null ? (
+        <Text variant="caption" style={{ color: theme.colors.danger }}>
+          {error}
+        </Text>
+      ) : null}
 
-        <Button
-          label="Add photos"
-          variant="secondary"
-          onPress={() => navigation.navigate('CameraCapture')}
-          accessibilityLabel="Add photos"
-          disabled={atCap}
-          fullWidth
-        />
-
-        {error !== null ? (
-          <Text variant="caption" style={{ color: theme.colors.danger }}>
-            {error}
-          </Text>
-        ) : null}
-
-        <Button
-          label="Publish spot"
-          onPress={() => {
-            void onPublish()
-          }}
-          disabled={publishing}
-          fullWidth
-        />
-      </ScrollView>
-    </SafeAreaView>
+      <Button
+        label="Publish spot"
+        onPress={() => {
+          void onPublish()
+        }}
+        disabled={publishing}
+        fullWidth
+      />
+    </KeyboardAwareScreen>
   )
 }
 

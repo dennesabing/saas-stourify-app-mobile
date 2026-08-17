@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Modal, Pressable, ScrollView, View } from 'react-native'
+import { KeyboardAvoidingView, Modal, Pressable, ScrollView, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from '@/theme/ThemeProvider'
 import Text from './Text'
@@ -49,7 +49,12 @@ export default function Sheet({ visible, onClose, title, subtitle, children }: P
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+      {/* Keyboard-aware because a sheet can host a form — `ReportSheet` does.
+          Under edge-to-edge (`edgeToEdgeEnabled=true`, required by Expo SDK 54)
+          Android stops resizing the window when the keyboard opens, and a modal
+          has its own window besides, so a sheet docked to the bottom edge is
+          covered outright unless it lifts itself. STOURIFY-100. */}
+      <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior="padding">
         {/* Scrim. `accessibilityLabel` names the gesture rather than the
             decoration, because to a screen reader this IS the dismiss control. */}
         <Pressable
@@ -78,18 +83,22 @@ export default function Sheet({ visible, onClose, title, subtitle, children }: P
             </Text>
           ) : null}
 
-          {/* Scrollable so a long reason list or a keyboard-shrunken sheet
+          {/* Scrollable so a long reason list or a sheet lifted by the keyboard
               stays reachable; `nestedScrollEnabled` because a sheet opened over
-              a FlatList is a scroll view inside a scroll view on Android. */}
+              a FlatList is a scroll view inside a scroll view on Android.
+              `keyboardShouldPersistTaps` so the sheet's primary action works on
+              the first tap while a field is focused, rather than the first tap
+              being spent dismissing the keyboard. */}
           <ScrollView
             nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ gap: theme.spacing[3] }}
             style={{ maxHeight: 480 }}
           >
             {children}
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   )
 }
