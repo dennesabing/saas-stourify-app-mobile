@@ -206,6 +206,41 @@ android {
             def enablePngCrunchInRelease = findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true'
             crunchPngs enablePngCrunchInRelease.toBoolean()
         }
+
+        // `releaseDev` — a release build you are allowed to test against a plain-HTTP
+        // development server. STOURIFY-117.
+        //
+        // The problem it solves: only a release build embeds its JavaScript, so only a
+        // release build can cold-start with no network. But Android bolts the door on
+        // unencrypted HTTP for any app targeting API 28+, and the only backend this
+        // project's rig may drive is an unencrypted `php artisan serve` on the
+        // developer's own machine. So the artifact we need for offline testing was the
+        // one artifact that could not reach the one server it was allowed to reach —
+        // it could not even sign in.
+        //
+        // `initWith release` copies everything that makes a release build a release
+        // build: the embedded JS bundle, the signing config, non-debuggable, the
+        // shrinker settings, the ABI filters. The ONLY difference is the source set at
+        // src/releaseDev/, which carries android:usesCleartextTraffic="true" exactly as
+        // src/debug/ already does.
+        //
+        // Deliberately NOT done here, and each has a reason:
+        //   - No applicationIdSuffix. The Google Maps key is restricted by package name,
+        //     and root app.json names this package as the address every adb command in a
+        //     live run is sent to. A suffix would fork both to let two builds sit on one
+        //     device, which nothing needs.
+        //   - Nothing is added to src/main. An opening on the main manifest ships to
+        //     every user, forever; that is the whole point of putting it here instead.
+        //     mobile/__tests__/android/cleartextTraffic.test.ts fails if anybody moves it.
+        //
+        // matchingFallbacks is not optional. Every Expo/React Native library module
+        // publishes only `debug` and `release` variants, so without this line Gradle
+        // cannot resolve a single dependency for a third build type and fails during
+        // configuration, before it compiles anything.
+        releaseDev {
+            initWith release
+            matchingFallbacks = ['release']
+        }
     }
     packagingOptions {
         jniLibs {

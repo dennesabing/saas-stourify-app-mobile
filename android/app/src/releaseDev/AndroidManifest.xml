@@ -1,0 +1,22 @@
+<!--
+    The `releaseDev` source set: a release build that is allowed to talk to a plain,
+    unencrypted development server.
+
+    Android shuts the door on unencrypted HTTP for any app targeting API 28 or later,
+    which is right for a shipped app and fatal for testing here — the only backend this
+    project's rig may drive is a plain `php artisan serve` on the developer's own
+    machine, reached from the emulator as http://10.0.2.2:8000. A release APK therefore
+    cannot even sign in (STOURIFY-117).
+
+    This file is the exception, and it lives HERE rather than in src/main precisely so
+    that it cannot reach the artifact that goes to Play. Gradle merges a source set only
+    into the build type it is named for, so `assembleRelease` never sees this file.
+
+    Do not copy this attribute into src/main. mobile/__tests__/android/cleartextTraffic.test.ts
+    fails if anybody does.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application android:usesCleartextTraffic="true" tools:targetApi="28" tools:replace="android:usesCleartextTraffic" />
+</manifest>
