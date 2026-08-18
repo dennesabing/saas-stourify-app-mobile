@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A release build you are allowed to test against the development server** (STOURIFY-117).
+
+  A release build of the app is the only build that carries its JavaScript inside the APK, so it is
+  the only one that can start with no network at all. It is also the one build Android forbids from
+  making plain, unencrypted requests — and the only backend this project's tests may drive is a
+  plain `php artisan serve` on the developer's own machine. The build we needed for offline testing
+  was therefore the one build that could not reach the one server it was allowed to reach. It could
+  not even sign in.
+
+  There is now a third Android build type, `releaseDev`, which copies the release build in every
+  respect and adds exactly one thing: permission to talk plain HTTP, carried in its own source set
+  at `android/app/src/releaseDev/AndroidManifest.xml`. The build that goes to Play is untouched, and
+  that is measured rather than asserted — its merged manifest carries no `usesCleartextTraffic` and
+  no `networkSecurityConfig`. `__tests__/android/cleartextTraffic.test.ts` fails if anybody moves
+  the opening onto the main manifest, where it would ship to every user.
+
+  How to build it, and the one command a reviewer runs to confirm the shipped build is still locked
+  down, are in `docs/building-a-dev-release-apk.md`.
+
 ### Changed
 
 - **The Compose screen's Visibility picker opens on 🔒 Private** (STOURIFY-105). It used to open on
