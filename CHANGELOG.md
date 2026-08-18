@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The Compose screen's Visibility picker opens on 🔒 Private** (STOURIFY-105). It used to open on
+  🌍 Public, so an author who never looked at the picker published to everyone by accident. Private
+  is now the option already selected, and a post shared without touching it is private. Public and
+  Followers are still one tap away, unchanged.
+
 ### Fixed
 
 - **Spot cards in the Discover grid line up, and their review figures stay on the card**

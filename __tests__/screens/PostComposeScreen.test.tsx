@@ -134,9 +134,42 @@ it('creates the post unpublished, uploads its photos, then publishes it — in t
   })
 
   expect(calls).toEqual(['createPost', 'uploadPostMedia', 'publishPost'])
-  expect(mockCreatePost.mock.calls[0][0]).toMatchObject({ publish: false, visibility: 'public' })
+  expect(mockCreatePost.mock.calls[0][0]).toMatchObject({ publish: false, visibility: 'private' })
   expect(mockUploadPostMedia).toHaveBeenCalledWith('post-uuid-1', ASSETS)
   expect(mockPublishPost).toHaveBeenCalledWith('post-uuid-1')
+})
+
+/**
+ * A new post starts locked, not shared (STOURIFY-105).
+ *
+ * The picker used to open on "🌍 Public", so an author who never looked at it
+ * published to everyone by accident. Private is now the option already
+ * selected, and the untouched payload says so.
+ */
+it('defaults the visibility picker to Private and sends that when it is untouched', async () => {
+  renderScreen()
+
+  fireEvent.press(screen.getByText('Share Post'))
+
+  await waitFor(() => {
+    expect(mockCreatePost).toHaveBeenCalledTimes(1)
+  })
+
+  expect(mockCreatePost.mock.calls[0][0]).toMatchObject({ visibility: 'private' })
+})
+
+/** Private is the starting point, never a ceiling — Public is still one tap away. */
+it('sends the chosen visibility when the author picks Public', async () => {
+  renderScreen()
+
+  fireEvent.press(screen.getByText('🌍 Public'))
+  fireEvent.press(screen.getByText('Share Post'))
+
+  await waitFor(() => {
+    expect(mockCreatePost).toHaveBeenCalledTimes(1)
+  })
+
+  expect(mockCreatePost.mock.calls[0][0]).toMatchObject({ visibility: 'public' })
 })
 
 it('sends no `media` key and no FormData to `POST /posts`', async () => {

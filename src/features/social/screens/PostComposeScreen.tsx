@@ -23,7 +23,10 @@ const VISIBILITY_OPTIONS: { label: string; value: Visibility }[] = [
 export default function PostComposeScreen({ route, navigation }: Props) {
   const { mediaAssets } = route.params
   const [caption, setCaption] = useState('')
-  const [visibility, setVisibility] = useState<Visibility>('public')
+  // A new post starts locked, not shared (STOURIFY-105). The picker used to
+  // open on Public, so an author who never looked at it published to everyone
+  // by accident. Public and Followers are still one tap away.
+  const [visibility, setVisibility] = useState<Visibility>('private')
   const [error, setError] = useState('')
   const qc = useQueryClient()
   const { pendingSpot, setPendingSpot } = useUIStore()
