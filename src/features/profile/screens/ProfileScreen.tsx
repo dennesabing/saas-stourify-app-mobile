@@ -217,8 +217,40 @@ export default function ProfileScreen({ route, navigation }: Props) {
     )
   }
 
-  if (profileQuery.isError) {
-    const status = (profileQuery.error as { response?: { status?: number } })?.response?.status
+  const errorStatus = (profileQuery.error as { response?: { status?: number } })?.response?.status
+
+  /**
+   * A `403` or a `404` is the SERVER'S VERDICT; anything else is a bad line.
+   *
+   * The difference decides whether a copy already in the cache may be shown.
+   * `GET /profiles/{them}` answers 403 to the blocker and the blocked party
+   * identically, by design (STOURIFY-36) — so serving that explorer back out of
+   * the cache would quietly undo a block. A 404 is the same kind of answer: the
+   * profile is gone, not unreachable. Neither is fixed by waiting for signal,
+   * so neither may be papered over with an old copy.
+   */
+  const serverRefused = errorStatus === 403 || errorStatus === 404
+
+  /**
+   * Showing a saved copy because the refresh failed — the offline state
+   * (STOURIFY-120).
+   *
+   * `queryClient.ts` writes every finished query to the device and reads it
+   * back on the next start, so after a cold start with no signal the profile is
+   * usually already in hand. This screen used to throw it away: it asked
+   * `isError` before it asked whether it held any data, and painted an error
+   * wall over a perfectly good profile. Behind that wall sat Settings, and
+   * behind Settings sat Blocked accounts and Offline & sync — so one failed
+   * request put every offline-usable screen out of reach (STOURIFY-118 found
+   * this and routed around it from the Create menu; this is the door itself).
+   *
+   * It is the rule the posts grid below has followed since STOURIFY-87 —
+   * content beats an error — arriving at the header, which never got it.
+   */
+  const showingSavedCopy = profileQuery.isError && profile !== null && !serverRefused
+
+  if (profileQuery.isError && (profile === null || serverRefused)) {
+    const status = errorStatus
 
     // Your own profile failing to load and a stranger's not existing are
     // different facts, and until STOURIFY-82 they shared one message. A newly
@@ -234,6 +266,16 @@ export default function ProfileScreen({ route, navigation }: Props) {
           subtitle="Check your connection and try again."
           actionLabel="Try again"
           onAction={() => void profileQuery.refetch()}
+          // The way out when there is genuinely nothing saved to show — a first
+          // run with no signal, or a copy that has aged past the cache's 24
+          // hours. Settings needs no network, and Blocked accounts and Offline
+          // & sync are behind it. Gated on the stack actually registering the
+          // route, exactly like the buttons in the header below: this screen is
+          // also pushed onto Home, Discover and Activity, none of which carry
+          // Settings, and navigating to a route a stack does not have throws.
+          {...(canOpen('Settings')
+            ? { secondaryActionLabel: 'Settings', onSecondaryAction: () => navigation.navigate('Settings') }
+            : {})}
         />,
       )
     }
@@ -325,6 +367,7 @@ export default function ProfileScreen({ route, navigation }: Props) {
       ListHeaderComponent={
         <ProfileHeader
           profile={profile}
+          isStale={showingSavedCopy}
           // `profile.name` first for BOTH cases. Falling back to the username
           // renders it twice — once as the name and once as the handle — which
           // is what the header did before the server sent a name at all.
@@ -420,6 +463,8 @@ export default function ProfileScreen({ route, navigation }: Props) {
 
 interface HeaderProps {
   profile: ExplorerProfile | null
+  /** The refresh failed and this is the copy saved on the device. */
+  isStale: boolean
   displayName: string
   avatarUri?: string
   isOwn: boolean
@@ -453,6 +498,7 @@ interface HeaderProps {
  */
 function ProfileHeader({
   profile,
+  isStale,
   displayName,
   avatarUri,
   isOwn,
@@ -470,6 +516,20 @@ function ProfileHeader({
 
   return (
     <View style={{ paddingHorizontal: theme.gutter, paddingTop: theme.spacing[4], gap: theme.spacing[3] }}>
+      {/*
+        Said out loud rather than left to be inferred. Showing a saved copy in
+        silence is the quiet lie an offline app cannot afford: a follower count
+        or a bio presented as current by an app that has just failed to check
+        it. One muted line is the whole message — it is not dismissible,
+        because the screen refreshes itself the moment the network is back and
+        a control that can be dismissed is one that has to remember it was.
+      */}
+      {isStale ? (
+        <Text variant="caption" color="muted" style={{ textAlign: 'center' }}>
+          Saved on this device — we could not refresh it just now, so it may be out of date.
+        </Text>
+      ) : null}
+
       <View style={{ alignItems: 'center', gap: theme.spacing[2] }}>
         <Avatar uri={avatarUri} name={displayName || profile?.username} size={88} ringed />
 

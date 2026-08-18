@@ -593,3 +593,160 @@ test('choosing Report opens the report form for the person, not for a post', asy
     ),
   )
 })
+
+// ---------------------------------------------------------------------------
+// The offline path (STOURIFY-120)
+// ---------------------------------------------------------------------------
+
+/**
+ * A shop with a photocopy of yesterday's price list in the back room does not
+ * shut when the phone line goes down — it hangs up a sign saying the prices may
+ * be out of date and carries on serving people.
+ *
+ * The app keeps that photocopy: `shared/queryClient.ts` writes every finished
+ * query to device storage and reads it back on the next start. So after a cold
+ * start with no signal, the profile is usually already in hand. The screen just
+ * never looked — it asked `isError` BEFORE it asked whether it held any data,
+ * so one failed refresh threw the copy away and painted an error wall. Behind
+ * that wall sat Settings, and behind Settings sat Blocked accounts and Offline
+ * & sync, so with no network none of it could be reached (STOURIFY-118 found
+ * this and routed around it; this card opens the door itself).
+ *
+ * The rule these tests hold is the one the posts grid on this same screen has
+ * followed since STOURIFY-87: **content beats an error.** Seeding the query
+ * cache and then failing the request is exactly the shape a rehydrated
+ * persisted cache plus a dead network produces at runtime.
+ */
+describe('a failed profile refresh does not throw away a profile already in hand', () => {
+  const MY_KEY = ['explorer-profile', 'me']
+
+  function seededClient(key: unknown[], value: unknown) {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+    qc.setQueryData(key, value)
+    return qc
+  }
+
+  function mine() {
+    return profileFixture({
+      user_uuid: ME_UUID,
+      viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null },
+    })
+  }
+
+  /**
+   * Wait until the refresh has actually FAILED, not merely been issued.
+   *
+   * This gate is not ceremony — it is the reason two of these tests were
+   * meaningless when they were first written. Asserting straight after
+   * `getMyProfile` had been *called* read the screen in the window before the
+   * rejection landed, so the cached profile was still on it and the test passed
+   * against the unfixed screen. Reading the query's own recorded status is the
+   * one signal that cannot be beaten by a race: once it says `error`, the screen
+   * has had its answer and whatever it is showing is its final answer.
+   */
+  async function refreshHasFailed(qc: QueryClient, key: unknown[]) {
+    await waitFor(() => expect(qc.getQueryState(key)?.status).toBe('error'))
+  }
+
+  test('renders the saved profile instead of the error wall', async () => {
+    ;(getMyProfile as jest.Mock).mockRejectedValue(new Error('Network Error'))
+    const qc = seededClient(MY_KEY, mine())
+
+    renderProfile(undefined, qc)
+    await refreshHasFailed(qc, MY_KEY)
+
+    expect(screen.getByText('@santos_grace')).toBeTruthy()
+    expect(screen.queryByText(/could not load your profile/i)).toBeNull()
+  })
+
+  test('says plainly that the saved profile may be out of date', async () => {
+    // Silence would be the quiet lie: a follower count presented as current by
+    // an app that has just failed to check it.
+    ;(getMyProfile as jest.Mock).mockRejectedValue(new Error('Network Error'))
+    const qc = seededClient(MY_KEY, mine())
+
+    renderProfile(undefined, qc)
+    await refreshHasFailed(qc, MY_KEY)
+
+    expect(screen.getByText(/out of date/i)).toBeTruthy()
+  })
+
+  test('the saved profile still reaches Settings, which is the door this card is about', async () => {
+    ;(getMyProfile as jest.Mock).mockRejectedValue(new Error('Network Error'))
+    const qc = seededClient(MY_KEY, mine())
+
+    renderProfile(undefined, qc)
+    await refreshHasFailed(qc, MY_KEY)
+
+    fireEvent.press(screen.getByText('Settings'))
+
+    expect(navigation.navigate).toHaveBeenCalledWith('Settings')
+  })
+
+  test('with nothing saved at all, the failure still offers a way through to Settings', async () => {
+    // The first-run-offline case, and the one where the saved copy has aged out
+    // of the 24-hour window. There is nothing to render, so the wall stays — but
+    // a wall with a door in it, because Blocked accounts and Offline & sync sit
+    // behind Settings and neither needs a network.
+    ;(getMyProfile as jest.Mock).mockRejectedValue(new Error('Network Error'))
+
+    renderProfile()
+
+    expect(await screen.findByText(/could not load your profile/i)).toBeTruthy()
+    expect(screen.getByText('Try again')).toBeTruthy()
+
+    fireEvent.press(screen.getByText('Settings'))
+
+    expect(navigation.navigate).toHaveBeenCalledWith('Settings')
+  })
+
+  test('offers no Settings on a stack that does not register one', async () => {
+    // The same screen is pushed onto Home, Discover and Activity, none of which
+    // carry Settings — navigating to a route a stack does not have throws.
+    routeNames = ['Home', 'PostDetail', 'Profile', 'Comments']
+    ;(getMyProfile as jest.Mock).mockRejectedValue(new Error('Network Error'))
+
+    renderProfile(ME_UUID)
+
+    expect(await screen.findByText(/could not load your profile/i)).toBeTruthy()
+    expect(screen.queryByText('Settings')).toBeNull()
+  })
+
+  test('a 403 clears the screen even when a saved copy is sitting there', async () => {
+    // A block is the server's verdict, not a bad line. `GET /profiles/{them}`
+    // answers 403 to the blocker and the blocked party alike (STOURIFY-36), and
+    // serving the blocked explorer back out of the cache would undo that.
+    ;(getProfile as jest.Mock).mockRejectedValue({
+      response: { status: 403, data: { message: 'This profile is not available.' } },
+    })
+    const key = ['explorer-profile', OTHER_UUID]
+    const qc = seededClient(key, profileFixture())
+
+    renderProfile(OTHER_UUID, qc)
+    await refreshHasFailed(qc, key)
+
+    expect(screen.getByText(/not available/i)).toBeTruthy()
+    expect(screen.queryByText('@santos_grace')).toBeNull()
+  })
+
+  test('a 404 does the same — an absent profile is not a stale one', async () => {
+    ;(getProfile as jest.Mock).mockRejectedValue({ response: { status: 404 } })
+    const key = ['explorer-profile', OTHER_UUID]
+    const qc = seededClient(key, profileFixture())
+
+    renderProfile(OTHER_UUID, qc)
+    await refreshHasFailed(qc, key)
+
+    expect(screen.getByText(/no profile found/i)).toBeTruthy()
+    expect(screen.queryByText('@santos_grace')).toBeNull()
+  })
+
+  test('says nothing about staleness when the profile loads normally', async () => {
+    ;(getMyProfile as jest.Mock).mockResolvedValue(mine())
+
+    renderProfile()
+
+    expect(await screen.findByText('@santos_grace')).toBeTruthy()
+    expect(screen.queryByText(/out of date/i)).toBeNull()
+  })
+})
