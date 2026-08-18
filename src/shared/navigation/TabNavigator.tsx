@@ -91,6 +91,14 @@ function CreateStackNav() {
       <CreateStack.Screen name="PhotoReview" component={PhotoReviewScreen} />
       <CreateStack.Screen name="CreateSpot" component={CreateSpotScreen} />
       <CreateStack.Screen name="MySpots" component={MySpotsScreen} />
+      {/*
+        Registered here as well as in the Profile stack (STOURIFY-118). The
+        Profile stack's first screen fetches the profile, so offline it stops at
+        "We could not load your profile" and everything behind it — including
+        this screen — is out of reach. This stack opens on a plain menu that
+        reads nothing from the server.
+      */}
+      <CreateStack.Screen name="SyncStatus" component={SyncStatusScreen} />
     </CreateStack.Navigator>
   )
 }

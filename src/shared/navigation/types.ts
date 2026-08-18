@@ -101,6 +101,17 @@ export type CreateStackParamList = {
   /** The offline-first slice: writes straight to WatermelonDB. */
   CreateSpot: undefined
   MySpots: undefined
+  /**
+   * The same queue screen the Profile stack registers, reachable a second way
+   * on purpose (STOURIFY-118).
+   *
+   * Its Profile-stack home is behind a screen that fetches the profile and
+   * renders an error wall when it cannot — so with no network, the one screen
+   * written to reassure somebody their unsent work is safe was the one screen
+   * they could not open. This stack starts at a menu that reads nothing from
+   * the server, so it stays reachable with no network at all.
+   */
+  SyncStatus: undefined
 }
 
 export type ActivityStackParamList = {

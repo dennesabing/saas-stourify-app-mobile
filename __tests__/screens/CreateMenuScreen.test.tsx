@@ -51,3 +51,28 @@ it('offers no route to the camera outside the spot flow', () => {
 
   expect(screen.queryByLabelText('Add photos')).toBeNull()
 })
+
+/**
+ * STOURIFY-118. Work created with no network is saved on the device and sent
+ * later, but after the app restarts — still offline — there was no way to look
+ * at it: My spots was reachable only in the moment after publishing, and Sync
+ * status sat behind the Profile screen, which cannot load without a network.
+ *
+ * The Create menu is the one always-reachable screen that reads nothing from
+ * the server, so the way back to both lives here.
+ */
+it('offers a way back to My spots', () => {
+  renderScreen()
+
+  fireEvent.press(screen.getByLabelText('My spots'))
+
+  expect(navigation.navigate).toHaveBeenCalledWith('MySpots')
+})
+
+it('offers a way to the offline queue without going through Profile', () => {
+  renderScreen()
+
+  fireEvent.press(screen.getByLabelText('Offline & sync'))
+
+  expect(navigation.navigate).toHaveBeenCalledWith('SyncStatus')
+})
