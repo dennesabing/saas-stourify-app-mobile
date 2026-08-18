@@ -95,10 +95,16 @@ export default function SyncStatusScreen({ navigation }: Props) {
           paddingVertical: theme.spacing[3],
         }}
       >
+        {/*
+          Labelled "Go back" rather than "Back to Settings": since STOURIFY-118
+          this screen is also opened from the Create menu, so naming one caller
+          would have a screen reader announce a destination the person is not
+          going to.
+        */}
         <Pressable
           onPress={() => navigation.goBack()}
           accessibilityRole="button"
-          accessibilityLabel="Back to Settings"
+          accessibilityLabel="Go back"
           hitSlop={12}
           style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}
         >

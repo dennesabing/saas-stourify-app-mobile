@@ -70,6 +70,40 @@ export default function CreateMenuScreen({ navigation }: Props) {
             Link spots into an itinerary — after the beta
           </Text>
         </Card>
+
+        {/*
+          The way back to work you have already made (STOURIFY-118).
+
+          A spot published with no signal is saved on the device and sent later,
+          and that worked — but once the app was restarted, still offline, there
+          was nothing anywhere that would show it to you. My spots was reachable
+          only in the seconds after publishing, and Sync status sat behind the
+          Profile screen, which fetches the profile and stops at an error wall
+          with no network. So the one screen written to reassure somebody their
+          unsent work is safe was behind the one screen that needs the network
+          they do not have.
+
+          This menu is the fix because of what it is NOT: it reads nothing from
+          the server, it is one tap from anywhere in the app, and it is where the
+          person was standing when they made the thing they are now looking for.
+        */}
+        <Text variant="micro" color="muted">
+          Your work
+        </Text>
+
+        <Card onPress={() => navigation.navigate('MySpots')} accessibilityLabel="My spots">
+          <Text variant="h2">My spots</Text>
+          <Text variant="caption" color="muted">
+            Everything you have added, including anything still waiting to upload
+          </Text>
+        </Card>
+
+        <Card onPress={() => navigation.navigate('SyncStatus')} accessibilityLabel="Offline & sync">
+          <Text variant="h2">Offline &amp; sync</Text>
+          <Text variant="caption" color="muted">
+            See what is waiting to be sent, and retry anything that did not go through
+          </Text>
+        </Card>
       </View>
     </SafeAreaView>
   )

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Work you saved with no signal is reachable again after the app restarts** (STOURIFY-118).
+
+  Picture a parcel locker with no window. A spot published in airplane mode really is saved on the
+  device and really does upload itself later — that was measured end to end. But once the app was
+  killed and started again, still offline, there was no way to look at it. **My spots** was
+  reachable only in the seconds right after publishing, and **Sync status** sat behind the Profile
+  screen, which fetches your profile and stops at *"We could not load your profile"* when it cannot.
+  So the one screen written to reassure somebody their unsent work is safe was behind the one screen
+  that needs the network they do not have.
+
+  The Create menu — the sheet behind the centre ⊕ tab — now carries a **Your work** section linking
+  to **My spots** and **Offline & sync**, and the sync screen is registered in the Create stack as
+  well as the Profile stack. Nothing about the queue, the local database or the upload path was
+  touched: they were already correct, and this was only ever a question of being able to get to
+  them. Giving the Profile screen its own offline path is tracked separately as STOURIFY-120.
+
 ### Added
 
 - **A release build you are allowed to test against the development server** (STOURIFY-117).

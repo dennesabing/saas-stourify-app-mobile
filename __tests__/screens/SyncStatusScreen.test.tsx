@@ -289,7 +289,11 @@ it('retrying a failed photo resets it to pending and runs a cycle', async () => 
   expect(syncNow).toHaveBeenCalled()
 })
 
-it('goes back to Settings', async () => {
+/**
+ * Not "goes back to Settings": since STOURIFY-118 this screen is opened from
+ * the Create menu as well, so the button returns to whichever screen sent you.
+ */
+it('goes back to wherever it was opened from', async () => {
   const database = createTestDatabase()
 
   render(
@@ -298,6 +302,6 @@ it('goes back to Settings', async () => {
     </TestProviders>,
   )
 
-  fireEvent.press(screen.getByLabelText('Back to Settings'))
+  fireEvent.press(screen.getByLabelText('Go back'))
   expect(navigation.goBack).toHaveBeenCalled()
 })
