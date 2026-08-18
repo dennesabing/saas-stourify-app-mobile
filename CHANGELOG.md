@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The Profile tab works with no signal, so Settings is reachable again** (STOURIFY-120).
+
+  A shop with a photocopy of yesterday's price list in the back room does not shut when the phone
+  line goes down — it hangs up a sign saying prices may be out of date and carries on serving
+  people. The app keeps that photocopy: every finished request is written to the device and read
+  back the next time the app starts. The Profile screen simply never looked at it. One failed
+  request painted *"We could not load your profile"* over a profile it already had, and behind that
+  wall sat **Settings**, and behind Settings sat **Blocked accounts** and **Offline & sync** — none
+  of which need a network to be useful.
+
+  Now the wall only appears when there is genuinely nothing to show. A saved profile renders as
+  normal under one muted line saying it could not be refreshed and may be out of date, and when
+  there really is nothing saved — a first run with no signal, or a copy older than the cache's 24
+  hours — the failure state offers **Settings** beside **Try again**. Two answers from the server
+  still clear the screen outright rather than being served from the cache: `403`, which is what a
+  block looks like, and `404`, which means the profile is gone rather than unreachable.
+
 - **Work you saved with no signal is reachable again after the app restarts** (STOURIFY-118).
 
   Picture a parcel locker with no window. A spot published in airplane mode really is saved on the

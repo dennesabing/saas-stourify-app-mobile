@@ -274,4 +274,33 @@ describe('EmptyState', () => {
     expect(screen.getByText('Nothing yet')).toBeTruthy()
     expect(screen.queryByRole('button')).toBeNull()
   })
+
+  // A dead end sometimes has two ways out of it, and the second one is not
+  // always the retry. The Profile screen's offline state (STOURIFY-120) keeps
+  // "Try again" and adds "Settings", because everything a person can still
+  // usefully do with no network is behind that second button.
+  it('offers a second way out when one is given', () => {
+    const onAction = jest.fn()
+    const onSecondary = jest.fn()
+    renderThemed(
+      <EmptyState
+        title="We could not load your profile"
+        actionLabel="Try again"
+        onAction={onAction}
+        secondaryActionLabel="Settings"
+        onSecondaryAction={onSecondary}
+      />,
+    )
+
+    fireEvent.press(screen.getByText('Settings'))
+
+    expect(onSecondary).toHaveBeenCalledTimes(1)
+    expect(onAction).not.toHaveBeenCalled()
+  })
+
+  it('does not render a second button when only the first is given', () => {
+    renderThemed(<EmptyState title="Nothing yet" actionLabel="Try again" onAction={jest.fn()} />)
+
+    expect(screen.queryByText('Settings')).toBeNull()
+  })
 })

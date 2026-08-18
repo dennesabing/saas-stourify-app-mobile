@@ -9,13 +9,33 @@ interface Props {
   subtitle?: string
   actionLabel?: string
   onAction?: () => void
+  /**
+   * A second way out, under the first.
+   *
+   * Some dead ends have two exits and the retry is not always the useful one.
+   * The Profile screen's offline state (STOURIFY-120) keeps "Try again" and
+   * adds "Settings", because with no network everything a person can still
+   * usefully do — their account settings, their blocked list, the queue of work
+   * waiting to upload — is behind that second button. Both props or neither;
+   * one alone renders nothing.
+   */
+  secondaryActionLabel?: string
+  onSecondaryAction?: () => void
 }
 
 /**
  * Empty state. An empty screen should always say what to do next, so the
  * action is offered rather than leaving the user at a dead end.
  */
-export default function EmptyState({ icon = '🌍', title, subtitle, actionLabel, onAction }: Props) {
+export default function EmptyState({
+  icon = '🌍',
+  title,
+  subtitle,
+  actionLabel,
+  onAction,
+  secondaryActionLabel,
+  onSecondaryAction,
+}: Props) {
   const theme = useTheme()
 
   return (
@@ -31,6 +51,14 @@ export default function EmptyState({ icon = '🌍', title, subtitle, actionLabel
       ) : null}
       {actionLabel && onAction ? (
         <Button label={actionLabel} onPress={onAction} style={{ marginTop: theme.spacing[4] }} />
+      ) : null}
+      {secondaryActionLabel && onSecondaryAction ? (
+        <Button
+          label={secondaryActionLabel}
+          variant="ghost"
+          onPress={onSecondaryAction}
+          style={{ marginTop: theme.spacing[2] }}
+        />
       ) : null}
     </View>
   )
