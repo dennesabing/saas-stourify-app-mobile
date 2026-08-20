@@ -21,6 +21,22 @@ type Props = NativeStackScreenProps<OnboardingStackParamList, 'Interests'>
  * a brand-new account, the one case this screen exists for, is never true. The
  * choice went nowhere (STOURIFY-82). `persistProfileChoice` owns that fallback
  * now; see it for why the two writers exist and why a failure is swallowed.
+ *
+ * ## Why `edges` names `bottom` here and `top` alone elsewhere
+ *
+ * A phone reserves a strip along the bottom of the screen for its own back,
+ * home and recents controls, and tells each app how tall that strip is.
+ * `edges` is the list of sides `SafeAreaView` is allowed to pad, so naming only
+ * `top` left this screen's Continue/Skip footer free to sit underneath the
+ * phone's own bar — where a tap can land on the system instead of the app.
+ * Skip is the only way past this step for someone who does not want to pick
+ * interests, so that is a bad control to have swallowed (STOURIFY-81).
+ *
+ * The rest of the app gets away with `top` alone because every other screen
+ * sits inside the tab navigator and its tab bar already occupies the strip.
+ * Onboarding is its own stack with no tab bar, so each of its four screens
+ * states the rule itself; `__tests__/features/onboarding/safeAreaEdges.test.tsx`
+ * is what keeps them in step.
  */
 export default function InterestsScreen({ navigation }: Props) {
   const theme = useTheme()
@@ -40,7 +56,7 @@ export default function InterestsScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={{ padding: theme.gutter, gap: theme.spacing[5] }}>
         <Text variant="h1">What draws you to a place?</Text>
         <Text variant="body" color="muted">

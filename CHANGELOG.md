@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Onboarding's Skip and Continue buttons no longer sit under the phone's own navigation bar**
+  (STOURIFY-81).
+
+  Every phone keeps a strip along the bottom of the screen for its back, home and recents controls,
+  and tells each app how tall that strip is so the app can stay out of it. Onboarding did not stay
+  out of it. On a Pixel emulator with the three-button bar, the **Skip** link on *"What draws you to
+  a place?"* was drawn from y=2267 to y=2382 while the navigation bar started at y=2298 — so 84 of
+  the control's 115 pixels, nearly three quarters of it, lay underneath the phone's own buttons. A
+  tap there can go to the system instead of the app, and Skip is the only way past that step for
+  someone who does not want to pick interests. A brand-new user could be stuck on it thirty seconds
+  into the app.
+
+  The cause was one word. Each onboarding screen wraps itself in a `SafeAreaView` and hands it a
+  list of screen edges it is allowed to pad; the list said `top` and nothing else. The rest of the
+  app gets away with that because every other screen sits inside the tab navigator and the tab bar
+  already fills the strip — onboarding is its own stack, with nothing in the way. All four
+  onboarding screens now name `bottom` as well, including the Enable-location screen, whose buttons
+  are centred today but sit one copy-edit away from the same bug. Measured again on the same
+  emulator afterwards: Skip ends at y=2256, a 42-pixel gap above the bar, and tapping it advances
+  the flow.
+
 - **The Profile tab works with no signal, so Settings is reachable again** (STOURIFY-120).
 
   A shop with a photocopy of yesterday's price list in the back room does not shut when the phone
