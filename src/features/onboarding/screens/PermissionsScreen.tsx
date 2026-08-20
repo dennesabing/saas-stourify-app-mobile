@@ -17,6 +17,11 @@ type Props = NativeStackScreenProps<OnboardingStackParamList, 'Permissions'>
  * The copy runs BEFORE the OS prompt, deliberately: requesting cold, with no
  * explanation on screen first, is the top reason a permission prompt gets a
  * permanent "Don't ask again".
+ *
+ * `edges` names `bottom` as well as `top` even though this screen's buttons sit
+ * in a vertically centred block rather than against the bottom. It is the same
+ * stack and the same rule, and leaving the one screen out is how the next
+ * person to anchor something here inherits the bug (STOURIFY-81).
  */
 export default function PermissionsScreen({ navigation }: Props) {
   const theme = useTheme()
@@ -33,7 +38,7 @@ export default function PermissionsScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top', 'bottom']}>
       <View style={{ flex: 1, justifyContent: 'center', padding: theme.gutter, gap: theme.spacing[5] }}>
         <Text style={{ fontSize: 48, lineHeight: 56 }}>📍</Text>
         <Text variant="h1">Find spots near you</Text>

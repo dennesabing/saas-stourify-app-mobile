@@ -22,6 +22,10 @@ type Props = NativeStackScreenProps<OnboardingStackParamList, 'HomeCity'>
  * it wrote to the local profile row `if (profiles.length > 0)`, a guard that is
  * never true on a brand-new account, so the city went nowhere (STOURIFY-82).
  * `persistProfileChoice` handles both cases.
+ *
+ * `edges` names `bottom` as well as `top` — on both returns — so the footer
+ * stays clear of the phone's own navigation bar. `InterestsScreen` explains why
+ * onboarding needs that and the rest of the app does not (STOURIFY-81).
  */
 export default function HomeCityScreen({ navigation }: Props) {
   const theme = useTheme()
@@ -45,7 +49,7 @@ export default function HomeCityScreen({ navigation }: Props) {
 
   if (cities.length === 0) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top', 'bottom']}>
         <EmptyState
           icon="🧭"
           title="Still syncing your cities"
@@ -58,7 +62,7 @@ export default function HomeCityScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top', 'bottom']}>
       <View style={{ padding: theme.gutter, gap: theme.spacing[2] }}>
         <Text variant="h1">Where do you explore from?</Text>
         <Text variant="body" color="muted">

@@ -22,6 +22,10 @@ type Props = NativeStackScreenProps<OnboardingStackParamList, 'FollowSuggestions
  *
  * The last onboarding step: finishing it (Skip, same as any other route out)
  * marks onboarding complete so it never replays.
+ *
+ * `edges` names `bottom` as well as `top`, so the Skip footer stays clear of
+ * the phone's own navigation bar. `InterestsScreen` explains why onboarding
+ * needs that and the rest of the app does not (STOURIFY-81).
  */
 export default function FollowSuggestionsScreen({ navigation: _navigation }: Props) {
   const theme = useTheme()
@@ -73,7 +77,7 @@ export default function FollowSuggestionsScreen({ navigation: _navigation }: Pro
   )
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top', 'bottom']}>
       <View style={{ padding: theme.gutter, gap: theme.spacing[3] }}>
         <Text variant="h1">Find people to follow</Text>
         <Input placeholder="Search people" value={query} onChangeText={setQuery} />
