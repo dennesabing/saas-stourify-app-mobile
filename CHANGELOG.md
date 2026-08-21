@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A screen's saved copy now survives every offline restart, not just the first one**
+  (STOURIFY-121).
+
+  Think of a shop that photocopies head office's price list and keeps it in a drawer. The rule at
+  closing time was *"file today's list, but only if we actually got through to head office today."*
+  On the first day the phone line is dead that is harmless — yesterday's copy is still in the
+  drawer. But nothing gets filed that evening, because there was no call, so on the second
+  dead-phone day the drawer is empty and stays empty until the line comes back. That was the app:
+  with no signal, the first cold start showed the saved profile and every restart after it showed
+  *"We could not load your profile"*, which is precisely backwards — the second restart in a tunnel
+  or on a flight is when a saved copy is worth the most.
+
+  Two library behaviours combined to cause it. React Query labels a request by its **most recent**
+  attempt, so a request still holding good data from an earlier success flips to `error` the moment
+  one refresh fails. And the persister rewrites the **entire** saved file on every cache change
+  rather than editing entries in place, filtering it through a rule that by default keeps only
+  `success` — so rejecting an entry does not skip it, it deletes it. The offline session therefore
+  spent itself erasing the copy it had just read.
+
+  The rule now keeps a request whose last attempt succeeded **or** which is still holding data, and
+  it lives in one place (`src/shared/queryClient.ts`, exported as `shouldPersistQuery` inside the
+  `persistOptions` that `App.tsx` hands to the provider) so the app and its test cannot drift apart.
+  A request that has only ever failed carries no data and is still not saved: a saved failure is not
+  a saved copy of anything, and rehydrating one would open a screen showing an error inherited from
+  a previous run instead of trying to load. The 24-hour window and the version-based cache reset are
+  unchanged. The guarding test exercises **three** cold starts — a single-restart test passes
+  against the broken code, which is how this reached a real device.
+
 - **Onboarding's Skip and Continue buttons no longer sit under the phone's own navigation bar**
   (STOURIFY-81).
 
