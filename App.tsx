@@ -9,7 +9,7 @@ import { startSyncScheduler } from '@/sync/scheduler'
 import { installSyncSessionHandlers } from '@/sync/session'
 import { ThemeProvider } from '@/theme/ThemeProvider'
 import { useAppFonts } from '@/theme/useAppFonts'
-import { asyncStoragePersister, PERSIST_BUSTER, PERSIST_MAX_AGE_MS, queryClient } from '@/shared/queryClient'
+import { persistOptions, queryClient } from '@/shared/queryClient'
 
 export default function App() {
   const [database] = useState(() => getDatabase())
@@ -31,14 +31,12 @@ export default function App() {
     <SafeAreaProvider>
       <DatabaseProvider database={database}>
         <ThemeProvider>
-          <PersistQueryClientProvider
-            client={queryClient}
-            persistOptions={{
-              persister: asyncStoragePersister,
-              maxAge: PERSIST_MAX_AGE_MS,
-              buster: PERSIST_BUSTER,
-            }}
-          >
+          {/*
+            The persistence settings live in `@/shared/queryClient` rather than
+            inline here, so the rule deciding what survives a restart has one
+            home that a test can read too. See `shouldPersistQuery`.
+          */}
+          <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
             <StatusBar style="auto" />
             <RootNavigator />
           </PersistQueryClientProvider>
