@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Every password box now has a Show button** (STOURIFY-99).
+
+  Password fields hide what you type, which is right when somebody is watching and unhelpful when
+  you are alone fighting a long password you cannot check. Each one now carries a small **Show**
+  button; press it and the characters appear, press **Hide** and they go back.
+
+  It starts hidden every time, each field toggles on its own — Register's password and confirm
+  boxes are independent — and revealing survives typing, so it does not snap back to dots while you
+  are reading it. Leaving the screen re-hides it.
+
+  The button is built into the app's shared text-field component rather than onto individual
+  screens, so all six password fields get it at once: Login, Register's two, Reset password's two,
+  and the change-password box on Settings. It is the word "Show" rather than an eye icon because
+  this app installs no icon set, and a screen reader announces an emoji however the phone feels
+  like — which is the wrong property for the one control whose meaning depends on its own state.
+
 - **You can now read and write the replies on a note somebody left about a spot** (STOURIFY-148).
 
   Each note on a spot's About tab has shown a small reply count since STOURIFY-147, and tapping it
