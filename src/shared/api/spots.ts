@@ -49,8 +49,26 @@ export async function getSpot(uuid: string): Promise<Spot> {
   return res.data.data
 }
 
+/**
+ * The photos people have posted at one spot — the grid on a spot's page.
+ *
+ * A filter on the post index, not a `/spots/{uuid}/posts` route (which has
+ * never existed). This asked for the nested path from the app's first commit
+ * on 2026-04-25 until STOURIFY-155, so every request 404'd and the grid was
+ * empty on every spot for about four months. It never looked broken: the
+ * screen fetches the spot's own details in a SEPARATE request that works, so
+ * the page rendered fine and an empty grid reads as a quiet place.
+ *
+ * `spot_uuid` is the name `PostIndexRequest` validates. Laravel drops a query
+ * parameter it has no rule for without complaining, so a misspelling here
+ * would not fail — it would fill the grid with every post in the app.
+ *
+ * The server applies its visibility scope first, so this returns only what the
+ * caller may already see, and orders by `published_at` newest-first. Twenty-
+ * five to a page, and the screen renders the first page only.
+ */
 export async function getSpotPosts(uuid: string): Promise<PaginatedResponse<Post>> {
-  const res = await client.get(`/spots/${uuid}/posts`)
+  const res = await client.get('/posts', { params: { spot_uuid: uuid } })
   return res.data
 }
 

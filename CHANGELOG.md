@@ -55,6 +55,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A spot's photo grid shows the photos taken there. It never has before** (STOURIFY-155).
+
+  Every spot in the app has a grid under its details that is meant to show what people have posted
+  at that place. It has been empty on every spot, for everybody, since the app's very first commit
+  in April 2026 — because the app was asking the server for those photos at an address the server
+  has never answered at.
+
+  It did not look broken, and that is why it lasted four months. The spot's own details arrive in a
+  separate request that works fine, so the page rendered normally with one empty grid on it. An
+  empty grid reads as a quiet spot nobody has visited yet, not as a failure.
+
+  The photos were always there and always reachable; the app was simply knocking on the wrong door.
+  The server lists posts filtered by which spot they belong to, which is the same door the app
+  already uses to show one person's posts on their profile. It now uses that door here too, so a
+  spot's grid shows the newest photos taken there, and only the ones you are allowed to see.
+
 - **Liking a post works. It never has before** (STOURIFY-149).
 
   The heart under a post has been sending its request to an address nothing has ever answered at,
