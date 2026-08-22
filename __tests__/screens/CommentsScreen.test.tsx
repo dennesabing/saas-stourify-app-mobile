@@ -40,15 +40,43 @@ function renderAboutScreen(spotAboutId = 'about-1', queryClient?: QueryClient) {
 
 beforeEach(() => jest.clearAllMocks())
 
+/**
+ * How far a row sits from the left edge, in pixels.
+ *
+ * The screen draws depth as `marginLeft`, so this is the one number that says
+ * whether a reply reads as an answer or as a second opinion. Asserting on it
+ * rather than on the text being present is deliberate: for the whole life of
+ * this screen a test called "with its reply indented under it" only checked
+ * that both bodies appeared, and it stayed green through a period when NO reply
+ * was ever drawn indented on a real device (STOURIFY-152).
+ */
+function indentOf(commentId: string): number {
+  const style = screen.getByTestId(`comment-row-${commentId}`).props.style
+  const flat = Array.isArray(style) ? Object.assign({}, ...style) : style
+
+  return flat?.marginLeft ?? 0
+}
+
+/**
+ * A post's thread, shaped the way the server answers it.
+ *
+ * `parent_id` is the parent's UUID — the same kind of value as `id`, because
+ * that is the only identifier for a comment this API hands out. It used to be
+ * the parent's numeric database key, which matched nothing on the client and
+ * made every reply invisible; the server was changed under STOURIFY-152 and
+ * this fixture is what fails if it ever goes back.
+ */
+const postThread = {
+  data: [
+    { id: 'c1', body: 'Great shot!', user: { id: 'u1', name: 'Ana Martinez' }, parent_id: null, created_at: new Date().toISOString() },
+    { id: 'c2', body: 'Agreed', user: { id: 'u2', name: 'Ben Cruz' }, parent_id: 'c1', created_at: new Date().toISOString() },
+  ],
+  links: {},
+  meta: { current_page: 1, last_page: 1, total: 2 },
+}
+
 it('renders a thread — a top-level comment with its reply indented under it', async () => {
-  ;(getComments as jest.Mock).mockResolvedValue({
-    data: [
-      { id: 'c1', body: 'Great shot!', user: { id: 'u1', name: 'Ana Martinez' }, parent_id: null, created_at: new Date().toISOString() },
-      { id: 'c2', body: 'Agreed', user: { id: 'u2', name: 'Ben Cruz' }, parent_id: 'c1', created_at: new Date().toISOString() },
-    ],
-    links: {},
-    meta: { current_page: 1, last_page: 1, total: 2 },
-  })
+  ;(getComments as jest.Mock).mockResolvedValue(postThread)
 
   renderScreen()
 
@@ -56,6 +84,28 @@ it('renders a thread — a top-level comment with its reply indented under it', 
     expect(screen.getByText('Great shot!')).toBeTruthy()
     expect(screen.getByText('Agreed')).toBeTruthy()
   })
+
+  expect(indentOf('c2')).toBeGreaterThan(indentOf('c1'))
+})
+
+it('loses a reply entirely when the server names its parent with something no row carries', async () => {
+  ;(getComments as jest.Mock).mockResolvedValue({
+    ...postThread,
+    // The shape the server sent before STOURIFY-152: the parent named by its
+    // numeric database key, a value that appears nowhere else in the payload.
+    // This test does not endorse it — it pins what that failure LOOKS like from
+    // the outside, and the answer is worth knowing: the reply is not drawn
+    // flat, or in the wrong place. It is simply gone, with nothing on screen
+    // and nothing in any log to say so. That silence is why the defect survived
+    // from the day comments shipped until somebody watched a real device.
+    data: [postThread.data[0], { ...postThread.data[1], parent_id: 1 as unknown as string }],
+  })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Great shot!')).toBeTruthy())
+
+  expect(screen.queryByText('Agreed')).toBeNull()
 })
 
 /**
@@ -179,24 +229,37 @@ describe('opened on a Spot About entry', () => {
    * A thread shaped the way the server really answers, checked against a live
    * response rather than copied from the post fixture above.
    *
-   * Two things it does NOT do, both deliberate. It is not sorted oldest-first —
-   * both comment endpoints call `latest()`, so newest comes first. And it holds
-   * no reply, because a reply cannot currently be drawn at all: the API sends a
-   * comment's own `id` as a UUID and its `parent_id` as a numeric database id,
-   * so nothing on the client can match the two (STOURIFY-152, filed from this
-   * card's live run). Writing a fixture with a UUID `parent_id` would make a
-   * test pass over a payload that has never existed — the exact trap
-   * STOURIFY-146 recorded — so this one stays flat and this card claims only
-   * what it can actually deliver.
+   * Two things about it are deliberate. It is not sorted oldest-first — both
+   * comment endpoints call `latest()`, so newest comes first. And `parent_id`
+   * on the reply is the parent's UUID, the same kind of value as `id`.
+   *
+   * That second point is the whole of STOURIFY-152. When this fixture was
+   * written the server sent `parent_id` as a numeric database key that appeared
+   * nowhere else in the payload, so no reply could be matched to its parent and
+   * none was ever drawn — and this fixture was left deliberately flat rather
+   * than inventing a shape the API had never produced. The server now sends the
+   * UUID, so the reply is here, and a test fails if that is ever undone.
    */
   const thread = {
     data: [
+      { id: 'c3', body: 'Only at weekends, in winter.', user: { id: 'u3', name: 'Cara Lim' }, parent_id: 'c1', created_at: new Date().toISOString() },
       { id: 'c2', body: 'Confirmed, the barrier came down on us.', user: { id: 'u2', name: 'Ben Cruz' }, parent_id: null, created_at: new Date().toISOString() },
       { id: 'c1', body: 'The car park closes at six.', user: { id: 'u1', name: 'Ana Martinez' }, parent_id: null, created_at: new Date().toISOString() },
     ],
     links: {},
-    meta: { current_page: 1, last_page: 1, total: 2 },
+    meta: { current_page: 1, last_page: 1, total: 3 },
   }
+
+  it('draws a reply indented under the comment it answers', async () => {
+    ;(getSpotAboutComments as jest.Mock).mockResolvedValue(thread)
+
+    renderAboutScreen('about-1')
+
+    await waitFor(() => expect(screen.getByText('Only at weekends, in winter.')).toBeTruthy())
+
+    expect(indentOf('c3')).toBeGreaterThan(indentOf('c1'))
+    expect(indentOf('c2')).toBe(indentOf('c1'))
+  })
 
   /**
    * The whole of the host switch, asserted in both directions.

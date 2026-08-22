@@ -55,6 +55,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A reply to a comment now appears in the thread, indented under the comment it answers**
+  (STOURIFY-152). The app was never wrong here — it has always matched a comment's `parent_id`
+  against another comment's `id`, and the server was sending a number for one and a name for the
+  other, so the match could never succeed and the reply was silently dropped. The repair is on the
+  server; what changed in the app is the tests, which had encoded the same wrong assumption as the
+  code and therefore could never have caught it.
+
+  A comment row now carries a `testID`, so a test can ask where a reply was **drawn** rather than
+  only whether its words reached the screen — the old assertion passed just as happily when every
+  reply was flattened to the left margin. The thread fixtures carry the shape the server actually
+  returns, and one new test pins what the old failure looked like from outside: the reply is not
+  misplaced, it is absent, with nothing on screen to say so.
+
 - **`npm test` now ends when the tests do, instead of printing a green tally and sitting there**
   (STOURIFY-144).
 
