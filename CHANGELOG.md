@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The Spot screen's About tab is now a noticeboard other visitors can write on** (STOURIFY-147).
+
+  A spot has always had one short description, written once by whoever added it — a brass plaque
+  beside a landmark. The About tab now hangs a corkboard next to that plaque. Anyone who has been
+  to the place can pin up a note, other visitors give a thumbs-up to the notes that turned out to
+  be true, and the board sorts itself so the useful ones sit at the top. Each note shows who wrote
+  it, how long ago, and how many people replied.
+
+  Three details worth knowing, because each one is a decision rather than an accident:
+
+  The plaque stays. The spot's own description, address and coordinates are still at the top of
+  the tab — they are a different kind of fact, and the notes sit underneath them rather than
+  instead of them.
+
+  Tapping a heart answers immediately and quietly puts itself back if the request fails. Waiting
+  for the network before filling in a heart reads as a broken button, so the screen changes first
+  and the server's own count replaces the guess when the answer arrives.
+
+  Writing a note does not place the note. The list is ordered by likes and the app does not own
+  that ordering, so it asks the server again rather than guessing a position the row would jump
+  out of a moment later.
+
+  Reading the replies is not here yet — the count is shown, and the thread itself arrives with
+  STOURIFY-148. New: `src/shared/api/spotAbouts.ts`, `src/shared/api/reactions.ts` (the app's first
+  client for the platform's generic reactions endpoint, written for any record type rather than
+  this one), and `src/features/spots/components/SpotAboutTab.tsx`.
+
 ### Fixed
 
 - **`npm test` now ends when the tests do, instead of printing a green tally and sitting there**

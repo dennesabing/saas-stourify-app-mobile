@@ -162,6 +162,47 @@ export interface Comment {
   can: Record<string, boolean>
 }
 
+/**
+ * The identity `SpotAboutResource` nests under `author`, `whenLoaded('user')`.
+ * Absent — not merely falsy — on any path that did not load the relation.
+ */
+export interface SpotAboutAuthor {
+  uuid: string
+  name: string
+  username: string | null
+  avatar_url: string | null
+}
+
+/**
+ * One note a visitor pinned up about a spot.
+ *
+ * Mirrors `Modules\Stourify\Http\Resources\SpotAboutResource::toArray()`
+ * exactly. Three fields are **optional on purpose**, and the reason is the same
+ * for all three: the server omits a field it did not evaluate, rather than
+ * sending a zero or a `false` that reads as an answer.
+ *
+ * A blank form and a form filled in with "no" are different documents, and a
+ * client that flattens them draws a hollow heart on a record whose likes were
+ * never looked up. `is_liked !== true` renders the same hollow heart while
+ * keeping the difference readable in the type.
+ */
+export interface SpotAbout {
+  uuid: string
+  body: string
+  /** Present when the `spot` relation was loaded — every read path loads it. */
+  spot_uuid?: string
+  author?: SpotAboutAuthor
+  /** A stored column on the server, kept correct by its reaction observer. */
+  likes_count: number
+  /** Absent means "not counted", never "nobody replied". */
+  comments_count?: number
+  /** Absent means "the viewer's own reaction was not looked up", never "not liked". */
+  is_liked?: boolean
+  created_at: string
+  updated_at: string
+  can: Record<string, boolean>
+}
+
 export interface Follow {
   id: string
   uuid: string
