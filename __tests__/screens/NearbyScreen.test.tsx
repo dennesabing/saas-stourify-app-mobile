@@ -40,6 +40,7 @@ jest.mock('@/shared/api/spots', () => ({
 
 import * as Location from 'expo-location'
 import { getNearbySpots } from '@/shared/api/spots'
+import { trackQueryClient } from '../support/queryClients'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 const route = {} as any
@@ -355,9 +356,9 @@ describe('the spots it renders', () => {
     // client. The seeded entry has no observer between `setQueryData` and the
     // screen's first fetch, and a zero collection window throws it away in that
     // gap — the cache would be empty before the screen ever looked at it.
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false, staleTime: 0 } },
-    })
+    const queryClient = trackQueryClient(
+      new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 0 } } }),
+    )
     queryClient.setQueryData(['nearby', GENSAN.latitude, GENSAN.longitude, 10], GENSAN_PAGE)
     ;(getNearbySpots as jest.Mock).mockRejectedValue(new Error('offline'))
 

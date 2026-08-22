@@ -10,6 +10,7 @@ jest.mock('@/shared/api/comments', () => ({
 }))
 
 import { createComment, getComments } from '@/shared/api/comments'
+import { trackQueryClient } from '../support/queryClients'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 
@@ -101,7 +102,7 @@ describe('a failed comments request is not an empty thread', () => {
     // Rows the reader could already read. The error branch lives inside
     // `ListEmptyComponent`, which never renders while rows exist — so a
     // failing refetch must not cover them.
-    const seeded = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+    const seeded = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
     seeded.setQueryData(['comments', 'post-1'], {
       data: [
         { id: 'c1', body: 'Cached from earlier', user: { id: 'u1', name: 'Ana Martinez' }, parent_id: null, created_at: new Date().toISOString() },

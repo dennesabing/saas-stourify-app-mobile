@@ -11,6 +11,7 @@ jest.mock('@/shared/api/spots', () => ({
 }))
 
 import { getSpots } from '@/shared/api/spots'
+import { trackQueryClient } from '../support/queryClients'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 const route = {} as any
@@ -104,7 +105,7 @@ it('shows a placeholder rather than falling back to the original when no thumb e
  * return deletes without anyone noticing, because online it never fires.
  */
 it('keeps showing cached spots when the network refuses', async () => {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  const queryClient = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
   queryClient.setQueryData(EXPLORE_SPOTS_QUERY_KEY, [makeSpot({ title: 'Cached Cove' })])
   ;(getSpots as jest.Mock).mockRejectedValue(new Error('Network request failed'))
 

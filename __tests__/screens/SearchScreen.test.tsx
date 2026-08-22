@@ -21,6 +21,7 @@ jest.mock('@/shared/api/spots', () => ({
 
 import { searchDiscover, searchDiscoverType } from '@/shared/api/discover'
 import { getSpots } from '@/shared/api/spots'
+import { trackQueryClient } from '../support/queryClients'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 const route = {} as any
@@ -233,7 +234,7 @@ it('keeps showing results already fetched when a later request fails', async () 
   // would be gone before the screen asked for it. The cost is a collection
   // timer that outlives the test — hence the `clear()` below, without which
   // jest sits for the five-minute default before the process can exit.
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const client = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false } } }))
   client.setQueryData(['discover-search', 'all', 'kalaklan'], PREVIEW)
   ;(searchDiscover as jest.Mock).mockRejectedValue(new Error('Network request failed'))
 

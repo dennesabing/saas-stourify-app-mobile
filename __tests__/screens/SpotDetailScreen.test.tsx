@@ -11,6 +11,7 @@ jest.mock('@/shared/api/spots', () => ({
 }))
 
 import { getSpot, getSpotPosts } from '@/shared/api/spots'
+import { trackQueryClient } from '../support/queryClients'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 
@@ -226,7 +227,7 @@ it('keeps showing a spot it already has while the refetch is failing', async () 
   // rather than on `isError` alone. Yesterday's spot is in the persisted cache,
   // today's network is gone: the reader should read the spot, not an apology
   // for not having one.
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  const queryClient = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
   queryClient.setQueryData(['spot', 'spot-1'], makeSpot())
 
   ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))

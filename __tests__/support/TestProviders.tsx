@@ -4,6 +4,7 @@ import { DatabaseProvider } from '@nozbe/watermelondb/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider, type Metrics } from 'react-native-safe-area-context'
 import { ThemeProvider } from '@/theme/ThemeProvider'
+import { trackQueryClient } from './queryClients'
 
 interface Props {
   database: Database
@@ -36,9 +37,9 @@ const TEST_SAFE_AREA_METRICS: Metrics = {
  * appearance.
  */
 export function TestProviders({ database, children, queryClient }: Props) {
-  const client = queryClient ?? new QueryClient({
+  const client = queryClient ?? trackQueryClient(new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
-  })
+  }))
 
   return (
     <SafeAreaProvider initialMetrics={TEST_SAFE_AREA_METRICS}>

@@ -10,6 +10,7 @@ jest.mock('@/shared/api/spots', () => ({
 }))
 
 import { getSpot } from '@/shared/api/spots'
+import { trackQueryClient } from '../support/queryClients'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 
@@ -151,7 +152,7 @@ it('keeps showing photos it already has while the refetch is failing', async () 
   // `!spot` rather than on `isError` alone. Yesterday's spot is in the cache,
   // today's network is gone: the reader should keep swiping the photos, not be
   // handed an apology for not having them.
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  const queryClient = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
   queryClient.setQueryData(['spot', 'spot-1'], makeSpot())
 
   ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))

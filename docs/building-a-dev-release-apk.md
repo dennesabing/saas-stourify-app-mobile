@@ -99,7 +99,7 @@ Two smaller guards sit underneath that:
 
 - `mobile/__tests__/android/cleartextTraffic.test.ts` fails if anybody moves the opening onto the
   main manifest, which would put it in every build including Play's. Run it with
-  `cd mobile && npm test -- --runInBand`.
+  `cd mobile && npm test -- __tests__/android/cleartextTraffic.test.ts`.
 - `mobile/android/app/src/releaseDev/AndroidManifest.xml` is the only file that carries the opening,
   and Gradle merges a source set only into the build type it is named for. `assembleRelease` never
   reads it.

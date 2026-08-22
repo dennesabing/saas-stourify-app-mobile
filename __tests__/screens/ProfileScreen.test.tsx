@@ -47,6 +47,7 @@ import { follow, unfollow } from '@/shared/api/follows'
 import { blockUser } from '@/shared/api/blocks'
 import { fileReport } from '@/shared/api/reports'
 import { useAuthStore } from '@/shared/store/auth'
+import { trackQueryClient } from '../support/queryClients'
 
 const SAFE_AREA_METRICS: Metrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -110,7 +111,7 @@ const navigation = {
 let resetSpy: jest.SpyInstance
 
 function renderProfile(userId?: string, queryClient?: QueryClient) {
-  const qc = queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  const qc = queryClient ?? trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
   resetSpy = jest.spyOn(qc, 'resetQueries')
   return render(
     <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
@@ -441,7 +442,7 @@ describe('a failed posts fetch is not an empty posts grid', () => {
   test('keeps showing posts already on screen when a later fetch fails', async () => {
     ;(getPosts as jest.Mock).mockRejectedValue(new Error('offline'))
 
-    const seeded = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+    const seeded = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
     seeded.setQueryData(['explorer-posts', 'me'], postsPage([postFixture()]))
 
     renderProfile(undefined, seeded)
@@ -621,7 +622,7 @@ describe('a failed profile refresh does not throw away a profile already in hand
   const MY_KEY = ['explorer-profile', 'me']
 
   function seededClient(key: unknown[], value: unknown) {
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+    const qc = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
     qc.setQueryData(key, value)
     return qc
   }

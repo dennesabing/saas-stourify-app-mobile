@@ -11,6 +11,7 @@ jest.mock('@/shared/api/follows', () => ({
 }))
 
 import { acceptFollowRequest, declineFollowRequest, getFollowRequests } from '@/shared/api/follows'
+import { trackQueryClient } from '../support/queryClients'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 
@@ -117,7 +118,7 @@ describe('a failed follow-request fetch is not an empty inbox', () => {
     // Rows the reader could already read. The error branch lives inside
     // `ListEmptyComponent`, which never renders while rows exist — so a
     // failing refetch must not cover them.
-    const seeded = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+    const seeded = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
     seeded.setQueryData(['follow-requests'], {
       data: [makeRequest()],
       links: {},

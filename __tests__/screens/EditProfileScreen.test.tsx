@@ -23,6 +23,7 @@ jest.mock('@/shared/api/profiles', () => ({
 }))
 
 import { getMyProfile, updateMyProfile } from '@/shared/api/profiles'
+import { trackQueryClient } from '../support/queryClients'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 
@@ -50,7 +51,7 @@ async function renderScreen() {
   const database = createTestDatabase()
   await seedCity(database, { uuid: 'city-gensan', serverId: 5, name: 'General Santos' })
 
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  const queryClient = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
   const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries')
 
   const view = render(
@@ -152,7 +153,7 @@ test('the form fills from the settled read, never from the copy left in the cach
   const database = createTestDatabase()
   await seedCity(database, { uuid: 'city-gensan', serverId: 5, name: 'General Santos' })
 
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  const queryClient = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
   queryClient.setQueryData(['explorer-profile', 'me'], profileFixture({ bio: 'The stale one.' }))
   ;(getMyProfile as jest.Mock).mockResolvedValue(profileFixture({ bio: 'The fresh one.' }))
 
