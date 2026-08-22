@@ -55,20 +55,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **The route-agreement check now excuses nothing at all** (STOURIFY-156):
-  `scripts/check-mobile-api-routes.sh` drops both `/settings/account` entries from
-  `KNOWN_DISAGREEMENTS`, because the app stopped calling them. **The list is now empty for the first
-  time** — every one of the app's 50 API calls resolves to a route the backend registers.
-
-  The list was created three cards ago holding three real bugs, so that the check could start failing
-  on new faults immediately instead of waiting for old ones to be fixed. All three are now fixed.
-
-  `scripts/tests/test-check-mobile-api-routes.sh` had three more assertions that drove the real list
-  and therefore depended on some bug staying unfixed. They now run against a copy of the script with
-  a fixture entry inserted, so what is under test is the exemption *mechanism* rather than whichever
-  paths happen to be excused this week — including the empty case, which is the state the list is
-  designed to reach and has now reached.
-
 - **The two privacy switches in Settings do something now. Neither ever has** (STOURIFY-156).
 
   **Account Visibility** and **Follow Mode** were switches screwed to a wall that was never wired.
