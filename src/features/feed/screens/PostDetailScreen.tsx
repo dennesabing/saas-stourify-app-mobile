@@ -4,7 +4,7 @@ import { Pressable, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
-import { getPost, toggleLike } from '@/shared/api/posts'
+import { getPost, setPostLike } from '@/shared/api/posts'
 import PostActionsSheet from '@/features/social/components/PostActionsSheet'
 import { Avatar, Button, Skeleton, Tag, Text } from '@/shared/components/ui'
 import type { Post } from '@/shared/api/types'
@@ -30,9 +30,15 @@ export default function PostDetailScreen({ route, navigation }: Props) {
     queryFn: () => getPost(postId),
   })
 
+  /**
+   * The same shape as the feed's like, and deliberately so — see `FeedScreen`
+   * and `setPostLike`. The mutation is told the state to end up in rather than
+   * asked to flip, because the server reads a repeated like as "take it back",
+   * and `onSuccess` replaces the optimistic count with the server's own.
+   */
   const likeMutation = useMutation({
-    mutationFn: () => toggleLike(postId),
-    onMutate: async () => {
+    mutationFn: (liked: boolean) => setPostLike(postId, liked),
+    onMutate: async (liked: boolean) => {
       await queryClient.cancelQueries({ queryKey: POST_QUERY_KEY(postId) })
       const previous = queryClient.getQueryData<Post>(POST_QUERY_KEY(postId))
 
@@ -40,13 +46,18 @@ export default function PostDetailScreen({ route, navigation }: Props) {
         old
           ? {
               ...old,
-              is_liked: !old.is_liked,
-              likes_count: old.likes_count + (old.is_liked ? -1 : 1),
+              is_liked: liked,
+              likes_count: Math.max(0, old.likes_count + (liked ? 1 : -1)),
             }
           : old,
       )
 
       return { previous }
+    },
+    onSuccess: (state) => {
+      queryClient.setQueryData<Post>(POST_QUERY_KEY(postId), (old) =>
+        old ? { ...old, is_liked: state.liked, likes_count: state.likes_count } : old,
+      )
     },
     onError: (_err, _vars, context) => {
       if (context?.previous) {
@@ -150,7 +161,7 @@ export default function PostDetailScreen({ route, navigation }: Props) {
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[6] }}>
               <Pressable
-                onPress={() => likeMutation.mutate()}
+                onPress={() => likeMutation.mutate(!liked)}
                 accessibilityRole="button"
                 accessibilityLabel="Like"
                 accessibilityState={{ selected: liked }}

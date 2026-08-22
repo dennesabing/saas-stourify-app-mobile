@@ -55,6 +55,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Liking a post works. It never has before** (STOURIFY-149).
+
+  The heart under a post has been sending its request to an address nothing has ever answered at,
+  since the app's very first commit in April 2026. Nobody saw it, because the screen turned the
+  heart red before the request went out and put it back when the reply came — and a reply that
+  says "no such address" comes back fast enough that the undo looked like a flicker. Nothing was
+  ever saved. Closing the screen and coming back showed the like gone, which reads as the app
+  forgetting rather than as never having been told.
+
+  Likes now go through the same door every other kind of like in the app already uses — the one
+  a note on a spot's About tab uses — and land on the server for good.
+
+  Two smaller things came with it. The app now says which thing it wants, "like this" or "unlike
+  this", instead of asking the server to flip whatever it currently holds; flipping is only correct
+  while your copy is fresh, so two devices, or one screen left open, could turn a like into an
+  unlike. And the count you see after tapping is the server's own, not the app's arithmetic — so
+  somebody else liking the same post between two of your taps no longer leaves the number drifting
+  until the next refresh.
+
 - **A reply to a comment now appears in the thread, indented under the comment it answers**
   (STOURIFY-152). The app was never wrong here — it has always matched a comment's `parent_id`
   against another comment's `id`, and the server was sending a number for one and a name for the

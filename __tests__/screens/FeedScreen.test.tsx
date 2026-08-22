@@ -14,11 +14,11 @@ jest.mock('@/shared/api/feed', () => ({
 }))
 
 jest.mock('@/shared/api/posts', () => ({
-  toggleLike: jest.fn(),
+  setPostLike: jest.fn(),
 }))
 
 import { getFollowingFeed } from '@/shared/api/feed'
-import { toggleLike } from '@/shared/api/posts'
+import { setPostLike } from '@/shared/api/posts'
 import { trackQueryClient } from '../support/queryClients'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
@@ -96,7 +96,7 @@ it('flips the like state optimistically and rolls back on failure', async () => 
   // before the rejection reconciles it back — a mock that settles
   // immediately races the assertion.
   let rejectLike!: (err: Error) => void
-  ;(toggleLike as jest.Mock).mockReturnValue(
+  ;(setPostLike as jest.Mock).mockReturnValue(
     new Promise((_resolve, reject) => {
       rejectLike = reject
     }),
@@ -112,10 +112,63 @@ it('flips the like state optimistically and rolls back on failure', async () => 
   // Optimistic: flips immediately, before the mutation has settled at all.
   await waitFor(() => expect(screen.getByText('4')).toBeTruthy())
 
+  // The state asked for, not an instruction to flip — see `setPostLike`.
+  expect(setPostLike).toHaveBeenCalledWith('post-1', true)
+
   rejectLike(new Error('offline'))
 
   // Rolls back once the mutation fails.
   await waitFor(() => expect(screen.getByText('3')).toBeTruthy())
+})
+
+/**
+ * The other direction, and the one that used to be able to go wrong silently.
+ *
+ * The heart is one button for two opposite intentions, so the screen has to read
+ * which of them the tap means and say so. The old code sent the same request
+ * either way and let the server infer it from what it already held — which is a
+ * guess made by whichever side is more out of date, usually the app.
+ */
+it('asks for the like to be removed when the post is already liked', async () => {
+  ;(getFollowingFeed as jest.Mock).mockResolvedValue({
+    data: [makePost({ uuid: 'post-1', is_liked: true, likes_count: 4 })],
+    next_cursor: null,
+    prev_cursor: null,
+  })
+  ;(setPostLike as jest.Mock).mockResolvedValue({ liked: false, likes_count: 3 })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Sunset at the cove')).toBeTruthy())
+
+  fireEvent.press(screen.getByLabelText('Like'))
+
+  await waitFor(() => expect(setPostLike).toHaveBeenCalledWith('post-1', false))
+  await waitFor(() => expect(screen.getByText('3')).toBeTruthy())
+})
+
+/**
+ * The count on screen ends up as the server's, not the app's arithmetic.
+ *
+ * Adding one to what the device happens to hold is right only if nobody else has
+ * touched the post since it was fetched. Here the server answers 9 while the app
+ * guessed 4, and 9 is what the reader must end up seeing.
+ */
+it('replaces the optimistic count with the one the server reports', async () => {
+  ;(getFollowingFeed as jest.Mock).mockResolvedValue({
+    data: [makePost({ uuid: 'post-1', is_liked: false, likes_count: 3 })],
+    next_cursor: null,
+    prev_cursor: null,
+  })
+  ;(setPostLike as jest.Mock).mockResolvedValue({ liked: true, likes_count: 9 })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Sunset at the cove')).toBeTruthy())
+
+  fireEvent.press(screen.getByLabelText('Like'))
+
+  await waitFor(() => expect(screen.getByText('9')).toBeTruthy())
 })
 
 it('renders posts from a seeded query cache while the fetcher throws', async () => {
