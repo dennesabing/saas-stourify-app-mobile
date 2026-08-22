@@ -55,6 +55,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A comment you had just posted jumped from the bottom of the thread to the top** (STOURIFY-151).
+  You pressed send, the comment appeared at the end of the list, and a second later — when the
+  screen re-read the thread from the server — the same comment was first. Nothing was lost, but the
+  thing you had just written moved while you were looking at it, which reads for a moment as though
+  it had not been saved.
+
+  Two halves that were each written correctly, disagreeing about one thing. `CommentsScreen` showed
+  the new comment instantly by adding it to the **end** of the list it was holding; both comment
+  endpoints answer **newest first**. Showing it instantly is the right idea — it is a guess about
+  the answer that is coming — and the guess was simply aimed the wrong way. It now goes to the
+  front, where the server was always going to put it. Neither endpoint changed.
+
+  The tests that should have caught this could not: both seeded an **empty** thread, where first
+  and last are the same position. Three new ones seed a thread that already has comments, on both
+  hosts, and one of them holds the create request open so it can read where the row landed *before*
+  the server answers as well as after — because "does not move" is a claim about two moments, and
+  checking only the second passes just as happily when the row jumped in between.
+
 - **The two privacy switches in Settings do something now. Neither ever has** (STOURIFY-156).
 
   **Account Visibility** and **Follow Mode** were switches screwed to a wall that was never wired.
