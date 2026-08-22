@@ -212,11 +212,6 @@ export interface Follow {
   created_at: string
 }
 
-export interface AccountSettings {
-  account_visibility: 'public' | 'followers_only' | 'private'
-  follow_mode: 'open' | 'approval_required'
-}
-
 export interface PaginatedResponse<T> {
   data: T[]
   links: { next?: string; prev?: string }
