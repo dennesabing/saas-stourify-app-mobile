@@ -6,9 +6,9 @@ jest.mock('@/shared/api/auth', () => ({
   logout: jest.fn(() => Promise.resolve()),
 }))
 
-jest.mock('@/shared/api/settings', () => ({
-  getAccountSettings: jest.fn(() => Promise.resolve({ account_visibility: 'public', follow_mode: 'open' })),
-  updateAccountSettings: jest.fn(),
+jest.mock('@/shared/api/profiles', () => ({
+  getMyProfile: jest.fn(() => Promise.resolve({ uuid: 'p1', username: 'ziv', is_private: false })),
+  updateMyProfile: jest.fn(),
 }))
 
 jest.mock('@/shared/api/account', () => ({

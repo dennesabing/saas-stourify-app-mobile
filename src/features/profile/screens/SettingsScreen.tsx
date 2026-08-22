@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, Linking, KeyboardAvoidingView } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, Linking, KeyboardAvoidingView, Switch } from 'react-native'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { ProfileStackParamList } from '@/shared/navigation/types'
-import { getAccountSettings, updateAccountSettings } from '@/shared/api/settings'
+import { getMyProfile, updateMyProfile } from '@/shared/api/profiles'
 import * as authApi from '@/shared/api/auth'
 import { deleteAccount, deletionOutcomeIsUnknown } from '@/shared/api/account'
 import { signOut } from '@/sync/session'
@@ -22,15 +22,68 @@ export default function SettingsScreen({ navigation }: Props) {
   const [deleteEmail, setDeleteEmail] = useState('')
   const [deletePassword, setDeletePassword] = useState('')
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [privacyError, setPrivacyError] = useState<string | null>(null)
 
-  const { data: settings } = useQuery({
-    queryKey: ['account-settings'],
-    queryFn: getAccountSettings,
+  /**
+   * The caller's own profile, under the SAME key the profile screen uses.
+   *
+   * Sharing the key is the point rather than an economy: React Query files one
+   * cached value per key, so toggling privacy here and then opening your own
+   * profile shows one answer instead of two. A second key for the same fact is
+   * how two screens come to disagree about whether you are private.
+   *
+   * It resolves to `null` — not an error — for somebody who registered and
+   * skipped onboarding, which is why the row below is disabled rather than
+   * absent in that case.
+   */
+  const { data: profile } = useQuery({
+    queryKey: ['explorer-profile', 'me'],
+    queryFn: getMyProfile,
   })
 
-  const updateMutation = useMutation({
-    mutationFn: updateAccountSettings,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['account-settings'] }),
+  const isPrivate = profile?.is_private ?? false
+  const hasProfile = profile != null
+
+  /**
+   * One field per save. `PATCH /profile` is an upsert that also validates
+   * `username`, so restating fields nobody touched would let an unrelated
+   * uniqueness failure block a privacy change.
+   *
+   * **The switch moves first and is corrected afterwards** — the pattern React
+   * Query calls an *optimistic update*. `onMutate` writes the new value into
+   * the cache the switch reads, so the control follows your finger; `onError`
+   * puts the old value back and says why; `onSettled` refetches so the server
+   * always has the last word.
+   *
+   * Without that, the switch stays where it was for the whole round trip and
+   * looks like it refused the tap. That is not a theory: on the live run for
+   * STOURIFY-156 the save landed correctly in the database while the switch sat
+   * in the old position for several seconds. On a privacy control specifically,
+   * "looks like it ignored me" is the worst possible feedback — it invites a
+   * second tap, which would toggle it straight back.
+   *
+   * `onError` is not optional either. The two rows this replaces had no error
+   * handling at all, which is a large part of why every one of their requests
+   * could 404 for months without anybody noticing — and a switch that keeps a
+   * value the server refused tells somebody they are private when they are not.
+   */
+  const privacyMutation = useMutation({
+    mutationFn: (next: boolean) => updateMyProfile({ is_private: next }),
+    onMutate: async (next: boolean) => {
+      setPrivacyError(null)
+      // An in-flight read would otherwise land after this write and undo it.
+      await qc.cancelQueries({ queryKey: ['explorer-profile', 'me'] })
+      const previous = qc.getQueryData(['explorer-profile', 'me'])
+      qc.setQueryData(['explorer-profile', 'me'], (old: unknown) =>
+        old == null ? old : { ...(old as object), is_private: next },
+      )
+      return { previous }
+    },
+    onError: (_error, _next, context) => {
+      qc.setQueryData(['explorer-profile', 'me'], context?.previous)
+      setPrivacyError('That could not be saved. Your account is unchanged.')
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['explorer-profile', 'me'] }),
   })
 
   const handleLogout = async () => {
@@ -106,36 +159,6 @@ export default function SettingsScreen({ navigation }: Props) {
         <Text style={styles.title}>Settings</Text>
       </View>
 
-      <Text style={styles.section}>ACCOUNT</Text>
-
-      <TouchableOpacity
-        style={styles.row}
-        onPress={() => updateMutation.mutate({
-          account_visibility: settings?.account_visibility === 'public'
-            ? 'followers_only'
-            : settings?.account_visibility === 'followers_only'
-            ? 'private'
-            : 'public',
-        })}
-        disabled={updateMutation.isPending}
-      >
-        <Text style={styles.rowIcon}>👁</Text>
-        <Text style={styles.rowLabel}>Account Visibility</Text>
-        <Text style={styles.rowValue}>{settings?.account_visibility ?? '–'} ›</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.row}
-        onPress={() => updateMutation.mutate({
-          follow_mode: settings?.follow_mode === 'open' ? 'approval_required' : 'open',
-        })}
-        disabled={updateMutation.isPending}
-      >
-        <Text style={styles.rowIcon}>🤝</Text>
-        <Text style={styles.rowLabel}>Follow Mode</Text>
-        <Text style={styles.rowValue}>{settings?.follow_mode ?? '–'} ›</Text>
-      </TouchableOpacity>
-
       {/*
         Blocked accounts is the only place a block can be lifted from. The
         obvious home — a toggle on the blocked person's profile — is unreachable
@@ -144,6 +167,34 @@ export default function SettingsScreen({ navigation }: Props) {
         (STOURIFY-36, STOURIFY-37).
       */}
       <Text style={styles.section}>PRIVACY</Text>
+
+      {/*
+        The ONE privacy setting the server actually enforces. A private account
+        turns a follow into a request you have to accept, and hides your
+        follower and following lists from anyone who is not already following
+        you — one switch, both consequences, which is why there is no separate
+        "follow mode".
+
+        This row replaces two that read and wrote `/settings/account`, a route
+        that has never existed (STOURIFY-156, specced as STOURIFY-57). They
+        showed `–` forever and every tap 404'd in silence.
+      */}
+      <View style={styles.row}>
+        <Text style={styles.rowIcon}>🔐</Text>
+        <Text style={styles.rowLabel}>Private account</Text>
+        <Switch
+          accessibilityLabel="Private account"
+          value={isPrivate}
+          disabled={!hasProfile || privacyMutation.isPending}
+          onValueChange={(next) => privacyMutation.mutate(next)}
+        />
+      </View>
+
+      {!hasProfile && (
+        <Text style={styles.rowHint}>Set up your profile first to use this.</Text>
+      )}
+
+      {privacyError !== null && <Text style={styles.rowError}>{privacyError}</Text>}
 
       <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('BlockedAccounts')}>
         <Text style={styles.rowIcon}>🚫</Text>
@@ -272,6 +323,8 @@ const styles = StyleSheet.create({
   rowIcon: { fontSize: 18 },
   rowLabel: { flex: 1, color: '#fff', fontSize: 15 },
   rowValue: { color: '#aaa', fontSize: 14 },
+  rowHint: { color: '#888', fontSize: 12, paddingHorizontal: 16, paddingTop: 8 },
+  rowError: { color: '#ff6b6b', fontSize: 12, paddingHorizontal: 16, paddingTop: 8 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 24 },
   modalCard: { backgroundColor: '#16232f', borderRadius: 14, padding: 20, gap: 12 },
   modalTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },

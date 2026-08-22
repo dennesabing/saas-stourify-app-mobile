@@ -55,6 +55,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The route-agreement check now excuses nothing at all** (STOURIFY-156):
+  `scripts/check-mobile-api-routes.sh` drops both `/settings/account` entries from
+  `KNOWN_DISAGREEMENTS`, because the app stopped calling them. **The list is now empty for the first
+  time** — every one of the app's 50 API calls resolves to a route the backend registers.
+
+  The list was created three cards ago holding three real bugs, so that the check could start failing
+  on new faults immediately instead of waiting for old ones to be fixed. All three are now fixed.
+
+  `scripts/tests/test-check-mobile-api-routes.sh` had three more assertions that drove the real list
+  and therefore depended on some bug staying unfixed. They now run against a copy of the script with
+  a fixture entry inserted, so what is under test is the exemption *mechanism* rather than whichever
+  paths happen to be excused this week — including the empty case, which is the state the list is
+  designed to reach and has now reached.
+
+- **The two privacy switches in Settings do something now. Neither ever has** (STOURIFY-156).
+
+  **Account Visibility** and **Follow Mode** were switches screwed to a wall that was never wired.
+  They read from and wrote to an address on the server that has never existed, so both showed a dash
+  instead of a value, and every tap failed silently — the app had no handler to say so.
+
+  Meanwhile the one privacy setting the server really does enforce had no switch anywhere in the app.
+
+  Settings → PRIVACY now has a single **Private account** toggle, and it is the real one. Turning it
+  on means somebody who wants to follow you sends a request you have to accept, and people who do not
+  already follow you cannot see who follows you or who you follow. That is one switch with two
+  consequences, which is why there is no separate "follow mode" — on the server there never was one;
+  it was the same setting under a second name.
+
+  Three smaller things that matter if you use it. The switch shows what the server actually has
+  stored, so it survives closing the app. If a save is refused the switch goes back where it was and
+  says so, rather than sitting in a position that is not true. And if you have not set up your
+  profile yet the row is visible but greyed out, with a line telling you why — a privacy control you
+  cannot find is worse than one you cannot yet use.
+
 - **A spot's photo grid shows the photos taken there. It never has before** (STOURIFY-155).
 
   Every spot in the app has a grid under its details that is meant to show what people have posted

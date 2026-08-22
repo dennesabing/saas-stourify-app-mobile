@@ -169,12 +169,16 @@ describe('signOut', () => {
   it('clears the React Query cache so the next account does not see stale screens', async () => {
     const database = createTestDatabase()
     const qc = trackQueryClient(new QueryClient())
-    qc.setQueryData(['account-settings'], { account_visibility: 'public' })
-    expect(qc.getQueryData(['account-settings'])).toEqual({ account_visibility: 'public' })
+    // Any real cached key will do — this test is about signOut() emptying the
+    // cache, not about which screen filled it. It used `['account-settings']`
+    // until STOURIFY-156 deleted the feature behind that key, and a test
+    // standing on a key nothing writes any more slowly stops meaning anything.
+    qc.setQueryData(['explorer-profile', 'me'], { username: 'ziv' })
+    expect(qc.getQueryData(['explorer-profile', 'me'])).toEqual({ username: 'ziv' })
 
     await signOut(database, qc)
 
-    expect(qc.getQueryData(['account-settings'])).toBeUndefined()
+    expect(qc.getQueryData(['explorer-profile', 'me'])).toBeUndefined()
     expect(qc.getQueryCache().getAll()).toHaveLength(0)
   })
 

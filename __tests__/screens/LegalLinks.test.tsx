@@ -6,12 +6,9 @@ import { PRIVACY_POLICY_URL, TERMS_URL, ACCOUNT_DELETION_URL } from '@/shared/co
 import { trackQueryClient } from '../support/queryClients'
 
 jest.mock('@/shared/api/auth', () => ({ logout: jest.fn() }))
-jest.mock('@/shared/api/settings', () => ({
-  getAccountSettings: jest.fn().mockResolvedValue({
-    account_visibility: 'public',
-    follow_mode: 'open',
-  }),
-  updateAccountSettings: jest.fn(),
+jest.mock('@/shared/api/profiles', () => ({
+  getMyProfile: jest.fn().mockResolvedValue({ uuid: 'p1', username: 'ziv', is_private: false }),
+  updateMyProfile: jest.fn(),
 }))
 jest.mock('@/shared/api/account', () => ({
   deleteAccount: jest.fn(),

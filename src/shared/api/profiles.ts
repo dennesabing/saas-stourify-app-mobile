@@ -92,10 +92,18 @@ export async function getProfile(userUuid: string): Promise<ExplorerProfile> {
  * type exists to prevent recurring. The counts, `viewer` and `can` are not here
  * either: they are things the server computes about you, not things you set.
  *
- * `is_private` and `shows_location_on_spots` are accepted by the endpoint and
- * left out on purpose — see STOURIFY-57, which has to first settle whether
- * `is_private` and the Settings screen's `account_visibility` are one setting
- * or two.
+ * `is_private` IS here, and it is the settings screen's Private account switch.
+ * STOURIFY-57 asked whether it and that screen's `account_visibility` were one
+ * setting or two; STOURIFY-156 answered it — `account_visibility` and
+ * `follow_mode` existed only inside this app, backed by no column and no route,
+ * so there was one setting all along. `is_private` is the one the server
+ * enforces: it turns a follow into a request, and hides the follower and
+ * following lists from strangers.
+ *
+ * `shows_location_on_spots` is still deliberately absent. It is stored and
+ * synced and NOTHING reads it — spot coordinates go to every caller regardless
+ * — so a control for it would tell people their location is hidden while the
+ * API serves it. STOURIFY-75.
  */
 export interface ProfileWrite {
   username?: string
@@ -104,6 +112,7 @@ export interface ProfileWrite {
   /** A CITY uuid, not the numeric `server_id` the local database also holds. */
   home_city_uuid?: string | null
   interests?: string[]
+  is_private?: boolean
 }
 
 /**
