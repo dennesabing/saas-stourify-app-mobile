@@ -8,7 +8,7 @@ jest.mock('@/shared/api/client', () => ({
   },
 }))
 
-import { createSpot, getNearbySpots } from '@/shared/api/spots'
+import { createSpot, getNearbySpots, getSpotPosts } from '@/shared/api/spots'
 
 beforeEach(() => {
   jest.clearAllMocks()
@@ -128,5 +128,74 @@ describe('getNearbySpots', () => {
 
     expect(page.data.map((spot) => spot.uuid)).toEqual(['plaza', 'oval', 'market', 'lagao'])
     expect(page.data.map((spot) => spot.distance_km)).toEqual([0, 1.113, 2.627, 5.322])
+  })
+})
+
+/**
+ * A page of posts as the post index actually answers it, trimmed to the fields
+ * these tests read. Two photos at one spot, newest first — which is the order
+ * `PostApiController::index` sorts in and the order the grid draws in.
+ */
+const SPOT_POSTS_PAGE = {
+  data: [
+    { uuid: 'post-newer', caption: 'Sunset over the cove', published_at: '2026-08-20T09:00:00Z' },
+    { uuid: 'post-older', caption: 'Low tide', published_at: '2026-08-14T09:00:00Z' },
+  ],
+  links: {},
+  meta: { current_page: 1, last_page: 1, total: 2 },
+}
+
+describe('getSpotPosts', () => {
+  /**
+   * The photo grid on a spot asked `GET /spots/{uuid}/posts` from the app's
+   * very first commit on 2026-04-25 until STOURIFY-155. That route has never
+   * been registered, so every request 404'd — and the screen fetches the spot
+   * itself separately, so the page rendered perfectly with one empty grid on
+   * it. An empty grid looks like a quiet spot, not like a failure, which is how
+   * it survived four months.
+   *
+   * The posts live behind a filter on the post index instead, exactly like
+   * `getUserPosts` one function down.
+   */
+  it('GETs the post index, not the unregistered /spots/{uuid}/posts', async () => {
+    mockClientGet.mockResolvedValueOnce({ data: SPOT_POSTS_PAGE })
+
+    await getSpotPosts('spot-uuid-1')
+
+    const [url] = mockClientGet.mock.calls[0]
+    expect(url).toBe('/posts')
+    expect(url).not.toContain('/spots/')
+  })
+
+  /**
+   * `spot_uuid` is the name `PostIndexRequest` validates. Getting it wrong is
+   * not a 422 — Laravel drops a query parameter it has no rule for and answers
+   * happily, so a misspelling here would fill a spot's grid with EVERY post in
+   * the app while looking completely healthy. That is the same silent-drop trap
+   * that made `getSpots` search nothing at all until 2026-07-29.
+   */
+  it('sends the filter under the name PostIndexRequest validates', async () => {
+    mockClientGet.mockResolvedValueOnce({ data: SPOT_POSTS_PAGE })
+
+    await getSpotPosts('spot-uuid-1')
+
+    const [, config] = mockClientGet.mock.calls[0]
+    expect(config.params).toEqual({ spot_uuid: 'spot-uuid-1' })
+    expect(config.params).not.toHaveProperty('spot')
+    expect(config.params).not.toHaveProperty('spotUuid')
+  })
+
+  /**
+   * The whole paginated envelope is handed back, not just the rows: the screen
+   * reads `postsData?.data`, and `meta` is what a later paging change would
+   * need. The server's order is preserved rather than re-sorted here.
+   */
+  it('returns the page as received, newest post first', async () => {
+    mockClientGet.mockResolvedValueOnce({ data: SPOT_POSTS_PAGE })
+
+    const page = await getSpotPosts('spot-uuid-1')
+
+    expect(page.data.map((post) => post.uuid)).toEqual(['post-newer', 'post-older'])
+    expect(page.meta.total).toBe(2)
   })
 })
