@@ -40,9 +40,18 @@ const BODY_MAX = 2000
 
 interface Props {
   spotUuid: string
+  /**
+   * Open one note's replies.
+   *
+   * A callback rather than a `useNavigation()` call, because nothing in this
+   * app's `src/` looks navigation up — every screen is handed it as a prop —
+   * and the jest harness mounts components without a navigation container, so
+   * a hook here would throw in every test that renders the tab.
+   */
+  onOpenThread: (spotAboutUuid: string) => void
 }
 
-export default function SpotAboutTab({ spotUuid }: Props) {
+export default function SpotAboutTab({ spotUuid, onOpenThread }: Props) {
   const theme = useTheme()
   const queryClient = useQueryClient()
   const [text, setText] = useState('')
@@ -251,19 +260,35 @@ export default function SpotAboutTab({ spotUuid }: Props) {
                   </Pressable>
 
                   {/*
-                    How many people replied — printed, never a button. The thread
-                    itself is STOURIFY-148's, and a control that opens nothing is
-                    worse than no control at all.
+                    How many people replied, and the way into the conversation
+                    (STOURIFY-148). STOURIFY-147 shipped this as plain text on
+                    purpose, because the thread screen could not yet be reached
+                    from a spot and a control that opens nothing is worse than
+                    none at all. It can be now, so the number is the door.
 
                     `typeof … === 'number'` rather than a truthiness test, because
                     the server OMITS this field when it did not count, and zero is
                     a real answer. Drawing "0 replies" over a field nobody looked
-                    up is a confident answer to a question that was never asked.
+                    up is a confident answer to a question that was never asked —
+                    and it would put a door on a wall with no room behind it.
                   */}
                   {typeof about.comments_count === 'number' ? (
-                    <Text variant="caption" color="muted">
-                      {`💬 ${about.comments_count}`}
-                    </Text>
+                    <Pressable
+                      testID={`spot-about-comments-${about.uuid}`}
+                      accessibilityRole="button"
+                      accessibilityLabel="View replies"
+                      onPress={() => onOpenThread(about.uuid)}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        minHeight: theme.minTouchTarget,
+                        minWidth: theme.minTouchTarget,
+                      }}
+                    >
+                      <Text variant="caption" color="muted">
+                        {`💬 ${about.comments_count}`}
+                      </Text>
+                    </Pressable>
                   ) : null}
                 </View>
               </View>

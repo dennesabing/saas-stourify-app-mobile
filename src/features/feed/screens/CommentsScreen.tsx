@@ -3,8 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FlatList, KeyboardAvoidingView, Pressable, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import type { HomeStackParamList } from '@/shared/navigation/types'
-import { createComment, getComments } from '@/shared/api/comments'
+import type { CommentThreadTarget, HomeStackParamList } from '@/shared/navigation/types'
+import {
+  createComment,
+  createSpotAboutComment,
+  getComments,
+  getSpotAboutComments,
+} from '@/shared/api/comments'
 import { Avatar, EmptyState, Input, Text } from '@/shared/components/ui'
 import { useAuthStore } from '@/shared/store/auth'
 import type { Comment, PaginatedResponse } from '@/shared/api/types'
@@ -12,7 +17,48 @@ import { useTheme } from '@/theme/ThemeProvider'
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Comments'>
 
-const COMMENTS_QUERY_KEY = (postId: string) => ['comments', postId] as const
+/**
+ * One key namespace for both hosts, deliberately.
+ *
+ * Every id this API hands out is a UUID, and UUIDs do not repeat across
+ * resources — so a post's thread and an About entry's thread can share one
+ * namespace without ever colliding. Adding a discriminator would read a little
+ * more plainly and would buy nothing (STOURIFY-148).
+ */
+const COMMENTS_QUERY_KEY = (hostId: string) => ['comments', hostId] as const
+
+/**
+ * Everything this screen needs to know about WHAT it is showing comments on.
+ *
+ * The screen is one reading room with two doors. A post and a Spot About entry
+ * are different things to comment on, and the differences are exactly these
+ * four lines — which endpoint lists the thread, which one adds to it, the name
+ * the host is filed under, and what else has to be refreshed afterwards. Every
+ * other behaviour on this screen (flattening replies, telling an error apart
+ * from an empty thread, the optimistic composer, lifting the composer above the
+ * keyboard) was never about posts and is written once.
+ *
+ * Writing the difference as one object rather than scattering `if` statements
+ * through the file is what lets a reader check that claim: if something host-
+ * specific is not in here, it does not exist.
+ */
+interface CommentHost {
+  /** The UUID in the URL — a post's or an About entry's. */
+  id: string
+  /** The name this kind of record is filed under in a polymorphic column. */
+  morphAlias: string
+  list: () => Promise<PaginatedResponse<Comment>>
+  create: (body: string) => Promise<Comment>
+  /**
+   * Anything else that has gone stale now a reply exists, or nothing.
+   *
+   * An About entry carries a reply count that the SERVER computes and that the
+   * screen behind this one is showing. Without this, going back lands on a
+   * count one short of the thread you just added to — which reads as the reply
+   * not having saved. A post has no such number anywhere, so it pays nothing.
+   */
+  refreshBehind?: () => void
+}
 
 interface ThreadRow {
   comment: Comment
@@ -49,25 +95,49 @@ function buildThread(comments: Comment[]): ThreadRow[] {
 }
 
 export default function CommentsScreen({ route }: Props) {
-  const { postId } = route.params
   const theme = useTheme()
   const queryClient = useQueryClient()
   const { user } = useAuthStore()
   const [text, setText] = useState('')
 
+  const target: CommentThreadTarget = route.params
+
+  /**
+   * Which door the reader came through. `'postId' in target` is the whole test
+   * — the route parameter carries one key or the other and never both, so the
+   * key that is present IS the answer.
+   */
+  const host: CommentHost =
+    'postId' in target
+      ? {
+          id: target.postId,
+          morphAlias: 'stourify_post',
+          list: () => getComments(target.postId),
+          create: (body: string) => createComment(target.postId, body),
+        }
+      : {
+          id: target.spotAboutId,
+          morphAlias: 'stourify_spot_about',
+          list: () => getSpotAboutComments(target.spotAboutId),
+          create: (body: string) => createSpotAboutComment(target.spotAboutId, body),
+          refreshBehind: () => void queryClient.invalidateQueries({ queryKey: ['spot-abouts'] }),
+        }
+
+  const hostId = host.id
+
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: COMMENTS_QUERY_KEY(postId),
-    queryFn: () => getComments(postId),
+    queryKey: COMMENTS_QUERY_KEY(hostId),
+    queryFn: () => host.list(),
   })
 
   const comments = data?.data ?? []
   const rows = useMemo(() => buildThread(comments), [comments])
 
   const postMutation = useMutation({
-    mutationFn: (body: string) => createComment(postId, body),
+    mutationFn: (body: string) => host.create(body),
     onMutate: async (body: string) => {
-      await queryClient.cancelQueries({ queryKey: COMMENTS_QUERY_KEY(postId) })
-      const previous = queryClient.getQueryData<PaginatedResponse<Comment>>(COMMENTS_QUERY_KEY(postId))
+      await queryClient.cancelQueries({ queryKey: COMMENTS_QUERY_KEY(hostId) })
+      const previous = queryClient.getQueryData<PaginatedResponse<Comment>>(COMMENTS_QUERY_KEY(hostId))
 
       const now = new Date().toISOString()
       const optimistic: Comment = {
@@ -75,7 +145,7 @@ export default function CommentsScreen({ route }: Props) {
         body,
         visibility_type: 'org_member',
         user: user ? { id: user.uuid, name: user.name } : undefined,
-        commentable_type: 'stourify_post',
+        commentable_type: host.morphAlias,
         commentable_id: 0,
         parent_id: null,
         replies: [],
@@ -84,7 +154,7 @@ export default function CommentsScreen({ route }: Props) {
         can: {},
       }
 
-      queryClient.setQueryData<PaginatedResponse<Comment>>(COMMENTS_QUERY_KEY(postId), (old) => ({
+      queryClient.setQueryData<PaginatedResponse<Comment>>(COMMENTS_QUERY_KEY(hostId), (old) => ({
         data: [...(old?.data ?? []), optimistic],
         links: old?.links ?? {},
         meta: old?.meta ?? { current_page: 1, last_page: 1, total: 1 },
@@ -96,11 +166,12 @@ export default function CommentsScreen({ route }: Props) {
     },
     onError: (_err, _body, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(COMMENTS_QUERY_KEY(postId), context.previous)
+        queryClient.setQueryData(COMMENTS_QUERY_KEY(hostId), context.previous)
       }
     },
+    onSuccess: () => host.refreshBehind?.(),
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: COMMENTS_QUERY_KEY(postId) })
+      queryClient.invalidateQueries({ queryKey: COMMENTS_QUERY_KEY(hostId) })
     },
   })
 
