@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **You can now read and write the replies on a note somebody left about a spot** (STOURIFY-148).
+
+  Each note on a spot's About tab has shown a small reply count since STOURIFY-147, and tapping it
+  did nothing, because the room those replies live in had not been built. Tapping it now opens that
+  note's conversation, where you can read what people said and add to it. Your reply appears the
+  moment you send it, and the count on the tab behind you catches up when you go back.
+
+  Under the surface this is the app's existing comments screen learning a second kind of host
+  rather than a second screen being built. The screen's thread indenting, its optimistic composer
+  and the way it tells "we could not load this" apart from "there is nothing here" were never
+  specific to posts, so a spot note inherits all of them unchanged — including the fix from
+  STOURIFY-86 that stopped a failed request being reported as an empty thread.
+
+  The screen is also now reachable from the Discover and Profile stacks, not only Home. A spot can
+  be opened from search or from somebody's profile, and a thread that only existed on one of the
+  three would have worked from the feed and crashed everywhere else.
+
 - **The Spot screen's About tab is now a noticeboard other visitors can write on** (STOURIFY-147).
 
   A spot has always had one short description, written once by whoever added it — a brass plaque

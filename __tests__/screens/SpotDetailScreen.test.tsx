@@ -698,14 +698,22 @@ it('does nothing when the box is empty, or holds only spaces', async () => {
 })
 
 /**
- * The comment thread belongs to STOURIFY-148. The count is worth showing now —
- * it tells a reader the note started a conversation — but a control that opens
- * nothing is worse than no control, so nothing here navigates.
+ * The reply count is now a door (STOURIFY-148).
+ *
+ * STOURIFY-147 shipped the number as plain text on purpose, because the room
+ * behind it had not been built and a control that opens nothing is worse than
+ * no control. The room exists now, so this asserts the opposite of what it
+ * asserted then: the count is pressable, and pressing it opens THAT note's
+ * thread and no other.
+ *
+ * The parameter is checked exactly, not merely for the uuid. Sending `postId`
+ * here would open the post endpoint against a note's uuid, which does not
+ * error — it returns somebody else's empty thread.
  */
-it('shows how many replies a note has, and offers nothing that opens them yet', async () => {
+it('opens a note’s replies when the reply count is pressed', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
   ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
-  ;(getSpotAbouts as jest.Mock).mockResolvedValue(aboutPage([makeAbout({ comments_count: 2 })]))
+  ;(getSpotAbouts as jest.Mock).mockResolvedValue(aboutPage([makeAbout({ uuid: 'about-7', comments_count: 2 })]))
 
   renderScreen()
 
@@ -713,7 +721,10 @@ it('shows how many replies a note has, and offers nothing that opens them yet', 
   fireEvent.press(screen.getByText('About'))
 
   await waitFor(() => expect(screen.getByText('💬 2')).toBeTruthy())
-  expect(screen.queryByLabelText('View replies')).toBeNull()
+
+  fireEvent.press(screen.getByLabelText('View replies'))
+
+  expect(navigation.navigate).toHaveBeenCalledWith('Comments', { spotAboutId: 'about-7' })
 })
 
 /**
@@ -735,4 +746,7 @@ it('prints no reply count at all when the server did not send one', async () => 
 
   await waitFor(() => expect(screen.getByText('Go at sunrise, the light is worth it.')).toBeTruthy())
   expect(screen.queryByText('💬 0')).toBeNull()
+  // No count means no door either — there is nothing to say how many replies
+  // are behind it, so the row offers none.
+  expect(screen.queryByLabelText('View replies')).toBeNull()
 })

@@ -73,6 +73,7 @@ function DiscoverStackNav() {
       <DiscoverStack.Screen name="Profile" component={ProfileScreen} />
       <DiscoverStack.Screen name="SpotDetail" component={SpotDetailScreen} />
       <DiscoverStack.Screen name="PostDetail" component={PostDetailScreen} />
+      <DiscoverStack.Screen name="Comments" component={CommentsScreen} />
       <DiscoverStack.Screen name="PhotoGallery" component={PhotoGalleryScreen} />
       <DiscoverStack.Screen name="Reviews" component={ReviewsScreen} />
       <DiscoverStack.Screen name="WriteReview" component={WriteReviewScreen} />
@@ -124,6 +125,7 @@ function ProfileStackNav() {
       <ProfileStack.Screen name="SyncStatus" component={SyncStatusScreen} />
       <ProfileStack.Screen name="PostDetail" component={PostDetailScreen} />
       <ProfileStack.Screen name="SpotDetail" component={SpotDetailScreen} />
+      <ProfileStack.Screen name="Comments" component={CommentsScreen} />
       <ProfileStack.Screen name="PhotoGallery" component={PhotoGalleryScreen} />
       <ProfileStack.Screen name="Reviews" component={ReviewsScreen} />
       <ProfileStack.Screen name="WriteReview" component={WriteReviewScreen} />

@@ -6,6 +6,22 @@
  * (`docs/mobile-delivery/technical-spec.md` §3) and get their own stacks then.
  */
 
+/**
+ * What a comment thread is hanging off.
+ *
+ * One screen shows comments, and there are two kinds of thing worth commenting
+ * on: a post, and a note somebody pinned to a spot's About corkboard. The
+ * parameter carries one or the other and never both, so whichever key is
+ * present is also the answer to which host it is — that is what makes it a
+ * *discriminated* union, and it is why `CommentsScreen` needs no separate
+ * "kind" field to look at.
+ *
+ * `postId` keeps its name rather than becoming a neutral `id`, because
+ * `PostDetailScreen` already navigates with it and the post half of this route
+ * is a contract several tests depend on (STOURIFY-148).
+ */
+export type CommentThreadTarget = { postId: string } | { spotAboutId: string }
+
 export type RootStackParamList = {
   Welcome: undefined
   Login: undefined
@@ -56,7 +72,7 @@ export type HomeStackParamList = {
    * named on every row and led nowhere.
    */
   Profile: { userId?: string }
-  Comments: { postId: string }
+  Comments: CommentThreadTarget
   SpotDetail: { spotId: string }
   PhotoGallery: { spotId: string }
   Reviews: { spotId: string }
@@ -77,6 +93,13 @@ export type DiscoverStackParamList = {
   Profile: { userId?: string }
   SpotDetail: { spotId: string }
   PostDetail: { postId: string }
+  /**
+   * Registered here, and on the Profile stack, because `SpotDetail` is — a
+   * thread opened from a spot's About tab has to exist in whichever stack the
+   * reader reached that spot through, and search is one of the three
+   * (STOURIFY-148).
+   */
+  Comments: CommentThreadTarget
   PhotoGallery: { spotId: string }
   Reviews: { spotId: string }
   WriteReview: { spotId: string }
@@ -137,6 +160,8 @@ export type ProfileStackParamList = {
   BlockedAccounts: undefined
   PostDetail: { postId: string }
   SpotDetail: { spotId: string }
+  /** Reached from a spot's About tab — see the Discover stack's note. */
+  Comments: CommentThreadTarget
   PhotoGallery: { spotId: string }
   Reviews: { spotId: string }
   WriteReview: { spotId: string }

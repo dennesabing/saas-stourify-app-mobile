@@ -366,7 +366,10 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               well, and hiding them would repeat the mistake STOURIFY-64 fixed
               for the posts grid.
             */}
-            <SpotAboutTab spotUuid={spotId} />
+            <SpotAboutTab
+              spotUuid={spotId}
+              onOpenThread={(spotAboutUuid) => navigation.navigate('Comments', { spotAboutId: spotAboutUuid })}
+            />
           </View>
         )}
       </ScrollView>
