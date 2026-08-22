@@ -155,7 +155,16 @@ export default function CommentsScreen({ route }: Props) {
       }
 
       queryClient.setQueryData<PaginatedResponse<Comment>>(COMMENTS_QUERY_KEY(hostId), (old) => ({
-        data: [...(old?.data ?? []), optimistic],
+        // At the FRONT, because that is where the server will put it.
+        //
+        // An optimistic update's only job is to predict the answer that is
+        // coming. Both comment endpoints answer newest-first — `->latest()` in
+        // `PostCommentApiController::index` and
+        // `SpotAboutCommentApiController::index` — so a row appended to the end
+        // was a prediction that the refetch contradicted a second later, and
+        // the comment you had just written jumped from the bottom of the thread
+        // to the top while you were looking at it (STOURIFY-151).
+        data: [optimistic, ...(old?.data ?? [])],
         links: old?.links ?? {},
         meta: old?.meta ?? { current_page: 1, last_page: 1, total: 1 },
       }))

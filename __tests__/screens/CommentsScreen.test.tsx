@@ -390,3 +390,118 @@ describe('opened on a Spot About entry', () => {
     expect(invalidate).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['spot-abouts'] }))
   })
 })
+
+/**
+ * Where a new comment lands, on a thread that already has some (STOURIFY-151).
+ *
+ * The two optimistic tests above seed an EMPTY thread, where first and last
+ * are the same position — so neither could ever have failed on this, whatever
+ * the code did. A test about *where* a row goes has to give it somewhere else
+ * to go.
+ *
+ * Both endpoints answer newest-first (`->latest()` in
+ * `PostCommentApiController::index` and `SpotAboutCommentApiController::index`),
+ * so the row belongs at the top. Until this card it was appended, and a second
+ * later the refetch moved it — the thing you had just written jumping across
+ * the screen while you looked at it.
+ */
+function commentRowOrder(): string[] {
+  return screen.getAllByTestId(/^comment-row-/).map((row) => row.props.testID as string)
+}
+
+const twoExistingComments = {
+  data: [
+    { id: 'c1', body: 'Been there last summer', user: { id: 'u1', name: 'Ana Martinez' }, parent_id: null, created_at: new Date().toISOString() },
+    { id: 'c2', body: 'Worth the walk up', user: { id: 'u2', name: 'Ben Cruz' }, parent_id: null, created_at: new Date().toISOString() },
+  ],
+  links: {},
+  meta: { current_page: 1, last_page: 1, total: 2 },
+}
+
+it('puts a new comment at the TOP of a thread that already has comments', async () => {
+  ;(getComments as jest.Mock).mockResolvedValue(twoExistingComments)
+  ;(createComment as jest.Mock).mockReturnValue(new Promise(() => {}))
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Been there last summer')).toBeTruthy())
+
+  fireEvent.changeText(screen.getByPlaceholderText('Add a comment...'), 'Going next month')
+  fireEvent.press(screen.getByLabelText('Post comment'))
+
+  await waitFor(() => expect(screen.getByText('Going next month')).toBeTruthy())
+
+  const order = commentRowOrder()
+
+  // The new row is first, and the two that were already there follow in the
+  // order the server sent them.
+  expect(order).toHaveLength(3)
+  expect(order[0]).not.toBe('comment-row-c1')
+  expect(order.slice(1)).toEqual(['comment-row-c1', 'comment-row-c2'])
+})
+
+it('leaves the new comment at the top when the server’s own answer arrives', async () => {
+  const serverAnswer = {
+    data: [
+      { id: 'c3', body: 'Going next month', user: { id: 'me', name: 'Me' }, parent_id: null, created_at: new Date().toISOString() },
+      ...twoExistingComments.data,
+    ],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 3 },
+  }
+
+  // The create is held open on purpose, so the refetch cannot land before the
+  // optimistic order has been read. Without that, resolving it immediately
+  // lets the server's answer arrive first and the first assertion below
+  // measures the same thing as the second.
+  let resolveCreate!: (value: unknown) => void
+  ;(getComments as jest.Mock)
+    .mockResolvedValueOnce(twoExistingComments)
+    .mockResolvedValue(serverAnswer)
+  ;(createComment as jest.Mock).mockReturnValue(
+    new Promise((resolve) => {
+      resolveCreate = resolve
+    }),
+  )
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Been there last summer')).toBeTruthy())
+
+  fireEvent.changeText(screen.getByPlaceholderText('Add a comment...'), 'Going next month')
+  fireEvent.press(screen.getByLabelText('Post comment'))
+
+  // Where it lands the instant you press send...
+  await waitFor(() => expect(screen.getByText('Going next month')).toBeTruthy())
+  const guessed = commentRowOrder()
+  expect(guessed).toHaveLength(3)
+  expect(guessed.slice(1)).toEqual(['comment-row-c1', 'comment-row-c2'])
+
+  resolveCreate(serverAnswer.data[0])
+
+  // ...and where it is once the server has answered. Both readings, because
+  // "does not move" is a claim about two moments and asserting only the second
+  // passes just as well when the row jumped in between — which is the whole
+  // defect.
+  await waitFor(() => expect(commentRowOrder()).toEqual(['comment-row-c3', 'comment-row-c1', 'comment-row-c2']))
+})
+
+it('puts a new reply at the TOP of an About entry’s thread too', async () => {
+  ;(getSpotAboutComments as jest.Mock).mockResolvedValue(twoExistingComments)
+  ;(createSpotAboutComment as jest.Mock).mockReturnValue(new Promise(() => {}))
+
+  renderAboutScreen('about-1')
+
+  await waitFor(() => expect(screen.getByText('Been there last summer')).toBeTruthy())
+
+  fireEvent.changeText(screen.getByPlaceholderText('Add a comment...'), 'The gate opens at five')
+  fireEvent.press(screen.getByLabelText('Post comment'))
+
+  await waitFor(() => expect(screen.getByText('The gate opens at five')).toBeTruthy())
+
+  const order = commentRowOrder()
+
+  expect(order).toHaveLength(3)
+  expect(order[0]).not.toBe('comment-row-c1')
+  expect(order.slice(1)).toEqual(['comment-row-c1', 'comment-row-c2'])
+})
