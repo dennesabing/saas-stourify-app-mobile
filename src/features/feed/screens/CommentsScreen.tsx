@@ -234,6 +234,13 @@ export default function CommentsScreen({ route }: Props) {
           ListEmptyComponent={empty}
           renderItem={({ item }) => (
             <View
+              /* Named so a test can ask where a row was DRAWN, not merely
+                 whether its words appeared. The indentation is the whole of
+                 what makes a reply read as an answer, and an assertion that
+                 only checks the text is on screen passes just as happily when
+                 every reply is flattened to the left margin — which is exactly
+                 the failure STOURIFY-152 fixed. */
+              testID={`comment-row-${item.comment.id}`}
               style={{
                 flexDirection: 'row',
                 gap: theme.spacing[2],
