@@ -19,6 +19,7 @@ jest.mock('@/shared/api/posts', () => ({
 
 import { getFollowingFeed } from '@/shared/api/feed'
 import { toggleLike } from '@/shared/api/posts'
+import { trackQueryClient } from '../support/queryClients'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 const route = {} as any
@@ -121,7 +122,7 @@ it('renders posts from a seeded query cache while the fetcher throws', async () 
   await AsyncStorage.clear()
   ;(getFollowingFeed as jest.Mock).mockRejectedValue(new Error('offline'))
 
-  const seeded = new QueryClient()
+  const seeded = trackQueryClient(new QueryClient())
   seeded.setQueryData(['feed', 'following'], {
     pages: [{ data: [makePost({ uuid: 'cached-post' })], next_cursor: null, prev_cursor: null }],
     pageParams: [undefined],
@@ -143,7 +144,9 @@ it('renders posts from a seeded query cache while the fetcher throws', async () 
     },
   } as any)
 
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } })
+  const client = trackQueryClient(
+    new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } }),
+  )
 
   render(
     <SafeAreaProvider initialMetrics={TEST_SAFE_AREA_METRICS}>

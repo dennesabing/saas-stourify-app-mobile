@@ -22,6 +22,7 @@ jest.mock('@/sync/session', () => ({
 
 import * as authApi from '@/shared/api/auth'
 import { signOut } from '@/sync/session'
+import { trackQueryClient } from '../support/queryClients'
 
 const mockNavigation = { goBack: jest.fn() } as any
 
@@ -29,7 +30,7 @@ function renderSettings() {
   // `gcTime: 0`, matching `__tests__/support/TestProviders.tsx`'s established
   // convention: React Query's default garbage-collection timer otherwise
   // leaves a handle open past the test, and jest never exits on its own.
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  const qc = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
   return render(
     <QueryClientProvider client={qc}>
       <SettingsScreen navigation={mockNavigation} route={{} as any} />

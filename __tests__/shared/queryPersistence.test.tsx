@@ -11,6 +11,7 @@ import {
   persistOptions,
   shouldPersistQuery,
 } from '@/shared/queryClient'
+import { trackQueryClient } from '../support/queryClients'
 
 const PROBE_KEY = ['feed', 'following']
 
@@ -58,7 +59,7 @@ function ColdStart({ client }: { client: QueryClient }) {
  * queries.
  */
 async function seedSavedCopy(value: string) {
-  const online = new QueryClient()
+  const online = trackQueryClient(new QueryClient())
   online.setQueryData(PROBE_KEY, value)
 
   await AsyncStorage.setItem(
@@ -105,7 +106,7 @@ it('exposes a max age and a buster so a stale cache cannot outlive a release', (
 it('renders a query from the persisted cache with the fetcher failing', async () => {
   await seedSavedCopy('from-cache')
 
-  const client = createQueryClient()
+  const client = trackQueryClient(createQueryClient())
   render(<ColdStart client={client} />)
 
   await waitFor(() => {
@@ -138,7 +139,7 @@ it('keeps a saved copy across THREE offline cold starts, not just the first', as
   // Then the signal goes. Three launches in a row with the fetcher always
   // failing: launch #1 passed before this fix, #2 and #3 are the regression.
   for (const launch of [1, 2, 3]) {
-    const client = createQueryClient()
+    const client = trackQueryClient(createQueryClient())
     const view = render(<ColdStart client={client} />)
 
     await waitFor(() => {

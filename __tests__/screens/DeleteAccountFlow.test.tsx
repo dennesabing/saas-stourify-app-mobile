@@ -28,11 +28,12 @@ jest.mock('@/sync/session', () => ({
 
 import * as accountApi from '@/shared/api/account'
 import { signOut } from '@/sync/session'
+import { trackQueryClient } from '../support/queryClients'
 
 const mockNavigation = { goBack: jest.fn() } as any
 
 function renderSettings() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  const qc = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
   return render(
     <QueryClientProvider client={qc}>
       <SettingsScreen navigation={mockNavigation} route={{} as any} />

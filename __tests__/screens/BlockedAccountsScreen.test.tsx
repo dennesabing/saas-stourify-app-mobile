@@ -23,6 +23,7 @@ jest.mock('@/shared/api/blocks', () => ({
 }))
 
 import { getBlocks, unblockUser } from '@/shared/api/blocks'
+import { trackQueryClient } from '../support/queryClients'
 
 const SAFE_AREA_METRICS: Metrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -51,7 +52,7 @@ function blockRow(over: Record<string, unknown> = {}) {
 }
 
 function renderScreen(queryClient?: QueryClient) {
-  const qc = queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  const qc = queryClient ?? trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
   return render(
     <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
       <ThemeProvider scheme="light">
@@ -177,7 +178,7 @@ describe('a failed blocked-list fetch is not an empty blocked list', () => {
   test('keeps showing the blocked list when a later fetch fails', async () => {
     ;(getBlocks as jest.Mock).mockRejectedValue(new Error('offline'))
 
-    const seeded = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+    const seeded = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
     seeded.setQueryData(['blocks'], page([blockRow()]))
 
     renderScreen(seeded)

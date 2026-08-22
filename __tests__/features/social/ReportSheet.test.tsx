@@ -29,11 +29,14 @@ jest.mock('@/shared/api/reports', () => {
 })
 
 import { fileReport } from '@/shared/api/reports'
+import { trackQueryClient } from '../../support/queryClients'
 
 function renderSheet(props: Partial<React.ComponentProps<typeof ReportSheet>> = {}) {
-  const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
-  })
+  const qc = trackQueryClient(
+    new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } },
+    }),
+  )
   return render(
     <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
       <ThemeProvider scheme="light">

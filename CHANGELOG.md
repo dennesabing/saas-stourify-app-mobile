@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`npm test` now ends when the tests do, instead of printing a green tally and sitting there**
+  (STOURIFY-144).
+
+  A shop that locks up for the night but leaves an oven timer running cannot set the alarm and go
+  home. Node works the same way: it exits when there is nothing left to do, and one pending timer
+  counts as something left to do however far away it is set for.
+
+  React Query starts exactly such a timer for everything it holds — a cached request, and also a
+  finished mutation — saying *after this long, throw it away*. Tests built those caches and walked
+  away from them. Some of the timers were set for five minutes; the ones from the app's own
+  `createQueryClient()` were set for a full day, because the offline cache has to survive in memory
+  long enough to be written to the phone. So the suite passed in about a minute and the process
+  stayed alive for as long as anyone was willing to wait, which is indistinguishable from a
+  deadlock — and had already cost one run being killed and started again.
+
+  Every `QueryClient` a test builds now goes through `trackQueryClient()` in
+  `__tests__/support/queryClients.ts`, which shuts them all down when the test file finishes. Two
+  things about that file are worth knowing before changing it: `gcTime: 0` disarms the query half of
+  a cache and does nothing for the mutation half, and emptying a mutation cache does **not** cancel
+  its timers the way emptying a query cache does — the mutations are destroyed by hand for that
+  reason.
+
+  Measured on Windows, five runs in a row: 85 suites, 687 tests, green, and the process gone within
+  two seconds of the tally. Before the fix the same suite sat for five minutes or more. The default
+  parallel run also stopped reporting `A worker process has failed to exit gracefully`, which turned
+  out to be the same leak wearing a different message.
+
 - **A screen's saved copy now survives every offline restart, not just the first one**
   (STOURIFY-121).
 

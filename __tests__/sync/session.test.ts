@@ -9,6 +9,7 @@ import { resetSyncStatus, useSyncStatusStore } from '@/sync/status'
 import { syncHttpClient } from '@/sync/httpClient'
 import { createTestDatabase, seedSpot, seedCity } from '../support/testDatabase'
 import { SYNCED_TABLES } from '@/db/schema'
+import { trackQueryClient } from '../support/queryClients'
 
 // No inline AsyncStorage mock: the root `__mocks__/@react-native-async-storage/
 // async-storage.js` (Task 12) auto-applies to every test that imports it, and
@@ -167,7 +168,7 @@ describe('signOut', () => {
 
   it('clears the React Query cache so the next account does not see stale screens', async () => {
     const database = createTestDatabase()
-    const qc = new QueryClient()
+    const qc = trackQueryClient(new QueryClient())
     qc.setQueryData(['account-settings'], { account_visibility: 'public' })
     expect(qc.getQueryData(['account-settings'])).toEqual({ account_visibility: 'public' })
 

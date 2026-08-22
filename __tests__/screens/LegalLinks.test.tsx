@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Linking } from 'react-native'
 import SettingsScreen from '@/features/profile/screens/SettingsScreen'
 import { PRIVACY_POLICY_URL, TERMS_URL, ACCOUNT_DELETION_URL } from '@/shared/config/legal'
+import { trackQueryClient } from '../support/queryClients'
 
 jest.mock('@/shared/api/auth', () => ({ logout: jest.fn() }))
 jest.mock('@/shared/api/settings', () => ({
@@ -21,7 +22,7 @@ jest.mock('@/sync/session', () => ({ signOut: jest.fn() }))
 const mockNavigation = { goBack: jest.fn(), navigate: jest.fn() } as any
 
 function renderSettings() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+  const qc = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
 
   return render(
     <QueryClientProvider client={qc}>
