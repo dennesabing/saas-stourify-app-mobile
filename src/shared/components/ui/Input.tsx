@@ -12,6 +12,12 @@ export interface InputProps {
   keyboardType?: 'default' | 'email-address' | 'numeric'
   autoCapitalize?: 'none' | 'words' | 'sentences'
   multiline?: boolean
+  /**
+   * Stop typing at the server's own limit rather than letting a long answer be
+   * refused after it has been written. A cap the writer can feel while writing
+   * is kinder than a 422 after they press send.
+   */
+  maxLength?: number
   testID?: string
 }
 
@@ -32,6 +38,7 @@ export default function Input({
   keyboardType = 'default',
   autoCapitalize = 'sentences',
   multiline = false,
+  maxLength,
   testID,
 }: InputProps) {
   const theme = useTheme()
@@ -55,6 +62,7 @@ export default function Input({
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         multiline={multiline}
+        maxLength={maxLength}
         accessibilityLabel={label}
         accessibilityState={{ disabled: false }}
         style={{

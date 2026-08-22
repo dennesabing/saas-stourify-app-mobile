@@ -10,6 +10,7 @@ import { getSpot, getSpotPosts } from '@/shared/api/spots'
 import { Button, EmptyState, Rating, Skeleton, Tag, Text } from '@/shared/components/ui'
 import type { Post } from '@/shared/api/types'
 import { createLocalWishlistItem } from '@/features/spots/api/createLocalWishlistItem'
+import SpotAboutTab from '@/features/spots/components/SpotAboutTab'
 import { useIsSpotSaved } from '@/features/spots/hooks/useIsSpotSaved'
 import { useTheme } from '@/theme/ThemeProvider'
 
@@ -352,6 +353,20 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                 {spot.latitude.toFixed(4)}, {spot.longitude.toFixed(4)}
               </Text>
             ) : null}
+
+            {/*
+              The corkboard, hung beside the plaque above rather than over it
+              (STOURIFY-147). The three lines above are the spot's own facts,
+              written once by whoever added it; below are the notes other
+              visitors have pinned up since, most-liked first.
+
+              It is fed by its OWN request, so it is deliberately outside the
+              `hasFailed` rule that hides the details block: a spot whose details
+              could not be fetched may still have notes that arrived perfectly
+              well, and hiding them would repeat the mistake STOURIFY-64 fixed
+              for the posts grid.
+            */}
+            <SpotAboutTab spotUuid={spotId} />
           </View>
         )}
       </ScrollView>
