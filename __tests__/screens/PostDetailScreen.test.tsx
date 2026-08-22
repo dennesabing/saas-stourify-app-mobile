@@ -5,7 +5,7 @@ import { TestProviders } from '../support/TestProviders'
 
 jest.mock('@/shared/api/posts', () => ({
   getPost: jest.fn(),
-  toggleLike: jest.fn(),
+  setPostLike: jest.fn(),
 }))
 
 jest.mock('@/shared/api/reports', () => {
@@ -13,7 +13,7 @@ jest.mock('@/shared/api/reports', () => {
   return { ...actual, fileReport: jest.fn() }
 })
 
-import { getPost, toggleLike } from '@/shared/api/posts'
+import { getPost, setPostLike } from '@/shared/api/posts'
 import { fileReport } from '@/shared/api/reports'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
@@ -93,7 +93,7 @@ it('flips the like state optimistically and rolls back on failure', async () => 
   ;(getPost as jest.Mock).mockResolvedValue(makePost({ is_liked: false, likes_count: 3 }))
 
   let rejectLike!: (err: Error) => void
-  ;(toggleLike as jest.Mock).mockReturnValue(
+  ;(setPostLike as jest.Mock).mockReturnValue(
     new Promise((_resolve, reject) => {
       rejectLike = reject
     }),
@@ -108,8 +108,31 @@ it('flips the like state optimistically and rolls back on failure', async () => 
 
   await waitFor(() => expect(screen.getByText('4')).toBeTruthy())
 
+  // The state asked for, not an instruction to flip — see `setPostLike`.
+  expect(setPostLike).toHaveBeenCalledWith('post-1', true)
+
   rejectLike(new Error('offline'))
 
+  await waitFor(() => expect(screen.getByText('3')).toBeTruthy())
+})
+
+/**
+ * The detail screen and the feed have to agree about this, because a reader moves
+ * between them mid-gesture: like on the feed, open the post, tap again to undo.
+ * If either screen sent a toggle instead of an intention, that second tap would
+ * do whatever the server's copy implied rather than what was asked for.
+ */
+it('asks for the like to be removed when the post is already liked', async () => {
+  ;(getPost as jest.Mock).mockResolvedValue(makePost({ is_liked: true, likes_count: 4 }))
+  ;(setPostLike as jest.Mock).mockResolvedValue({ liked: false, likes_count: 3 })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Sunset at the cove')).toBeTruthy())
+
+  fireEvent.press(screen.getByLabelText('Like'))
+
+  await waitFor(() => expect(setPostLike).toHaveBeenCalledWith('post-1', false))
   await waitFor(() => expect(screen.getByText('3')).toBeTruthy())
 })
 

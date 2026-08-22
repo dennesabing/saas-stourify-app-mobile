@@ -1,4 +1,5 @@
 import { client } from './client'
+import { addReaction, removeReaction } from './reactions'
 import type { PaginatedResponse, Post } from './types'
 
 /**
@@ -58,9 +59,47 @@ export async function deletePost(uuid: string): Promise<void> {
   await client.delete(`/posts/${uuid}`)
 }
 
-export async function toggleLike(postUuid: string): Promise<{ liked: boolean; likes_count: number }> {
-  const res = await client.post(`/posts/${postUuid}/like`)
-  return res.data.data
+/**
+ * The short, stable name the server knows a post by when it is the target of
+ * something generic — a like, a comment, a report. Registered in the module's
+ * morph map; never a class name, which no client should have to know.
+ */
+export const POST_REACTABLE_TYPE = 'stourify_post'
+
+/**
+ * Set — not toggle — whether the caller likes a post. `liked` is the state you
+ * want to end up in.
+ *
+ * There is no `/posts/{uuid}/like` route and there never has been. Liking goes
+ * through the platform's one generic door, `/api/v1/reactions`, which addresses
+ * any record by its type name plus its UUID; a post opts into it exactly the way
+ * a Spot About entry does. `toggleLike` used to call the nested route instead,
+ * which meant every tap of the heart on the feed 404'd from the app's first
+ * commit in April 2026 until STOURIFY-149 — invisibly, because both screens flip
+ * the heart in their own cache before the request goes out and put it back on
+ * error, so the failure looked like one red frame.
+ *
+ * **It states an intention rather than flipping**, for the reason
+ * `shared/api/reactions.ts` spells out: the server reads a second POST of a
+ * reaction you already hold as "take it back", so a toggle hands the decision to
+ * whichever side has the staler idea of the truth — usually the app. If another
+ * device liked this post a second ago, a toggle would turn "like this" into
+ * "unlike this".
+ *
+ * The `{ liked, likes_count }` it returns is the server's own count afterwards,
+ * so a caller can reconcile an optimistic guess against it. `counts.like` is
+ * absent rather than zero once the last like is gone, which is why the zero is
+ * supplied here.
+ */
+export async function setPostLike(
+  postUuid: string,
+  liked: boolean,
+): Promise<{ liked: boolean; likes_count: number }> {
+  const state = liked
+    ? await addReaction(POST_REACTABLE_TYPE, postUuid)
+    : await removeReaction(POST_REACTABLE_TYPE, postUuid)
+
+  return { liked: state.reacted, likes_count: state.counts.like ?? 0 }
 }
 
 /**

@@ -7,7 +7,7 @@ import type { HomeStackParamList } from '@/shared/navigation/types'
 import PostActionsSheet from '@/features/social/components/PostActionsSheet'
 import { EmptyState, PostCard, Skeleton } from '@/shared/components/ui'
 import { getFollowingFeed } from '@/shared/api/feed'
-import { toggleLike } from '@/shared/api/posts'
+import { setPostLike } from '@/shared/api/posts'
 import type { CursorPaginatedResponse, Post } from '@/shared/api/types'
 import { useTheme } from '@/theme/ThemeProvider'
 
@@ -17,8 +17,21 @@ const FEED_QUERY_KEY = ['feed', 'following'] as const
 
 type FeedData = InfiniteData<CursorPaginatedResponse<Post>, string | undefined>
 
-/** Flip `is_liked`/`likes_count` for one post across every loaded page. */
-function flipLike(data: FeedData | undefined, postUuid: string): FeedData | undefined {
+/**
+ * Write `is_liked`/`likes_count` for one post across every loaded page.
+ *
+ * The values are given rather than derived, so the same function serves both the
+ * optimistic guess made before the request and the server's own answer after it.
+ * Deriving them — the old `flipLike`, which negated whatever was in the cache —
+ * cannot express "the server says this is liked and the count is 6", so a stale
+ * count stayed stale until the next full refetch.
+ */
+function applyLike(
+  data: FeedData | undefined,
+  postUuid: string,
+  liked: boolean,
+  likesCount: number,
+): FeedData | undefined {
   if (!data) return data
 
   return {
@@ -26,16 +39,15 @@ function flipLike(data: FeedData | undefined, postUuid: string): FeedData | unde
     pages: data.pages.map((page) => ({
       ...page,
       data: page.data.map((post) =>
-        post.uuid === postUuid
-          ? {
-              ...post,
-              is_liked: !post.is_liked,
-              likes_count: post.likes_count + (post.is_liked ? -1 : 1),
-            }
-          : post,
+        post.uuid === postUuid ? { ...post, is_liked: liked, likes_count: likesCount } : post,
       ),
     })),
   }
+}
+
+/** The post as the loaded pages currently have it, or undefined if it is not on one. */
+function findPost(data: FeedData | undefined, postUuid: string): Post | undefined {
+  return data?.pages.flatMap((page) => page.data).find((post) => post.uuid === postUuid)
 }
 
 export default function FeedScreen({ navigation }: Props) {
@@ -65,17 +77,39 @@ export default function FeedScreen({ navigation }: Props) {
 
   const posts = data?.pages.flatMap((p) => p.data) ?? []
 
-  // Optimistic: the cache flips immediately so the tap feels instant — this is
-  // the screen the persisted cache exists for. A network-bound like defeats it.
+  /**
+   * Optimistic: the cache changes immediately so the tap feels instant — this is
+   * the screen the persisted cache exists for. A network-bound like defeats it.
+   *
+   * The mutation is handed the state to end up in, not an instruction to flip.
+   * `setPostLike` explains why at the transport level; the consequence here is
+   * that the caller reads `is_liked` once, at the moment of the tap, and both the
+   * optimistic write and the request agree about what was intended.
+   *
+   * `onSuccess` then overwrites the guess with the server's own count. The guess
+   * is only ever right about this device: somebody else liking the same post
+   * between two of your taps makes the arithmetic drift, and until STOURIFY-149
+   * nothing corrected it short of a full refetch.
+   */
   const likeMutation = useMutation({
-    mutationFn: (postUuid: string) => toggleLike(postUuid),
-    onMutate: async (postUuid: string) => {
+    mutationFn: ({ postUuid, liked }: { postUuid: string; liked: boolean }) =>
+      setPostLike(postUuid, liked),
+    onMutate: async ({ postUuid, liked }) => {
       await queryClient.cancelQueries({ queryKey: FEED_QUERY_KEY })
       const previous = queryClient.getQueryData<FeedData>(FEED_QUERY_KEY)
-      queryClient.setQueryData<FeedData>(FEED_QUERY_KEY, (old) => flipLike(old, postUuid))
+      const current = findPost(previous, postUuid)
+      const guess = Math.max(0, (current?.likes_count ?? 0) + (liked ? 1 : -1))
+      queryClient.setQueryData<FeedData>(FEED_QUERY_KEY, (old) =>
+        applyLike(old, postUuid, liked, guess),
+      )
       return { previous }
     },
-    onError: (_err, _postUuid, context) => {
+    onSuccess: (state, { postUuid }) => {
+      queryClient.setQueryData<FeedData>(FEED_QUERY_KEY, (old) =>
+        applyLike(old, postUuid, state.liked, state.likes_count),
+      )
+    },
+    onError: (_err, _variables, context) => {
       if (context?.previous) {
         queryClient.setQueryData<FeedData>(FEED_QUERY_KEY, context.previous)
       }
@@ -87,7 +121,7 @@ export default function FeedScreen({ navigation }: Props) {
       <PostCard
         post={item}
         onPress={() => navigation.navigate('PostDetail', { postId: item.uuid })}
-        onLikePress={() => likeMutation.mutate(item.uuid)}
+        onLikePress={() => likeMutation.mutate({ postUuid: item.uuid, liked: !item.is_liked })}
         onAuthorPress={
           item.author
             ? () => navigation.navigate('Profile', { userId: item.author!.uuid })
