@@ -140,21 +140,27 @@ export default function SyncStatusScreen({ navigation }: Props) {
         }}
       >
         {/*
-          Posts are counted here, photos are not, and the difference is a
-          deliberate half-measure rather than an oversight (STOURIFY-161).
+          THE BANNER COUNTS EXACTLY WHAT THIS SCREEN LISTS. Every one of the six
+          lists rendered below contributes to these two numbers, and that is the
+          rule rather than an accident of what got added when (STOURIFY-165).
 
-          The banner is the first thing on this screen, so it must not say
-          "Nothing waiting to send" directly above something that is waiting.
-          That is what it did the moment a queued post could appear — found on a
-          real emulator, not in a test.
+          A till receipt that leaves items off: every line on it is true, and the
+          total is wrong — and the total is the line people read. The banner is
+          the first thing on this screen, so it must not say "Nothing waiting to
+          send" directly above something that is waiting.
 
-          Photos have exactly the same problem and it predates this card. Fixing
-          them here would mean changing a surface this card was not scoped to
-          and has no coverage for, so it is filed rather than folded in.
+          It has said exactly that twice. Once the moment a queued post could
+          appear, fixed by STOURIFY-161 for posts alone; then again for photos,
+          which had the same problem all along and which that card deliberately
+          left because it had no coverage for them. Fixing the instance rather
+          than the class is what let it happen twice.
+
+          So if a seventh queue is ever added, add it here too — or, better, do
+          not let these two lines and the sections below drift apart at all.
         */}
         <SyncBanner
-          pending={pending.length + postPending.length}
-          failed={failed.length + postFailed.length}
+          pending={pending.length + postPending.length + mediaPending.length}
+          failed={failed.length + postFailed.length + mediaFailed.length}
         />
 
         {failed.length > 0 ? (
