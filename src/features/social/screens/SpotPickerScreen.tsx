@@ -33,7 +33,9 @@ export default function SpotPickerScreen({ navigation }: Props) {
           navigation.goBack()
         }}
       >
-        <View style={styles.icon}><Text>📍</Text></View>
+        <View style={styles.icon}>
+          <Text>📍</Text>
+        </View>
         <View>
           <Text style={styles.name}>{item.title}</Text>
           <Text style={styles.meta}>{item.address ?? ''}</Text>
@@ -46,10 +48,12 @@ export default function SpotPickerScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => {
-          setPendingSpot(null)
-          navigation.goBack()
-        }}>
+        <TouchableOpacity
+          onPress={() => {
+            setPendingSpot(null)
+            navigation.goBack()
+          }}
+        >
           <Text style={styles.cancel}>✕</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Tag a Spot</Text>
@@ -70,7 +74,13 @@ export default function SpotPickerScreen({ navigation }: Props) {
         keyExtractor={(s) => s.uuid}
         renderItem={renderSpot}
         ListFooterComponent={() => (
-          <TouchableOpacity style={styles.createBtn} onPress={() => { setPendingSpot(null); navigation.goBack() }}>
+          <TouchableOpacity
+            style={styles.createBtn}
+            onPress={() => {
+              setPendingSpot(null)
+              navigation.goBack()
+            }}
+          >
             <Text style={styles.createText}>+ Create new spot here</Text>
           </TouchableOpacity>
         )}
@@ -81,12 +91,40 @@ export default function SpotPickerScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f1923' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingTop: 48 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    paddingTop: 48,
+  },
   cancel: { color: '#fff', fontSize: 20 },
   title: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  search: { backgroundColor: 'rgba(255,255,255,0.1)', margin: 16, borderRadius: 12, padding: 14, color: '#fff', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', gap: 12 },
-  icon: { width: 40, height: 40, borderRadius: 10, backgroundColor: 'rgba(0,180,216,0.15)', alignItems: 'center', justifyContent: 'center' },
+  search: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    margin: 16,
+    borderRadius: 12,
+    padding: 14,
+    color: '#fff',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+    gap: 12,
+  },
+  icon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,180,216,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   name: { color: '#fff', fontWeight: '600', fontSize: 15 },
   meta: { color: '#aaa', fontSize: 12 },
   createBtn: { padding: 20, alignItems: 'center' },

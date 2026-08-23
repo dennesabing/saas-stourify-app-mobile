@@ -30,7 +30,14 @@ const PREVIEW = {
   spots: [{ uuid: 'spot-1', title: 'Kalaklan Lighthouse', address: 'Olongapo' }],
   cities: [{ uuid: 'city-1', name: 'Olongapo', region: 'Central Luzon', country: 'PH' }],
   people: [
-    { uuid: 'person-1', user_uuid: 'user-1', username: 'wander_grace', name: 'Grace', bio: null, is_private: false },
+    {
+      uuid: 'person-1',
+      user_uuid: 'user-1',
+      username: 'wander_grace',
+      name: 'Grace',
+      bio: null,
+      is_private: false,
+    },
   ],
 }
 
@@ -74,7 +81,9 @@ it('renders all three result types in one sectioned list', async () => {
   renderScreen()
   type('kalaklan')
 
-  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
+    timeout: 3000,
+  })
   expect(screen.getByText('Olongapo, Central Luzon')).toBeTruthy()
   expect(screen.getByText('@wander_grace')).toBeTruthy()
 })
@@ -140,7 +149,9 @@ it('opens a spot from its result row', async () => {
   renderScreen()
   type('kalaklan')
 
-  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
+    timeout: 3000,
+  })
   fireEvent.press(screen.getByText('Kalaklan Lighthouse'))
 
   expect(navigation.navigate).toHaveBeenCalledWith('SpotDetail', { spotId: 'spot-1' })
@@ -234,7 +245,9 @@ it('keeps showing results already fetched when a later request fails', async () 
   // would be gone before the screen asked for it. The cost is a collection
   // timer that outlives the test — hence the `clear()` below, without which
   // jest sits for the five-minute default before the process can exit.
-  const client = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false } } }))
+  const client = trackQueryClient(
+    new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  )
   client.setQueryData(['discover-search', 'all', 'kalaklan'], PREVIEW)
   ;(searchDiscover as jest.Mock).mockRejectedValue(new Error('Network request failed'))
 
@@ -243,7 +256,9 @@ it('keeps showing results already fetched when a later request fails', async () 
   try {
     type('kalaklan')
 
-    await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), { timeout: 3000 })
+    await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
+      timeout: 3000,
+    })
     await waitFor(() => expect(searchDiscover).toHaveBeenCalled(), { timeout: 3000 })
 
     expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy()

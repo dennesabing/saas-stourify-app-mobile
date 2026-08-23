@@ -58,8 +58,18 @@ jest.mock('react-native-maps', () => {
 const HERE = { latitude: 14.5995, longitude: 120.9842 }
 
 const PINS: MapPin[] = [
-  { id: 'spot-a', coordinate: { latitude: 14.61, longitude: 120.99 }, title: 'Fort Santiago', kind: 'spot' },
-  { id: 'spot-b', coordinate: { latitude: 14.58, longitude: 120.97 }, title: 'Rizal Park', kind: 'spot' },
+  {
+    id: 'spot-a',
+    coordinate: { latitude: 14.61, longitude: 120.99 },
+    title: 'Fort Santiago',
+    kind: 'spot',
+  },
+  {
+    id: 'spot-b',
+    coordinate: { latitude: 14.58, longitude: 120.97 },
+    title: 'Rizal Park',
+    kind: 'spot',
+  },
   { id: 'me', coordinate: HERE, title: 'You', kind: 'you' },
 ]
 
@@ -95,7 +105,9 @@ describe('MapCanvas — the region seam', () => {
   })
 
   it('corrects longitude for latitude, so a circle is not squashed near the poles', () => {
-    render(<MapCanvas region={{ center: { latitude: 60, longitude: 10 }, radiusKm: 10 }} pins={[]} />)
+    render(
+      <MapCanvas region={{ center: { latitude: 60, longitude: 10 }, radiusKm: 10 }} pins={[]} />,
+    )
 
     const region = lastMapProps().region
     expect(region.longitudeDelta).toBeGreaterThan(region.latitudeDelta * 1.9)
@@ -104,7 +116,9 @@ describe('MapCanvas — the region seam', () => {
 
 describe('MapCanvas — pins', () => {
   it('renders one marker per pin, keyed by the app-supplied id', () => {
-    const { getByTestId } = render(<MapCanvas region={{ center: HERE, radiusKm: 10 }} pins={PINS} />)
+    const { getByTestId } = render(
+      <MapCanvas region={{ center: HERE, radiusKm: 10 }} pins={PINS} />,
+    )
 
     expect(getByTestId('vendor-marker-spot-a')).toBeTruthy()
     expect(getByTestId('vendor-marker-spot-b')).toBeTruthy()
@@ -178,7 +192,11 @@ describe('MapCanvas — the peek card', () => {
 
   it('renders nothing while no pin is selected', () => {
     const { queryByText } = render(
-      <MapCanvas region={{ center: HERE, radiusKm: 10 }} pins={PINS} renderPeekCard={renderPeekCard} />,
+      <MapCanvas
+        region={{ center: HERE, radiusKm: 10 }}
+        pins={PINS}
+        renderPeekCard={renderPeekCard}
+      />,
     )
 
     expect(queryByText(/Peeking at/)).toBeNull()
@@ -291,7 +309,9 @@ describe('MapCanvas — moving a pin', () => {
 
 describe('MapCanvas — recenter', () => {
   it('draws no control unless the caller wants one', () => {
-    const { queryByTestId } = render(<MapCanvas region={{ center: HERE, radiusKm: 10 }} pins={PINS} />)
+    const { queryByTestId } = render(
+      <MapCanvas region={{ center: HERE, radiusKm: 10 }} pins={PINS} />,
+    )
 
     expect(queryByTestId('map-recenter')).toBeNull()
   })

@@ -101,9 +101,12 @@ function exifPayloadWithGps(): number[] {
 
   /** Degrees, minutes and seconds, each as a fraction of two 32-bit numbers. */
   const dms = (degrees: number, minutes: number, seconds: number): number[] => [
-    ...u32le(degrees), ...u32le(1),
-    ...u32le(minutes), ...u32le(1),
-    ...u32le(seconds), ...u32le(1),
+    ...u32le(degrees),
+    ...u32le(1),
+    ...u32le(minutes),
+    ...u32le(1),
+    ...u32le(seconds),
+    ...u32le(1),
   ]
 
   const tiffHeader = [0x49, 0x49, 0x2a, 0x00, ...u32le(8)]
@@ -130,7 +133,12 @@ function exifPayloadWithGps(): number[] {
   const longitude = dms(121, 0, 0)
 
   return [
-    0x45, 0x78, 0x69, 0x66, 0x00, 0x00, // "Exif\0\0"
+    0x45,
+    0x78,
+    0x69,
+    0x66,
+    0x00,
+    0x00, // "Exif\0\0"
     ...tiffHeader,
     ...mainTable,
     ...gpsTable,
@@ -162,7 +170,8 @@ export function jpegWith(segments: number[][]): Uint8Array {
     ...segments.flat(),
     ...segment(MARKER.SOS, [0x01, 0x01, 0x00]),
     ...SCAN_DATA,
-    0xff, MARKER.EOI,
+    0xff,
+    MARKER.EOI,
   ])
 }
 

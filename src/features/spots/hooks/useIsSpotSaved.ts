@@ -33,7 +33,9 @@ export function useIsSpotSaved(spotUuid: string): SpotSaveState {
         if (cancelled) return
 
         const [row] = rows
-        setState(row ? { isSaved: true, isQueued: row.isQueued } : { isSaved: false, isQueued: false })
+        setState(
+          row ? { isSaved: true, isQueued: row.isQueued } : { isSaved: false, isQueued: false },
+        )
       })
     })
 

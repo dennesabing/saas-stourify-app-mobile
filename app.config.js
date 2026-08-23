@@ -31,8 +31,8 @@ module.exports = ({ config }) => {
     console.warn(
       '[app.config.js] GOOGLE_MAPS_API_KEY is not set — the Android build will have no ' +
         'Google Maps key and every map surface will crash on mount. ' +
-        'See mobile/docs/google-maps-api-key.md.'
-    );
+        'See mobile/docs/google-maps-api-key.md.',
+    )
   }
 
   return {
@@ -45,5 +45,5 @@ module.exports = ({ config }) => {
         googleMaps: { apiKey: '${GOOGLE_MAPS_API_KEY}' },
       },
     },
-  };
-};
+  }
+}

@@ -13,7 +13,7 @@ export default function FollowListScreen({ route, navigation }: Props) {
 
   const { data } = useQuery({
     queryKey: ['follow-list', type, userId],
-    queryFn: () => type === 'followers' ? getFollowers(userId) : getFollowing(userId),
+    queryFn: () => (type === 'followers' ? getFollowers(userId) : getFollowing(userId)),
   })
 
   const users: User[] = (data?.data ?? [])
@@ -23,7 +23,11 @@ export default function FollowListScreen({ route, navigation }: Props) {
   const renderUser = useCallback(
     ({ item }: { item: User }) => {
       const initials = item.name
-        ? item.name.split(' ').map((n) => n[0] ?? '').join('').toUpperCase() || '?'
+        ? item.name
+            .split(' ')
+            .map((n) => n[0] ?? '')
+            .join('')
+            .toUpperCase() || '?'
         : '?'
       return (
         <TouchableOpacity
@@ -48,11 +52,7 @@ export default function FollowListScreen({ route, navigation }: Props) {
         <Text style={styles.backText}>← Back</Text>
       </TouchableOpacity>
       <Text style={styles.title}>{type === 'followers' ? 'Followers' : 'Following'}</Text>
-      <FlatList
-        data={users}
-        keyExtractor={(u) => u.uuid}
-        renderItem={renderUser}
-      />
+      <FlatList data={users} keyExtractor={(u) => u.uuid} renderItem={renderUser} />
     </View>
   )
 }
@@ -61,9 +61,29 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f1923', paddingTop: 48 },
   back: { padding: 16 },
   backText: { color: '#00b4d8' },
-  title: { color: '#fff', fontWeight: '700', fontSize: 22, paddingHorizontal: 16, paddingBottom: 16 },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#00b4d8', alignItems: 'center', justifyContent: 'center' },
+  title: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 22,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#00b4d8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   initials: { color: '#fff', fontWeight: '700', fontSize: 16 },
   name: { color: '#fff', fontWeight: '600', fontSize: 15 },
 })

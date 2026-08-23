@@ -31,7 +31,15 @@ jest.mock('@/sync/cycle', () => ({
   runSyncCycle: jest.fn(async ({ trigger }: { trigger: string }) => ({
     trigger,
     skipped: null,
-    drain: { attempted: 0, acked: 0, rejected: 0, excluded: 0, fullyAcked: true, networkFailure: false, error: null },
+    drain: {
+      attempted: 0,
+      acked: 0,
+      rejected: 0,
+      excluded: 0,
+      fullyAcked: true,
+      networkFailure: false,
+      error: null,
+    },
     pulled: true,
     pulledRows: 0,
     error: null,

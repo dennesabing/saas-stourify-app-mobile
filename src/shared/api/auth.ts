@@ -1,7 +1,10 @@
 import { client } from './client'
 import type { AuthConfig, User } from './types'
 
-export async function login(email: string, password: string): Promise<{ token: string; user: User }> {
+export async function login(
+  email: string,
+  password: string,
+): Promise<{ token: string; user: User }> {
   const res = await client.post('/login', { email, password })
   return res.data.data
 }
@@ -11,7 +14,7 @@ export async function register(
   email: string,
   password: string,
   password_confirmation: string,
-  code?: string
+  code?: string,
 ): Promise<{ token: string; user: User }> {
   const payload: Record<string, string> = { name, email, password, password_confirmation }
   if (code !== undefined && code !== '') payload.code = code

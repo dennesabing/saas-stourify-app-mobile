@@ -1,8 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Alert,
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Image, ScrollView, ActivityIndicator, KeyboardAvoidingView,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  ScrollView,
+  ActivityIndicator,
+  KeyboardAvoidingView,
 } from 'react-native'
 import axios from 'axios'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -83,12 +90,12 @@ export default function PostComposeScreen({ route, navigation }: Props) {
    */
   const [draftSpot, setDraftSpot] = useState<{ uuid: string; title: string } | null>(null)
 
-  const taggedSpot = pendingSpot
-    ? { uuid: pendingSpot.uuid, title: pendingSpot.title }
-    : draftSpot
+  const taggedSpot = pendingSpot ? { uuid: pendingSpot.uuid, title: pendingSpot.title } : draftSpot
 
   useEffect(() => {
-    return () => { setPendingSpot(null) }
+    return () => {
+      setPendingSpot(null)
+    }
   }, [setPendingSpot])
 
   // Opened from the Drafts page: put the author back where they were.
@@ -111,7 +118,9 @@ export default function PostComposeScreen({ route, navigation }: Props) {
       )
     })()
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [database, route.params.draftId])
 
   const content: DraftContent = {
@@ -170,7 +179,9 @@ export default function PostComposeScreen({ route, navigation }: Props) {
 
   // And once more on the way out, for the part the debounce had not reached.
   useEffect(() => {
-    return () => { void persist() }
+    return () => {
+      void persist()
+    }
   }, [persist])
 
   const createMutation = useMutation({
@@ -274,7 +285,10 @@ export default function PostComposeScreen({ route, navigation }: Props) {
             <Text style={styles.back}>← Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>New Post</Text>
-          <TouchableOpacity onPress={() => createMutation.mutate()} disabled={createMutation.isPending}>
+          <TouchableOpacity
+            onPress={() => createMutation.mutate()}
+            disabled={createMutation.isPending}
+          >
             <Text style={styles.share}>Share</Text>
           </TouchableOpacity>
         </View>
@@ -320,10 +334,11 @@ export default function PostComposeScreen({ route, navigation }: Props) {
           onPress={() => createMutation.mutate()}
           disabled={createMutation.isPending}
         >
-          {createMutation.isPending
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.shareBtnText}>Share Post</Text>
-          }
+          {createMutation.isPending ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.shareBtnText}>Share Post</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -332,23 +347,55 @@ export default function PostComposeScreen({ route, navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f1923' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingTop: 48 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    paddingTop: 48,
+  },
   back: { color: '#aaa' },
   title: { color: '#fff', fontWeight: '700', fontSize: 16 },
   share: { color: '#00b4d8', fontWeight: '700' },
   preview: { width: '100%', height: 200 },
-  caption: { color: '#fff', padding: 16, fontSize: 15, minHeight: 80, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', gap: 8 },
+  caption: {
+    color: '#fff',
+    padding: 16,
+    fontSize: 15,
+    minHeight: 80,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+    gap: 8,
+  },
   rowIcon: { fontSize: 18 },
   rowLabel: { flex: 1, color: '#fff', fontSize: 15 },
   rowValue: { color: '#00b4d8', fontSize: 14 },
   sectionLabel: { color: '#aaa', fontSize: 12, padding: 16, paddingBottom: 8 },
   visibilityRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8 },
-  visOpt: { flex: 1, padding: 10, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center' },
+  visOpt: {
+    flex: 1,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+  },
   visOptActive: { backgroundColor: '#00b4d8' },
   visText: { color: '#aaa', fontSize: 12 },
   visTextActive: { color: '#fff', fontWeight: '600' },
   error: { color: '#ff6b6b', padding: 16 },
-  shareBtn: { margin: 16, backgroundColor: '#00b4d8', borderRadius: 12, padding: 16, alignItems: 'center' },
+  shareBtn: {
+    margin: 16,
+    backgroundColor: '#00b4d8',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
   shareBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
 })

@@ -77,7 +77,9 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
 
         {sent ? (
           <View style={{ gap: theme.spacing[3] }}>
-            <Text variant="body">If an account exists for that email, we have sent a reset link.</Text>
+            <Text variant="body">
+              If an account exists for that email, we have sent a reset link.
+            </Text>
             <Button
               label="I have a reset code"
               variant="secondary"
@@ -86,7 +88,12 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
             />
           </View>
         ) : (
-          <Button label="Send reset link" onPress={handleSubmit(onSubmit)} loading={loading} fullWidth />
+          <Button
+            label="Send reset link"
+            onPress={handleSubmit(onSubmit)}
+            loading={loading}
+            fullWidth
+          />
         )}
       </View>
     </KeyboardAwareScreen>

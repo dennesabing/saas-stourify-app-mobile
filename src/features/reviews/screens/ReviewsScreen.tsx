@@ -83,7 +83,14 @@ export default function ReviewsScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', padding: theme.gutter, gap: theme.spacing[3] }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          padding: theme.gutter,
+          gap: theme.spacing[3],
+        }}
+      >
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Back"
@@ -101,7 +108,9 @@ export default function ReviewsScreen({ route, navigation }: Props) {
         data={rows}
         keyExtractor={(row) => row.id}
         contentContainerStyle={{ padding: theme.gutter, gap: theme.spacing[3] }}
-        ListEmptyComponent={<EmptyState icon="⭐" title="No reviews yet" subtitle="Be the first to write one." />}
+        ListEmptyComponent={
+          <EmptyState icon="⭐" title="No reviews yet" subtitle="Be the first to write one." />
+        }
         renderItem={({ item }) => (
           <Card>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2] }}>

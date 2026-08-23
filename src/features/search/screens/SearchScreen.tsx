@@ -58,7 +58,11 @@ interface Section {
 
 const toSpotRow = (spot: Spot): Row => ({ kind: 'spot', key: `spot-${spot.uuid}`, spot })
 const toCityRow = (city: City): Row => ({ kind: 'city', key: `city-${city.uuid}`, city })
-const toPersonRow = (person: Person): Row => ({ kind: 'person', key: `person-${person.uuid}`, person })
+const toPersonRow = (person: Person): Row => ({
+  kind: 'person',
+  key: `person-${person.uuid}`,
+  person,
+})
 
 /** Empty sections are dropped rather than rendered as a header over nothing. */
 function section(title: string, data: Row[]): Section[] {
@@ -307,7 +311,12 @@ export default function SearchScreen({ navigation }: Props) {
       >
         <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
           {FILTERS.map(({ key, label }) => (
-            <Chip key={key} label={label} selected={filter === key} onPress={() => setFilter(key)} />
+            <Chip
+              key={key}
+              label={label}
+              selected={filter === key}
+              onPress={() => setFilter(key)}
+            />
           ))}
         </View>
       </ScrollView>
@@ -320,7 +329,9 @@ export default function SearchScreen({ navigation }: Props) {
         stickySectionHeadersEnabled={false}
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={empty}
-        contentContainerStyle={sections.length === 0 ? { flex: 1 } : { paddingBottom: theme.spacing[4] }}
+        contentContainerStyle={
+          sections.length === 0 ? { flex: 1 } : { paddingBottom: theme.spacing[4] }
+        }
       />
     </SafeAreaView>
   )

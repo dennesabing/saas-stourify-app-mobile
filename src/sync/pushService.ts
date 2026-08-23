@@ -120,7 +120,11 @@ export async function serializeForPush(
   if (table === 'sto_reviews') {
     const review = record as Review
     const row: Record<string, unknown> = { uuid: review.uuid }
-    put(row, 'spot_uuid', (await resolveUuidByServerId(database, 'sto_spots', review.spotId)) ?? review.spotUuid)
+    put(
+      row,
+      'spot_uuid',
+      (await resolveUuidByServerId(database, 'sto_spots', review.spotId)) ?? review.spotUuid,
+    )
     row.rating = review.rating
     putNullable(row, 'body', review.body, op)
     return row
@@ -129,7 +133,11 @@ export async function serializeForPush(
   if (table === 'sto_wishlist_items') {
     const item = record as WishlistItem
     const row: Record<string, unknown> = { uuid: item.uuid }
-    put(row, 'spot_uuid', (await resolveUuidByServerId(database, 'sto_spots', item.spotId)) ?? item.spotUuid)
+    put(
+      row,
+      'spot_uuid',
+      (await resolveUuidByServerId(database, 'sto_spots', item.spotId)) ?? item.spotUuid,
+    )
     putNullable(row, 'note', item.note, op)
     row.is_downloaded_offline = item.isDownloadedOffline
     return row
@@ -300,7 +308,10 @@ export async function countPending(database: Database): Promise<number> {
   let total = 0
 
   for (const table of PUSHABLE_TABLES) {
-    total += await database.get(table).query(Q.where('_status', Q.notEq('synced'))).fetchCount()
+    total += await database
+      .get(table)
+      .query(Q.where('_status', Q.notEq('synced')))
+      .fetchCount()
     total += (await database.adapter.getDeletedRecords(table)).length
   }
 

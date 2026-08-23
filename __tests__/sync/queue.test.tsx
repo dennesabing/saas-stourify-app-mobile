@@ -203,10 +203,16 @@ it('pluralizes attempts', async () => {
   const database = createTestDatabase()
   await seedSpot(database, { uuid: 'spot-1' })
   await upsertSyncFailure(database, {
-    recordId: 'spot-1', tableName: 'sto_spots', reason: 'error', lastError: '{}',
+    recordId: 'spot-1',
+    tableName: 'sto_spots',
+    reason: 'error',
+    lastError: '{}',
   })
   await upsertSyncFailure(database, {
-    recordId: 'spot-1', tableName: 'sto_spots', reason: 'error', lastError: '{}',
+    recordId: 'spot-1',
+    tableName: 'sto_spots',
+    reason: 'error',
+    lastError: '{}',
   })
 
   const rows = await listFailedQueue(database)
@@ -218,7 +224,10 @@ it('a failed row still appears once in the pending list', async () => {
   const database = createTestDatabase()
   await seedSpot(database, { uuid: 'spot-1' })
   await upsertSyncFailure(database, {
-    recordId: 'spot-1', tableName: 'sto_spots', reason: 'validation', lastError: '{}',
+    recordId: 'spot-1',
+    tableName: 'sto_spots',
+    reason: 'validation',
+    lastError: '{}',
   })
 
   // It is still dirty — the failure is a diagnostic overlay, not a move.
@@ -229,7 +238,10 @@ it('retryRecord clears the failure so the next drain picks the row up', async ()
   const database = createTestDatabase()
   await seedSpot(database, { uuid: 'spot-1' })
   await upsertSyncFailure(database, {
-    recordId: 'spot-1', tableName: 'sto_spots', reason: 'validation', lastError: '{}',
+    recordId: 'spot-1',
+    tableName: 'sto_spots',
+    reason: 'validation',
+    lastError: '{}',
   })
 
   await retryRecord(database, 'spot-1')
@@ -242,7 +254,10 @@ it('discardRecord destroys the row permanently and leaves NO delete to push', as
   const database = createTestDatabase()
   await seedSpot(database, { uuid: 'spot-1' })
   await upsertSyncFailure(database, {
-    recordId: 'spot-1', tableName: 'sto_spots', reason: 'validation', lastError: '{}',
+    recordId: 'spot-1',
+    tableName: 'sto_spots',
+    reason: 'validation',
+    lastError: '{}',
   })
 
   await discardRecord(database, 'sto_spots', 'spot-1')
@@ -271,10 +286,16 @@ it('retryAllFailures clears every failure row, blocking or not', async () => {
   await seedSpot(database, { uuid: 'spot-1' })
   await seedSpot(database, { uuid: 'spot-2' })
   await upsertSyncFailure(database, {
-    recordId: 'spot-1', tableName: 'sto_spots', reason: 'validation', lastError: '{}',
+    recordId: 'spot-1',
+    tableName: 'sto_spots',
+    reason: 'validation',
+    lastError: '{}',
   })
   await upsertSyncFailure(database, {
-    recordId: 'spot-2', tableName: 'sto_spots', reason: 'error', lastError: '{}',
+    recordId: 'spot-2',
+    tableName: 'sto_spots',
+    reason: 'error',
+    lastError: '{}',
   })
 
   await retryAllFailures(database)
@@ -401,7 +422,10 @@ it('emits when a failure row appears', async () => {
   await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('1/0'))
 
   await upsertSyncFailure(database, {
-    recordId: 'spot-live', tableName: 'sto_spots', reason: 'validation', lastError: '{}',
+    recordId: 'spot-live',
+    tableName: 'sto_spots',
+    reason: 'validation',
+    lastError: '{}',
   })
 
   await waitFor(() => expect(screen.getByTestId('probe')).toHaveTextContent('1/1'))

@@ -12,7 +12,12 @@ beforeEach(() => {
 
 it('syncing outranks everything', () => {
   const state = resolveBannerState({
-    phase: 'draining', offline: true, pending: 3, failed: 2, lastSyncedAt: NOW, now: NOW,
+    phase: 'draining',
+    offline: true,
+    pending: 3,
+    failed: 2,
+    lastSyncedAt: NOW,
+    now: NOW,
   })
 
   expect(state.tone).toBe('primary')
@@ -22,7 +27,12 @@ it('syncing outranks everything', () => {
 
 it('syncing with an empty queue says it is checking', () => {
   const state = resolveBannerState({
-    phase: 'pulling', offline: false, pending: 0, failed: 0, lastSyncedAt: NOW, now: NOW,
+    phase: 'pulling',
+    offline: false,
+    pending: 0,
+    failed: 0,
+    lastSyncedAt: NOW,
+    now: NOW,
   })
 
   expect(state.subtitle).toBe('Checking for updates')
@@ -30,7 +40,12 @@ it('syncing with an empty queue says it is checking', () => {
 
 it('offline outranks a pending queue, because pending while offline is normal', () => {
   const state = resolveBannerState({
-    phase: 'idle', offline: true, pending: 2, failed: 0, lastSyncedAt: NOW, now: NOW,
+    phase: 'idle',
+    offline: true,
+    pending: 2,
+    failed: 0,
+    lastSyncedAt: NOW,
+    now: NOW,
   })
 
   expect(state.tone).toBe('muted')
@@ -40,7 +55,12 @@ it('offline outranks a pending queue, because pending while offline is normal', 
 
 it('offline with nothing queued says so', () => {
   const state = resolveBannerState({
-    phase: 'idle', offline: true, pending: 0, failed: 0, lastSyncedAt: NOW, now: NOW,
+    phase: 'idle',
+    offline: true,
+    pending: 0,
+    failed: 0,
+    lastSyncedAt: NOW,
+    now: NOW,
   })
 
   expect(state.subtitle).toBe('Nothing waiting to send')
@@ -63,7 +83,12 @@ it('failures outrank a plain pending queue', () => {
 
 it('pluralizes the attention title', () => {
   const state = resolveBannerState({
-    phase: 'idle', offline: false, pending: 2, failed: 2, lastSyncedAt: NOW, now: NOW,
+    phase: 'idle',
+    offline: false,
+    pending: 2,
+    failed: 2,
+    lastSyncedAt: NOW,
+    now: NOW,
   })
 
   expect(state.title).toBe('2 changes need your attention')
@@ -71,7 +96,12 @@ it('pluralizes the attention title', () => {
 
 it('a plain pending queue', () => {
   const state = resolveBannerState({
-    phase: 'idle', offline: false, pending: 1, failed: 0, lastSyncedAt: NOW, now: NOW,
+    phase: 'idle',
+    offline: false,
+    pending: 1,
+    failed: 0,
+    lastSyncedAt: NOW,
+    now: NOW,
   })
 
   expect(state.tone).toBe('primary')
@@ -81,7 +111,12 @@ it('a plain pending queue', () => {
 
 it('an empty, online, idle queue is fully synced', () => {
   const state = resolveBannerState({
-    phase: 'idle', offline: false, pending: 0, failed: 0, lastSyncedAt: NOW, now: NOW,
+    phase: 'idle',
+    offline: false,
+    pending: 0,
+    failed: 0,
+    lastSyncedAt: NOW,
+    now: NOW,
   })
 
   expect(state.tone).toBe('success')
@@ -91,7 +126,12 @@ it('an empty, online, idle queue is fully synced', () => {
 
 it('says so when it has never synced', () => {
   const state = resolveBannerState({
-    phase: 'idle', offline: false, pending: 0, failed: 0, lastSyncedAt: null, now: NOW,
+    phase: 'idle',
+    offline: false,
+    pending: 0,
+    failed: 0,
+    lastSyncedAt: null,
+    now: NOW,
   })
 
   expect(state.subtitle).toBe('Not synced yet')

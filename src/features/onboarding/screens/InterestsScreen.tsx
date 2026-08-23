@@ -56,7 +56,10 @@ export default function InterestsScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.colors.surface }}
+      edges={['top', 'bottom']}
+    >
       <ScrollView contentContainerStyle={{ padding: theme.gutter, gap: theme.spacing[5] }}>
         <Text variant="h1">What draws you to a place?</Text>
         <Text variant="body" color="muted">

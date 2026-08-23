@@ -97,7 +97,11 @@ jest.mock('expo-file-system', () => {
 import { queueCapturedPhoto } from '@/features/media/api/draftMedia'
 
 async function capture(database: Database, filename: string): Promise<void> {
-  await queueCapturedPhoto(database, { uri: `content://camera/${filename}`, filename, mime: 'image/jpeg' })
+  await queueCapturedPhoto(database, {
+    uri: `content://camera/${filename}`,
+    filename,
+    mime: 'image/jpeg',
+  })
 }
 
 /**
@@ -194,7 +198,7 @@ it('validates locally without touching the database', async () => {
   expect(await database.get<Spot>('sto_spots').query().fetchCount()).toBe(0)
 })
 
-it('offers no way to type a coordinate — the card\'s first acceptance line', async () => {
+it("offers no way to type a coordinate — the card's first acceptance line", async () => {
   const database = createTestDatabase()
 
   render(
@@ -256,7 +260,7 @@ it('saves the categories that were picked, in the field name the server uses', a
 // The reason this is worth a screen test rather than only a unit test: the row
 // would otherwise sit in the outbox and be refused by the server minutes later,
 // with nobody watching to be told.
-it('refuses a description past the server\'s limit before writing anything', async () => {
+it("refuses a description past the server's limit before writing anything", async () => {
   const database = createTestDatabase()
 
   render(

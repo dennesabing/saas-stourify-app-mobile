@@ -27,7 +27,12 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
     watch,
     formState: { errors },
   } = useForm<FormData>({
-    defaultValues: { email: route.params?.email ?? '', token: '', password: '', password_confirmation: '' },
+    defaultValues: {
+      email: route.params?.email ?? '',
+      token: '',
+      password: '',
+      password_confirmation: '',
+    },
   })
 
   const password = watch('password')
@@ -96,7 +101,10 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
         <Controller
           control={control}
           name="password"
-          rules={{ required: 'Password is required', minLength: { value: 8, message: 'Min 8 characters' } }}
+          rules={{
+            required: 'Password is required',
+            minLength: { value: 8, message: 'Min 8 characters' },
+          }}
           render={({ field: { onChange, value } }) => (
             <Input
               label="New password"
@@ -136,7 +144,12 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
           </Text>
         ) : null}
 
-        <Button label="Reset password" onPress={handleSubmit(onSubmit)} loading={loading} fullWidth />
+        <Button
+          label="Reset password"
+          onPress={handleSubmit(onSubmit)}
+          loading={loading}
+          fullWidth
+        />
       </View>
     </KeyboardAwareScreen>
   )

@@ -33,7 +33,12 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
   const database = useDatabase()
   const [tab, setTab] = useState<'Posts' | 'About'>('Posts')
 
-  const { data: spot, isLoading, isError, refetch } = useQuery({
+  const {
+    data: spot,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['spot', spotId],
     queryFn: () => getSpot(spotId),
   })
@@ -81,7 +86,11 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
         onPress={() => navigation.navigate('PostDetail', { postId: item.uuid })}
       >
         {item.media?.[0]?.url ? (
-          <Image source={{ uri: item.media[0].url }} style={{ width: THUMB, height: THUMB }} contentFit="cover" />
+          <Image
+            source={{ uri: item.media[0].url }}
+            style={{ width: THUMB, height: THUMB }}
+            contentFit="cover"
+          />
         ) : (
           <View style={{ width: THUMB, height: THUMB, backgroundColor: theme.colors.surfaceAlt }} />
         )}
@@ -168,7 +177,11 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               <Image
                 testID="spot-hero-image"
                 source={{ uri: media[0].url }}
-                style={{ width: '100%', height: HERO_HEIGHT, backgroundColor: theme.colors.surfaceAlt }}
+                style={{
+                  width: '100%',
+                  height: HERO_HEIGHT,
+                  backgroundColor: theme.colors.surfaceAlt,
+                }}
                 contentFit="cover"
                 transition={theme.motion.fast}
               />
@@ -221,7 +234,7 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               </Text>
               {spot?.status === 'active' && <Tag label="✓ Verified" />}
             </View>
-  
+
             {categories.length > 0 && (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing[1] }}>
                 {categories.map((category) => (
@@ -229,7 +242,7 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                 ))}
               </View>
             )}
-  
+
             {/*
               Nothing at all in the failed state, rather than a second failure
               message six lines under the first. One request went wrong; two
@@ -257,7 +270,10 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                 {isWaiting ? (
                   <Skeleton height={20} width="40%" />
                 ) : (
-                  <Rating value={spot?.rating_average ?? 0} reviewCount={spot?.reviews_count ?? 0} />
+                  <Rating
+                    value={spot?.rating_average ?? 0}
+                    reviewCount={spot?.reviews_count ?? 0}
+                  />
                 )}
               </View>
               <Button
@@ -294,7 +310,13 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
           </View>
         )}
 
-        <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: theme.colors.hairline }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            borderBottomWidth: 1,
+            borderBottomColor: theme.colors.hairline,
+          }}
+        >
           {(['Posts', 'About'] as const).map((t) => (
             <Pressable
               key={t}
@@ -368,7 +390,9 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
             */}
             <SpotAboutTab
               spotUuid={spotId}
-              onOpenThread={(spotAboutUuid) => navigation.navigate('Comments', { spotAboutId: spotAboutUuid })}
+              onOpenThread={(spotAboutUuid) =>
+                navigation.navigate('Comments', { spotAboutId: spotAboutUuid })
+              }
             />
           </View>
         )}

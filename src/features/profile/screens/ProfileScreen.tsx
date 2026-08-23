@@ -81,10 +81,7 @@ export default function ProfileScreen({ route, navigation }: Props) {
   // the value is whichever stack actually pushed this screen — that mismatch is
   // the whole reason the check exists.
   const routeNames: string[] = navigation.getState?.()?.routeNames ?? []
-  const canOpen = useCallback(
-    (name: string) => routeNames.includes(name),
-    [routeNames],
-  )
+  const canOpen = useCallback((name: string) => routeNames.includes(name), [routeNames])
 
   const profileQuery = useQuery({
     queryKey: ['explorer-profile', isOwn ? 'me' : targetId],
@@ -274,7 +271,10 @@ export default function ProfileScreen({ route, navigation }: Props) {
           // also pushed onto Home, Discover and Activity, none of which carry
           // Settings, and navigating to a route a stack does not have throws.
           {...(canOpen('Settings')
-            ? { secondaryActionLabel: 'Settings', onSecondaryAction: () => navigation.navigate('Settings') }
+            ? {
+                secondaryActionLabel: 'Settings',
+                onSecondaryAction: () => navigation.navigate('Settings'),
+              }
             : {})}
         />,
       )
@@ -349,115 +349,116 @@ export default function ProfileScreen({ route, navigation }: Props) {
       onAction={() => void postsQuery.refetch()}
     />
   ) : (
-    <EmptyState
-      icon="📷"
-      title={isOwn ? 'You have not posted yet.' : 'No posts to show.'}
-    />
+    <EmptyState icon="📷" title={isOwn ? 'You have not posted yet.' : 'No posts to show.'} />
   )
 
   return renderFrame(
     <>
-    <FlatList
-      testID="profile-grid"
-      data={posts}
-      keyExtractor={(post) => post.uuid}
-      renderItem={renderTile}
-      numColumns={COLUMNS}
-      columnWrapperStyle={{ gap: GRID_GAP }}
-      ListHeaderComponent={
-        <ProfileHeader
-          profile={profile}
-          isStale={showingSavedCopy}
-          // `profile.name` first for BOTH cases. Falling back to the username
-          // renders it twice — once as the name and once as the handle — which
-          // is what the header did before the server sent a name at all.
-          displayName={profile?.name ?? (isOwn ? currentUser?.name : undefined) ?? ''}
-          avatarUri={isOwn ? currentUser?.avatar : undefined}
-          isOwn={isOwn}
-          canOpen={canOpen}
-          onEdit={() => navigation.navigate('EditProfile')}
-          onSettings={() => navigation.navigate('Settings')}
-          onDrafts={() => navigation.navigate('Drafts')}
-          onFollowers={() => navigation.navigate('FollowList', { userId: targetId, type: 'followers' })}
-          onFollowing={() => navigation.navigate('FollowList', { userId: targetId, type: 'following' })}
-          onFollowToggle={() =>
-            viewer?.follow_uuid ? unfollowMutation.mutate() : followMutation.mutate()
-          }
-          followPending={followMutation.isPending || unfollowMutation.isPending}
-          onMore={() => setMenuOpen(true)}
-        />
-      }
-      ListEmptyComponent={emptyGrid}
-    />
+      <FlatList
+        testID="profile-grid"
+        data={posts}
+        keyExtractor={(post) => post.uuid}
+        renderItem={renderTile}
+        numColumns={COLUMNS}
+        columnWrapperStyle={{ gap: GRID_GAP }}
+        ListHeaderComponent={
+          <ProfileHeader
+            profile={profile}
+            isStale={showingSavedCopy}
+            // `profile.name` first for BOTH cases. Falling back to the username
+            // renders it twice — once as the name and once as the handle — which
+            // is what the header did before the server sent a name at all.
+            displayName={profile?.name ?? (isOwn ? currentUser?.name : undefined) ?? ''}
+            avatarUri={isOwn ? currentUser?.avatar : undefined}
+            isOwn={isOwn}
+            canOpen={canOpen}
+            onEdit={() => navigation.navigate('EditProfile')}
+            onSettings={() => navigation.navigate('Settings')}
+            onDrafts={() => navigation.navigate('Drafts')}
+            onFollowers={() =>
+              navigation.navigate('FollowList', { userId: targetId, type: 'followers' })
+            }
+            onFollowing={() =>
+              navigation.navigate('FollowList', { userId: targetId, type: 'following' })
+            }
+            onFollowToggle={() =>
+              viewer?.follow_uuid ? unfollowMutation.mutate() : followMutation.mutate()
+            }
+            followPending={followMutation.isPending || unfollowMutation.isPending}
+            onMore={() => setMenuOpen(true)}
+          />
+        }
+        ListEmptyComponent={emptyGrid}
+      />
 
-    {/* The overflow menu. Unblock is deliberately absent: once a block stands,
+      {/* The overflow menu. Unblock is deliberately absent: once a block stands,
         this screen cannot be reached at all — `GET /profiles/{them}` answers 403
         for the blocker exactly as it does for the blocked party, because a
         different answer would announce the block (STOURIFY-36). Unblock lives on
         the Blocked accounts list, which `GET /blocks` can always serve. */}
-    <Sheet visible={menuOpen} onClose={() => setMenuOpen(false)}>
-      <SheetOption
-        label="Block"
-        icon="🚫"
-        destructive
-        description="You will not see each other on Stourify."
-        onPress={() => {
-          setMenuOpen(false)
-          setConfirmingBlock(true)
-        }}
-      />
-      <SheetOption
-        label="Report"
-        icon="🚩"
-        description="Tell our team about this explorer. They will not know."
-        onPress={() => {
-          setMenuOpen(false)
-          setReporting(true)
-        }}
-      />
-    </Sheet>
+      <Sheet visible={menuOpen} onClose={() => setMenuOpen(false)}>
+        <SheetOption
+          label="Block"
+          icon="🚫"
+          destructive
+          description="You will not see each other on Stourify."
+          onPress={() => {
+            setMenuOpen(false)
+            setConfirmingBlock(true)
+          }}
+        />
+        <SheetOption
+          label="Report"
+          icon="🚩"
+          description="Tell our team about this explorer. They will not know."
+          onPress={() => {
+            setMenuOpen(false)
+            setReporting(true)
+          }}
+        />
+      </Sheet>
 
-    {/* Confirmed rather than one-tap, because part of a block does not come
+      {/* Confirmed rather than one-tap, because part of a block does not come
         back. `BlockApiController` hard-deletes the follow edges in both
         directions and `destroy()` states that unblocking will not recreate
         them — re-following on somebody's behalf would be worse. So the
         consequence is named here, in the words a person would use. */}
-    <Sheet
-      visible={confirmingBlock}
-      onClose={() => setConfirmingBlock(false)}
-      title={`Block ${subjectName}?`}
-      subtitle={
-        'Neither of you will see the other on Stourify, and any follows between you are removed. ' +
-        'They are not told. If you unblock later, those follows will not be restored — you would each have to follow again.'
-      }
-    >
-      {blockMutation.isError ? (
-        <Text variant="caption" color="danger">
-          {extractApiError(blockMutation.error)}
-        </Text>
-      ) : null}
+      <Sheet
+        visible={confirmingBlock}
+        onClose={() => setConfirmingBlock(false)}
+        title={`Block ${subjectName}?`}
+        subtitle={
+          'Neither of you will see the other on Stourify, and any follows between you are removed. ' +
+          'They are not told. If you unblock later, those follows will not be restored — you would each have to follow again.'
+        }
+      >
+        {blockMutation.isError ? (
+          <Text variant="caption" color="danger">
+            {extractApiError(blockMutation.error)}
+          </Text>
+        ) : null}
 
-      <Button
-        label="Block"
-        accessibilityLabel="Block this explorer"
-        variant="danger"
-        loading={blockMutation.isPending}
-        onPress={() => blockMutation.mutate()}
-      />
-      <Button
-        label="Cancel"
-        accessibilityLabel="Cancel"
-        variant="ghost"
-        onPress={() => setConfirmingBlock(false)}
-      />
-    </Sheet>
+        <Button
+          label="Block"
+          accessibilityLabel="Block this explorer"
+          variant="danger"
+          loading={blockMutation.isPending}
+          onPress={() => blockMutation.mutate()}
+        />
+        <Button
+          label="Cancel"
+          accessibilityLabel="Cancel"
+          variant="ghost"
+          onPress={() => setConfirmingBlock(false)}
+        />
+      </Sheet>
 
-    <ReportSheet
-      visible={reporting}
-      onClose={() => setReporting(false)}
-      reportableType="user"
-      reportableUuid={targetId}
-    />
+      <ReportSheet
+        visible={reporting}
+        onClose={() => setReporting(false)}
+        reportableType="user"
+        reportableUuid={targetId}
+      />
     </>,
   )
 }
@@ -518,7 +519,13 @@ function ProfileHeader({
   const counts = profile?.counts
 
   return (
-    <View style={{ paddingHorizontal: theme.gutter, paddingTop: theme.spacing[4], gap: theme.spacing[3] }}>
+    <View
+      style={{
+        paddingHorizontal: theme.gutter,
+        paddingTop: theme.spacing[4],
+        gap: theme.spacing[3],
+      }}
+    >
       {/*
         Said out loud rather than left to be inferred. Showing a saved copy in
         silence is the quiet lie an offline app cannot afford: a follower count
@@ -562,7 +569,14 @@ function ProfileHeader({
       </View>
 
       {profile?.interests?.length ? (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing[2], justifyContent: 'center' }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: theme.spacing[2],
+            justifyContent: 'center',
+          }}
+        >
           {profile.interests.map((interest) => (
             <Chip key={interest} label={interest} />
           ))}
@@ -572,7 +586,13 @@ function ProfileHeader({
       {/* Counts come from the server's computed aggregates. They rendered as a
           literal "–" before STOURIFY-35 because the endpoint being read did not
           carry them at all. */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-evenly', paddingVertical: theme.spacing[3] }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-evenly',
+          paddingVertical: theme.spacing[3],
+        }}
+      >
         <CountStat label="Spots" value={counts?.spots ?? 0} />
         <CountStat
           label="Followers"
@@ -697,7 +717,15 @@ function ProfileActions({
   )
 }
 
-function CountStat({ label, value, onPress }: { label: string; value: number; onPress?: () => void }) {
+function CountStat({
+  label,
+  value,
+  onPress,
+}: {
+  label: string
+  value: number
+  onPress?: () => void
+}) {
   const theme = useTheme()
 
   return (

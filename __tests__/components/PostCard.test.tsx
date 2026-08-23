@@ -97,7 +97,9 @@ test('renders the first attached photo', () => {
   }
   renderThemed(<PostCard post={post} onPress={() => {}} />)
   const photo = screen.getByLabelText('Photo in post by Ana Martinez')
-  expect(photo.props.source).toEqual(expect.objectContaining({ uri: 'https://cdn.example.com/a.jpg' }))
+  expect(photo.props.source).toEqual(
+    expect.objectContaining({ uri: 'https://cdn.example.com/a.jpg' }),
+  )
 })
 
 /**
@@ -156,7 +158,9 @@ test('meets the minimum touch target on both actions', () => {
   const like = screen.getByLabelText('Like')
   const comments = screen.getByLabelText('Comments')
   const flatten = (style: unknown): Record<string, unknown> =>
-    Array.isArray(style) ? Object.assign({}, ...style.map(flatten)) : ((style ?? {}) as Record<string, unknown>)
+    Array.isArray(style)
+      ? Object.assign({}, ...style.map(flatten))
+      : ((style ?? {}) as Record<string, unknown>)
   expect(flatten(like.props.style).minHeight).toBeGreaterThanOrEqual(44)
   expect(flatten(comments.props.style).minHeight).toBeGreaterThanOrEqual(44)
 })

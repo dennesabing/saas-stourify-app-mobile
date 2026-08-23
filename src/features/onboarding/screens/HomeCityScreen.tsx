@@ -49,7 +49,10 @@ export default function HomeCityScreen({ navigation }: Props) {
 
   if (cities.length === 0) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top', 'bottom']}>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: theme.colors.surface }}
+        edges={['top', 'bottom']}
+      >
         <EmptyState
           icon="🧭"
           title="Still syncing your cities"
@@ -62,7 +65,10 @@ export default function HomeCityScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.colors.surface }}
+      edges={['top', 'bottom']}
+    >
       <View style={{ padding: theme.gutter, gap: theme.spacing[2] }}>
         <Text variant="h1">Where do you explore from?</Text>
         <Text variant="body" color="muted">

@@ -226,7 +226,12 @@ export default function SpotAboutTab({ spotUuid, onOpenThread }: Props) {
 
               <View style={{ flex: 1, gap: theme.spacing[1] }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2] }}>
-                  <Text variant="caption" color="primary" numberOfLines={1} style={{ flexShrink: 1 }}>
+                  <Text
+                    variant="caption"
+                    color="primary"
+                    numberOfLines={1}
+                    style={{ flexShrink: 1 }}
+                  >
                     {about.author?.name ?? 'Someone'}
                   </Text>
                   <Text variant="caption" color="muted">
@@ -321,7 +326,11 @@ export default function SpotAboutTab({ spotUuid, onOpenThread }: Props) {
             onChangeText={setText}
             multiline
             maxLength={BODY_MAX}
-            error={createMutation.isError ? "That didn't send. Check your connection and try again." : undefined}
+            error={
+              createMutation.isError
+                ? "That didn't send. Check your connection and try again."
+                : undefined
+            }
           />
         </View>
 

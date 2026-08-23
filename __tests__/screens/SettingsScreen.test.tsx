@@ -47,7 +47,9 @@ function renderSettings() {
   // `gcTime: 0`, matching `__tests__/support/TestProviders.tsx`'s established
   // convention: React Query's default garbage-collection timer otherwise
   // leaves a handle open past the test, and jest never exits on its own.
-  const qc = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
+  const qc = trackQueryClient(
+    new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+  )
   lastClient = qc
   return render(
     <QueryClientProvider client={qc}>
@@ -129,7 +131,11 @@ describe('the Private account row', () => {
    */
   it('moves as soon as it is tapped, before the save comes back', async () => {
     let release: (value: unknown) => void = () => {}
-    ;(updateMyProfile as jest.Mock).mockReturnValue(new Promise((resolve) => { release = resolve }))
+    ;(updateMyProfile as jest.Mock).mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve
+      }),
+    )
     const { getByLabelText } = renderSettings()
 
     await waitFor(() => expect(getByLabelText('Private account').props.value).toBe(false))

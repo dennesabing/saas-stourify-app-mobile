@@ -92,7 +92,9 @@ const GENSAN_PAGE = {
 
 /** Puts the screen in `ready` at the GenSan viewer position. */
 function grantLocationAtGenSan() {
-  ;(Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' })
+  ;(Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
+    status: 'granted',
+  })
   ;(Location.getCurrentPositionAsync as jest.Mock).mockResolvedValue(
     position(GENSAN.latitude, GENSAN.longitude),
   )
@@ -116,7 +118,9 @@ beforeEach(() => {
 })
 
 it('does not blame permissions when the position request fails', async () => {
-  ;(Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' })
+  ;(Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
+    status: 'granted',
+  })
   ;(Location.getCurrentPositionAsync as jest.Mock).mockRejectedValue(new Error('no fix'))
   ;(Location.getLastKnownPositionAsync as jest.Mock).mockResolvedValue(null)
 
@@ -127,7 +131,9 @@ it('does not blame permissions when the position request fails', async () => {
 })
 
 it('falls back to the last known position when the live fix fails', async () => {
-  ;(Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' })
+  ;(Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
+    status: 'granted',
+  })
   ;(Location.getCurrentPositionAsync as jest.Mock).mockRejectedValue(new Error('no fix'))
   ;(Location.getLastKnownPositionAsync as jest.Mock).mockResolvedValue(position(14.5995, 120.9842))
 
@@ -141,7 +147,9 @@ it('falls back when the live fix never settles at all', async () => {
   // The emulator failure this card exists for: the promise does not reject,
   // it simply never resolves, so nothing reaches a `.catch`.
   jest.useFakeTimers()
-  ;(Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' })
+  ;(Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
+    status: 'granted',
+  })
   ;(Location.getCurrentPositionAsync as jest.Mock).mockReturnValue(new Promise(() => {}))
   ;(Location.getLastKnownPositionAsync as jest.Mock).mockResolvedValue(position(14.5995, 120.9842))
 
@@ -173,7 +181,9 @@ it('still reports a genuine permission denial', async () => {
 })
 
 it('retries the request in place without leaving the screen', async () => {
-  ;(Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' })
+  ;(Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
+    status: 'granted',
+  })
   ;(Location.getCurrentPositionAsync as jest.Mock).mockRejectedValueOnce(new Error('no fix'))
   ;(Location.getLastKnownPositionAsync as jest.Mock).mockResolvedValueOnce(null)
 

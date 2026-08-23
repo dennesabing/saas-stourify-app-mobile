@@ -52,7 +52,8 @@ export default function Rating({ value, reviewCount, compact = false, stacked = 
     // One Text, not a score beside a count: two shrinking siblings on a line
     // this narrow can each give up a character and produce "4… · 12 revi…".
     // A single string ellipsizes once, at the end, where it reads as intended.
-    const figures = reviewCount !== undefined ? `${value.toFixed(1)} · ${reviewCount} reviews` : value.toFixed(1)
+    const figures =
+      reviewCount !== undefined ? `${value.toFixed(1)} · ${reviewCount} reviews` : value.toFixed(1)
 
     return (
       <View style={styles.column} accessibilityLabel={label}>

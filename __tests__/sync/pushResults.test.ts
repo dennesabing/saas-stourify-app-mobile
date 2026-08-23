@@ -15,7 +15,11 @@ const NETWORK_FAILURE_MARKER = Symbol.for('offline-sync-core.networkFailure')
 
 function networkError(message: string): Error {
   const error = new Error(message)
-  Object.defineProperty(error, NETWORK_FAILURE_MARKER, { value: true, enumerable: false, configurable: true })
+  Object.defineProperty(error, NETWORK_FAILURE_MARKER, {
+    value: true,
+    enumerable: false,
+    configurable: true,
+  })
   return error
 }
 
@@ -134,7 +138,16 @@ describe('applyPushResults', () => {
 
     await applyPushResults(
       database,
-      [{ table: 'sto_spots', uuid: 'spot-forbidden', op: 'created', status: 'rejected', reason: 'forbidden', errors: { authorization: ['Denied.'] } }],
+      [
+        {
+          table: 'sto_spots',
+          uuid: 'spot-forbidden',
+          op: 'created',
+          status: 'rejected',
+          reason: 'forbidden',
+          errors: { authorization: ['Denied.'] },
+        },
+      ],
       batch,
     )
 
@@ -169,14 +182,44 @@ describe('applyPushResults', () => {
 
     await applyPushResults(
       database,
-      [{ table: 'sto_spots', uuid: 'spot-recovers', op: 'created', status: 'rejected', reason: 'error', errors: {} }],
+      [
+        {
+          table: 'sto_spots',
+          uuid: 'spot-recovers',
+          op: 'created',
+          status: 'rejected',
+          reason: 'error',
+          errors: {},
+        },
+      ],
       batch,
     )
     expect(await listSyncFailures(database)).toHaveLength(1)
 
     await applyPushResults(
       database,
-      [{ table: 'sto_spots', uuid: 'spot-recovers', op: 'created', status: 'ok', record: { id: 9, uuid: 'spot-recovers', title: 'ok', slug: 'ok', status: 'draft', latitude: 1, longitude: 1, is_verified: false, reviews_count: 0, saves_count: 0, created_at: '2026-07-28T01:00:00+00:00', updated_at: '2026-07-28T01:00:00+00:00' } }],
+      [
+        {
+          table: 'sto_spots',
+          uuid: 'spot-recovers',
+          op: 'created',
+          status: 'ok',
+          record: {
+            id: 9,
+            uuid: 'spot-recovers',
+            title: 'ok',
+            slug: 'ok',
+            status: 'draft',
+            latitude: 1,
+            longitude: 1,
+            is_verified: false,
+            reviews_count: 0,
+            saves_count: 0,
+            created_at: '2026-07-28T01:00:00+00:00',
+            updated_at: '2026-07-28T01:00:00+00:00',
+          },
+        },
+      ],
       batch,
     )
 
@@ -195,7 +238,15 @@ describe('applyPushResults', () => {
 
     await applyPushResults(
       database,
-      [{ table: 'sto_spots', uuid: 'spot-deleted', op: 'deleted', status: 'ok', record: { uuid: 'spot-deleted' } }],
+      [
+        {
+          table: 'sto_spots',
+          uuid: 'spot-deleted',
+          op: 'deleted',
+          status: 'ok',
+          record: { uuid: 'spot-deleted' },
+        },
+      ],
       batch,
     )
 
@@ -211,7 +262,15 @@ describe('drainOutbox', () => {
     const outcome = await drainOutbox(database, { post } as any)
 
     expect(post).not.toHaveBeenCalled()
-    expect(outcome).toEqual({ attempted: 0, acked: 0, rejected: 0, excluded: 0, fullyAcked: true, networkFailure: false, error: null })
+    expect(outcome).toEqual({
+      attempted: 0,
+      acked: 0,
+      rejected: 0,
+      excluded: 0,
+      fullyAcked: true,
+      networkFailure: false,
+      error: null,
+    })
   })
 
   it('posts the envelope and reports a full ack', async () => {
@@ -220,7 +279,28 @@ describe('drainOutbox', () => {
 
     const post = jest.fn(async () => ({
       data: {
-        results: [{ table: 'sto_spots', uuid: 'spot-drain', op: 'created', status: 'ok', record: { id: 11, uuid: 'spot-drain', title: 'Hidden Cove', slug: 'hidden-cove', status: 'draft', latitude: 6.1164, longitude: 125.1716, is_verified: false, reviews_count: 0, saves_count: 0, created_at: '2026-07-28T01:00:00+00:00', updated_at: '2026-07-28T01:00:00+00:00' } }],
+        results: [
+          {
+            table: 'sto_spots',
+            uuid: 'spot-drain',
+            op: 'created',
+            status: 'ok',
+            record: {
+              id: 11,
+              uuid: 'spot-drain',
+              title: 'Hidden Cove',
+              slug: 'hidden-cove',
+              status: 'draft',
+              latitude: 6.1164,
+              longitude: 125.1716,
+              is_verified: false,
+              reviews_count: 0,
+              saves_count: 0,
+              created_at: '2026-07-28T01:00:00+00:00',
+              updated_at: '2026-07-28T01:00:00+00:00',
+            },
+          },
+        ],
         server_time: '2026-07-28T01:00:00+00:00',
       } as PushResponse,
     }))
@@ -229,7 +309,15 @@ describe('drainOutbox', () => {
 
     expect(post).toHaveBeenCalledWith('/stourify/sync/push', {
       sto_spots: {
-        created: [{ uuid: 'spot-drain', title: 'Hidden Cove', latitude: 6.1164, longitude: 125.1716, status: 'draft' }],
+        created: [
+          {
+            uuid: 'spot-drain',
+            title: 'Hidden Cove',
+            latitude: 6.1164,
+            longitude: 125.1716,
+            status: 'draft',
+          },
+        ],
         updated: [],
         deleted: [],
       },
@@ -248,8 +336,34 @@ describe('drainOutbox', () => {
       database,
       respondWith({
         results: [
-          { table: 'sto_spots', uuid: 'spot-1', op: 'created', status: 'ok', record: { id: 1, uuid: 'spot-1', title: 'Seeded Spot', slug: 's1', status: 'draft', latitude: 1, longitude: 1, is_verified: false, reviews_count: 0, saves_count: 0, created_at: '2026-07-28T01:00:00+00:00', updated_at: '2026-07-28T01:00:00+00:00' } },
-          { table: 'sto_spots', uuid: 'spot-2', op: 'created', status: 'rejected', reason: 'validation', errors: { title: ['too short'] } },
+          {
+            table: 'sto_spots',
+            uuid: 'spot-1',
+            op: 'created',
+            status: 'ok',
+            record: {
+              id: 1,
+              uuid: 'spot-1',
+              title: 'Seeded Spot',
+              slug: 's1',
+              status: 'draft',
+              latitude: 1,
+              longitude: 1,
+              is_verified: false,
+              reviews_count: 0,
+              saves_count: 0,
+              created_at: '2026-07-28T01:00:00+00:00',
+              updated_at: '2026-07-28T01:00:00+00:00',
+            },
+          },
+          {
+            table: 'sto_spots',
+            uuid: 'spot-2',
+            op: 'created',
+            status: 'rejected',
+            reason: 'validation',
+            errors: { title: ['too short'] },
+          },
         ],
         server_time: '2026-07-28T01:00:00+00:00',
       }) as any,
@@ -264,14 +378,11 @@ describe('drainOutbox', () => {
     const database = createTestDatabase()
     await seedSpot(database, { uuid: 'spot-offline' })
 
-    const outcome = await drainOutbox(
-      database,
-      {
-        post: async () => {
-          throw networkError('Network request failed')
-        },
-      } as any,
-    )
+    const outcome = await drainOutbox(database, {
+      post: async () => {
+        throw networkError('Network request failed')
+      },
+    } as any)
 
     expect(outcome.networkFailure).toBe(true)
     expect(outcome.fullyAcked).toBe(false)
@@ -285,14 +396,11 @@ describe('drainOutbox', () => {
     const database = createTestDatabase()
     await seedSpot(database, { uuid: 'spot-500' })
 
-    const outcome = await drainOutbox(
-      database,
-      {
-        post: async () => {
-          throw new Error('HTTP 500')
-        },
-      } as any,
-    )
+    const outcome = await drainOutbox(database, {
+      post: async () => {
+        throw new Error('HTTP 500')
+      },
+    } as any)
 
     expect(outcome.networkFailure).toBe(false)
     expect(outcome.error).not.toBeNull()
@@ -306,12 +414,24 @@ describe('drainOutbox', () => {
     await drainOutbox(
       database,
       respondWith({
-        results: [{ table: 'sto_spots', uuid: 'spot-stuck', op: 'created', status: 'rejected', reason: 'validation', errors: {} }],
+        results: [
+          {
+            table: 'sto_spots',
+            uuid: 'spot-stuck',
+            op: 'created',
+            status: 'rejected',
+            reason: 'validation',
+            errors: {},
+          },
+        ],
         server_time: 'now',
       }) as any,
     )
 
-    const second = await drainOutbox(database, respondWith({ results: [], server_time: 'now' }) as any)
+    const second = await drainOutbox(
+      database,
+      respondWith({ results: [], server_time: 'now' }) as any,
+    )
 
     expect(second.attempted).toBe(0)
     expect(second.excluded).toBe(1)

@@ -10,7 +10,10 @@ import { useSyncStatusStore } from './status'
  * Overlap is safe: `runSyncCycle` holds a module-level mutex and returns
  * `skipped: 'in-flight'` rather than interleaving writes.
  */
-export async function syncNow(database: Database, trigger: SyncTrigger = 'manual'): Promise<SyncCycleOutcome> {
+export async function syncNow(
+  database: Database,
+  trigger: SyncTrigger = 'manual',
+): Promise<SyncCycleOutcome> {
   return runSyncCycle({ database, trigger })
 }
 

@@ -47,7 +47,10 @@ test('shows validation error when password is empty', async () => {
 })
 
 test('calls login API with email and password on valid submit', async () => {
-  mockLogin.mockResolvedValueOnce({ token: 'tok123', user: { id: '1', name: 'Ana', email: 'ana@test.com', uuid: 'u1' } })
+  mockLogin.mockResolvedValueOnce({
+    token: 'tok123',
+    user: { id: '1', name: 'Ana', email: 'ana@test.com', uuid: 'u1' },
+  })
   renderLogin()
   fireEvent.changeText(screen.getByPlaceholderText('you@example.com'), 'ana@test.com')
   fireEvent.changeText(screen.getByPlaceholderText('Your password'), 'secret123')
@@ -65,7 +68,10 @@ it('offers the forgot-password route', () => {
 })
 
 it('primes the sync session after signing in', async () => {
-  mockLogin.mockResolvedValueOnce({ token: 'tok123', user: { id: '1', name: 'Ana', email: 'a@b.com', uuid: 'u1' } })
+  mockLogin.mockResolvedValueOnce({
+    token: 'tok123',
+    user: { id: '1', name: 'Ana', email: 'a@b.com', uuid: 'u1' },
+  })
   renderLogin()
   fireEvent.changeText(screen.getByPlaceholderText('you@example.com'), 'a@b.com')
   fireEvent.changeText(screen.getByPlaceholderText('Your password'), 'password123')

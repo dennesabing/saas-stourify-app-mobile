@@ -1,5 +1,15 @@
 import { useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, Linking, KeyboardAvoidingView, Switch } from 'react-native'
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Modal,
+  StyleSheet,
+  Linking,
+  KeyboardAvoidingView,
+  Switch,
+} from 'react-native'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { ProfileStackParamList } from '@/shared/navigation/types'
@@ -87,7 +97,9 @@ export default function SettingsScreen({ navigation }: Props) {
   })
 
   const handleLogout = async () => {
-    try { await authApi.logout() } catch {}
+    try {
+      await authApi.logout()
+    } catch {}
     // signOut() already clears the token/user — no separate clearAuth() call.
     // This is the app's only user-facing logout affordance; it MUST go through
     // the same teardown as the 401 paths (client.ts, sync/httpClient.ts), or
@@ -132,7 +144,7 @@ export default function SettingsScreen({ navigation }: Props) {
       // definitely still there, so stay signed in. Tearing the session down
       // here would present a refused deletion as a successful one.
       setDeleteError(
-        error?.response?.data?.message ?? 'Could not delete your account. Please try again.'
+        error?.response?.data?.message ?? 'Could not delete your account. Please try again.',
       )
     },
   })
@@ -190,9 +202,7 @@ export default function SettingsScreen({ navigation }: Props) {
         />
       </View>
 
-      {!hasProfile && (
-        <Text style={styles.rowHint}>Set up your profile first to use this.</Text>
-      )}
+      {!hasProfile && <Text style={styles.rowHint}>Set up your profile first to use this.</Text>}
 
       {privacyError !== null && <Text style={styles.rowError}>{privacyError}</Text>}
 
@@ -319,13 +329,25 @@ const styles = StyleSheet.create({
   back: { color: '#00b4d8' },
   title: { color: '#fff', fontWeight: '700', fontSize: 20 },
   section: { color: '#888', fontSize: 11, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', gap: 12 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+    gap: 12,
+  },
   rowIcon: { fontSize: 18 },
   rowLabel: { flex: 1, color: '#fff', fontSize: 15 },
   rowValue: { color: '#aaa', fontSize: 14 },
   rowHint: { color: '#888', fontSize: 12, paddingHorizontal: 16, paddingTop: 8 },
   rowError: { color: '#ff6b6b', fontSize: 12, paddingHorizontal: 16, paddingTop: 8 },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 24 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    padding: 24,
+  },
   modalCard: { backgroundColor: '#16232f', borderRadius: 14, padding: 20, gap: 12 },
   modalTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
   modalBody: { color: '#b9c4cf', fontSize: 14, lineHeight: 20 },
@@ -340,7 +362,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 15,
   },
-  destructiveButton: { backgroundColor: '#c0392b', borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
+  destructiveButton: {
+    backgroundColor: '#c0392b',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
   destructiveButtonLabel: { color: '#fff', fontWeight: '700', fontSize: 15 },
   cancelButton: { paddingVertical: 10, alignItems: 'center' },
   cancelButtonLabel: { color: '#9fb0c0', fontSize: 15 },

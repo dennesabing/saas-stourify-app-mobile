@@ -19,7 +19,9 @@ jest.mock('@/sync/session', () => ({ signOut: jest.fn() }))
 const mockNavigation = { goBack: jest.fn(), navigate: jest.fn() } as any
 
 function renderSettings() {
-  const qc = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
+  const qc = trackQueryClient(
+    new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+  )
 
   return render(
     <QueryClientProvider client={qc}>

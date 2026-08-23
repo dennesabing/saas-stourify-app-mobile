@@ -12,7 +12,13 @@ import { onLogin } from '@/sync/session'
 import { Button, Input, KeyboardAwareScreen, Text } from '@/shared/components/ui'
 import { useTheme } from '@/theme/ThemeProvider'
 
-type FormData = { name: string; email: string; password: string; password_confirmation: string; code: string }
+type FormData = {
+  name: string
+  email: string
+  password: string
+  password_confirmation: string
+  code: string
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Register'>
 
@@ -27,7 +33,10 @@ export default function RegisterScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false)
   const [serverError, setServerError] = useState('')
 
-  const { data: authConfig } = useQuery({ queryKey: ['auth-config'], queryFn: authApi.getAuthConfig })
+  const { data: authConfig } = useQuery({
+    queryKey: ['auth-config'],
+    queryFn: authApi.getAuthConfig,
+  })
   const invitationOnly = authConfig?.invitation_only ?? false
   const registrationEnabled = authConfig?.registration_enabled ?? true
 
@@ -48,7 +57,13 @@ export default function RegisterScreen({ navigation }: Props) {
     setServerError('')
     try {
       const code = invitationOnly ? data.code : undefined
-      const res = await authApi.register(data.name, data.email, data.password, data.password_confirmation, code)
+      const res = await authApi.register(
+        data.name,
+        data.email,
+        data.password,
+        data.password_confirmation,
+        code,
+      )
       // MUST come before `setToken`. A login never sets this — only a
       // successful registration routes into onboarding (`RootNavigator`).
       //
@@ -68,7 +83,13 @@ export default function RegisterScreen({ navigation }: Props) {
       await onLogin()
     } catch (err) {
       const ve = extractValidationErrors(err)
-      const knownFields: (keyof FormData)[] = ['name', 'email', 'password', 'password_confirmation', 'code']
+      const knownFields: (keyof FormData)[] = [
+        'name',
+        'email',
+        'password',
+        'password_confirmation',
+        'code',
+      ]
       let hasFieldError = false
       Object.entries(ve).forEach(([field, msgs]) => {
         if (knownFields.includes(field as keyof FormData)) {
@@ -106,7 +127,10 @@ export default function RegisterScreen({ navigation }: Props) {
         <Controller
           control={control}
           name="email"
-          rules={{ required: 'Email is required', pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email' } }}
+          rules={{
+            required: 'Email is required',
+            pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email' },
+          }}
           render={({ field: { onChange, value } }) => (
             <Input
               label="Email"
@@ -123,7 +147,10 @@ export default function RegisterScreen({ navigation }: Props) {
         <Controller
           control={control}
           name="password"
-          rules={{ required: 'Password is required', minLength: { value: 8, message: 'Min 8 characters' } }}
+          rules={{
+            required: 'Password is required',
+            minLength: { value: 8, message: 'Min 8 characters' },
+          }}
           render={({ field: { onChange, value } }) => (
             <Input
               label="Password"
@@ -195,7 +222,11 @@ export default function RegisterScreen({ navigation }: Props) {
           fullWidth
         />
 
-        <Button label="Already have an account? Login" variant="ghost" onPress={() => navigation.navigate('Login')} />
+        <Button
+          label="Already have an account? Login"
+          variant="ghost"
+          onPress={() => navigation.navigate('Login')}
+        />
       </View>
     </KeyboardAwareScreen>
   )

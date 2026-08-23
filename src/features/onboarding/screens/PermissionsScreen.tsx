@@ -38,8 +38,13 @@ export default function PermissionsScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top', 'bottom']}>
-      <View style={{ flex: 1, justifyContent: 'center', padding: theme.gutter, gap: theme.spacing[5] }}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.colors.surface }}
+      edges={['top', 'bottom']}
+    >
+      <View
+        style={{ flex: 1, justifyContent: 'center', padding: theme.gutter, gap: theme.spacing[5] }}
+      >
         <Text style={{ fontSize: 48, lineHeight: 56 }}>📍</Text>
         <Text variant="h1">Find spots near you</Text>
         <Text variant="body" color="muted">

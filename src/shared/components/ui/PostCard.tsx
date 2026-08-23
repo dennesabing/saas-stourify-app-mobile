@@ -71,7 +71,9 @@ function PostCard({ post, onPress, onLikePress, onAuthorPress, onMorePress }: Pr
           onPress={authorIsTappable ? onAuthorPress : undefined}
           disabled={!authorIsTappable}
           accessibilityRole={authorIsTappable ? 'button' : undefined}
-          accessibilityLabel={authorIsTappable ? `${author?.name ?? 'Unknown'}'s profile` : undefined}
+          accessibilityLabel={
+            authorIsTappable ? `${author?.name ?? 'Unknown'}'s profile` : undefined
+          }
           style={[
             styles.header,
             styles.identity,
@@ -149,7 +151,10 @@ function PostCard({ post, onPress, onLikePress, onAuthorPress, onMorePress }: Pr
           accessibilityRole="button"
           accessibilityLabel="Like"
           accessibilityState={{ selected: liked }}
-          style={[styles.action, { minHeight: theme.minTouchTarget, minWidth: theme.minTouchTarget }]}
+          style={[
+            styles.action,
+            { minHeight: theme.minTouchTarget, minWidth: theme.minTouchTarget },
+          ]}
         >
           <Text variant="body" color={liked ? 'danger' : 'muted'} style={styles.actionIcon}>
             {liked ? '♥' : '♡'}
@@ -163,7 +168,10 @@ function PostCard({ post, onPress, onLikePress, onAuthorPress, onMorePress }: Pr
           onPress={onPress}
           accessibilityRole="button"
           accessibilityLabel="Comments"
-          style={[styles.action, { minHeight: theme.minTouchTarget, minWidth: theme.minTouchTarget }]}
+          style={[
+            styles.action,
+            { minHeight: theme.minTouchTarget, minWidth: theme.minTouchTarget },
+          ]}
         >
           <Text variant="body" style={styles.actionIcon}>
             💬

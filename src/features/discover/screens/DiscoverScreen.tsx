@@ -79,10 +79,18 @@ export default function DiscoverScreen({ navigation }: Props) {
 
       <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
         <View style={{ flex: 1 }}>
-          <Button label="Search spots" variant="secondary" onPress={() => navigation.navigate('Search')} />
+          <Button
+            label="Search spots"
+            variant="secondary"
+            onPress={() => navigation.navigate('Search')}
+          />
         </View>
         <View style={{ flex: 1 }}>
-          <Button label="Spots near me" variant="secondary" onPress={() => navigation.navigate('Nearby')} />
+          <Button
+            label="Spots near me"
+            variant="secondary"
+            onPress={() => navigation.navigate('Nearby')}
+          />
         </View>
       </View>
 

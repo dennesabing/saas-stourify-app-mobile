@@ -28,7 +28,10 @@ const JSON_COLUMNS: Record<string, string[]> = {
  * local state (`syncEngine.ts:9, 25-28`) — which is why the skip-pull gate, not
  * this function, is what protects an unpushed local edit.
  */
-export function createSanitizeRaw(): (table: string, raw: Record<string, unknown>) => Record<string, unknown> {
+export function createSanitizeRaw(): (
+  table: string,
+  raw: Record<string, unknown>,
+) => Record<string, unknown> {
   const base = buildSchemaSanitizer(stourifySchema)
 
   return (table, raw) => {
@@ -52,7 +55,8 @@ export function countDeltaRows(response: ModuleDeltaResponse): number {
 
   for (const value of Object.values(response)) {
     if (typeof value === 'string' || value === null || value === undefined) continue
-    total += (value.created?.length ?? 0) + (value.updated?.length ?? 0) + (value.deleted?.length ?? 0)
+    total +=
+      (value.created?.length ?? 0) + (value.updated?.length ?? 0) + (value.deleted?.length ?? 0)
   }
 
   return total

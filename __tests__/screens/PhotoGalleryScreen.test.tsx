@@ -152,7 +152,9 @@ it('keeps showing photos it already has while the refetch is failing', async () 
   // `!spot` rather than on `isError` alone. Yesterday's spot is in the cache,
   // today's network is gone: the reader should keep swiping the photos, not be
   // handed an apology for not having them.
-  const queryClient = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
+  const queryClient = trackQueryClient(
+    new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+  )
   queryClient.setQueryData(['spot', 'spot-1'], makeSpot())
 
   ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))
@@ -180,7 +182,9 @@ describe('background', () => {
   /** Flattens RN's array-of-styles into one object. */
   function styleOf(element: { props: { style?: unknown } }): Record<string, unknown> {
     const flatten = (input: unknown): Record<string, unknown> =>
-      Array.isArray(input) ? Object.assign({}, ...input.map(flatten)) : ((input ?? {}) as Record<string, unknown>)
+      Array.isArray(input)
+        ? Object.assign({}, ...input.map(flatten))
+        : ((input ?? {}) as Record<string, unknown>)
     return flatten(element.props.style)
   }
 
@@ -192,7 +196,9 @@ describe('background', () => {
     await waitFor(() => expect(screen.getByTestId('gallery-photo-0')).toBeTruthy())
 
     expect(styleOf(screen.getByTestId('gallery-root')).backgroundColor).toBe(palette.light.surface)
-    expect(styleOf(screen.getByTestId('gallery-photo-0')).backgroundColor).toBe(palette.light.surface)
+    expect(styleOf(screen.getByTestId('gallery-photo-0')).backgroundColor).toBe(
+      palette.light.surface,
+    )
   })
 
   it('uses the same theme surface when there are no photos', async () => {

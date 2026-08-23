@@ -58,7 +58,13 @@ beforeEach(() => {
 
 it('renders posts with author names', async () => {
   ;(getFollowingFeed as jest.Mock).mockResolvedValue({
-    data: [makePost({ uuid: 'post-1' }), makePost({ uuid: 'post-2', author: { uuid: 'u2', name: 'Ben Cruz', username: 'ben', avatar_url: null } })],
+    data: [
+      makePost({ uuid: 'post-1' }),
+      makePost({
+        uuid: 'post-2',
+        author: { uuid: 'u2', name: 'Ben Cruz', username: 'ben', avatar_url: null },
+      }),
+    ],
     next_cursor: null,
     prev_cursor: null,
   })
@@ -73,8 +79,16 @@ it('renders posts with author names', async () => {
 
 it('pulls the next page on end-reached', async () => {
   ;(getFollowingFeed as jest.Mock)
-    .mockResolvedValueOnce({ data: [makePost({ uuid: 'post-1' })], next_cursor: 'cursor-2', prev_cursor: null })
-    .mockResolvedValueOnce({ data: [makePost({ uuid: 'post-2' })], next_cursor: null, prev_cursor: null })
+    .mockResolvedValueOnce({
+      data: [makePost({ uuid: 'post-1' })],
+      next_cursor: 'cursor-2',
+      prev_cursor: null,
+    })
+    .mockResolvedValueOnce({
+      data: [makePost({ uuid: 'post-2' })],
+      next_cursor: null,
+      prev_cursor: null,
+    })
 
   renderScreen()
 
@@ -206,7 +220,11 @@ it('renders posts from a seeded query cache while the fetcher throws', async () 
       <ThemeProvider scheme="light">
         <PersistQueryClientProvider
           client={client}
-          persistOptions={{ persister: asyncStoragePersister, maxAge: PERSIST_MAX_AGE_MS, buster: PERSIST_BUSTER }}
+          persistOptions={{
+            persister: asyncStoragePersister,
+            maxAge: PERSIST_MAX_AGE_MS,
+            buster: PERSIST_BUSTER,
+          }}
         >
           <FeedScreen navigation={navigation} route={route} />
         </PersistQueryClientProvider>

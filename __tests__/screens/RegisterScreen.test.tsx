@@ -83,7 +83,13 @@ it('primes the sync session after registering — the regression this test exist
   fireEvent.press(screen.getByText('Create account'))
 
   await waitFor(() => {
-    expect(authApi.register).toHaveBeenCalledWith('Ada', 'a@b.com', 'password123', 'password123', undefined)
+    expect(authApi.register).toHaveBeenCalledWith(
+      'Ada',
+      'a@b.com',
+      'password123',
+      'password123',
+      undefined,
+    )
     expect(onLogin).toHaveBeenCalled()
   })
 })

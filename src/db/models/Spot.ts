@@ -98,9 +98,7 @@ export default class Spot extends Model {
    * `@relation`, which assumes the FK holds a local record id. It does not.
    */
   get city(): Query<City> {
-    return this.collections
-      .get<City>('sto_cities')
-      .query(Q.where('server_id', this.cityId ?? -1))
+    return this.collections.get<City>('sto_cities').query(Q.where('server_id', this.cityId ?? -1))
   }
 }
 

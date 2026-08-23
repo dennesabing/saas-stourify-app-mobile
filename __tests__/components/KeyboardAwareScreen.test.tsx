@@ -76,7 +76,10 @@ test('centered content still fills the screen so it can scroll when the keyboard
     </KeyboardAwareScreen>,
   )
 
-  const style = Object.assign({}, ...[screen.UNSAFE_getByType(ScrollView).props.contentContainerStyle].flat())
+  const style = Object.assign(
+    {},
+    ...[screen.UNSAFE_getByType(ScrollView).props.contentContainerStyle].flat(),
+  )
 
   expect(style.justifyContent).toBe('center')
   // `flexGrow: 1` is what lets the content centre on a tall screen and still

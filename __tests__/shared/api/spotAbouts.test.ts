@@ -21,9 +21,24 @@ beforeEach(() => {
  */
 const ABOUT_PAGE = {
   data: [
-    { uuid: 'a-popular', body: 'Go at sunrise.', likes_count: 5, created_at: '2026-08-01T00:00:00+00:00' },
-    { uuid: 'a-middling', body: 'The side entrance is the open one.', likes_count: 2, created_at: '2026-08-10T00:00:00+00:00' },
-    { uuid: 'a-fresh', body: 'Parking is behind the church.', likes_count: 0, created_at: '2026-08-20T00:00:00+00:00' },
+    {
+      uuid: 'a-popular',
+      body: 'Go at sunrise.',
+      likes_count: 5,
+      created_at: '2026-08-01T00:00:00+00:00',
+    },
+    {
+      uuid: 'a-middling',
+      body: 'The side entrance is the open one.',
+      likes_count: 2,
+      created_at: '2026-08-10T00:00:00+00:00',
+    },
+    {
+      uuid: 'a-fresh',
+      body: 'Parking is behind the church.',
+      likes_count: 0,
+      created_at: '2026-08-20T00:00:00+00:00',
+    },
   ],
   links: {},
   meta: { current_page: 1, last_page: 1, total: 3 },
@@ -85,7 +100,9 @@ describe('createSpotAbout', () => {
    * fell into under STOURIFY-2.
    */
   it('POSTs the two fields SpotAboutStoreRequest validates, and nothing else', async () => {
-    mockClientPost.mockResolvedValueOnce({ data: { data: { uuid: 'a-new', body: 'Go at sunrise.' }, message: 'ok' } })
+    mockClientPost.mockResolvedValueOnce({
+      data: { data: { uuid: 'a-new', body: 'Go at sunrise.' }, message: 'ok' },
+    })
 
     await createSpotAbout('spot-1', 'Go at sunrise.')
 
@@ -103,7 +120,10 @@ describe('createSpotAbout', () => {
    */
   it('unwraps the single-object envelope, not the paginated one', async () => {
     mockClientPost.mockResolvedValueOnce({
-      data: { data: { uuid: 'a-new', body: 'Go at sunrise.', likes_count: 0 }, message: 'About entry added successfully.' },
+      data: {
+        data: { uuid: 'a-new', body: 'Go at sunrise.', likes_count: 0 },
+        message: 'About entry added successfully.',
+      },
     })
 
     const created = await createSpotAbout('spot-1', 'Go at sunrise.')

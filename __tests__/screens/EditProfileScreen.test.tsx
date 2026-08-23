@@ -51,7 +51,9 @@ async function renderScreen() {
   const database = createTestDatabase()
   await seedCity(database, { uuid: 'city-gensan', serverId: 5, name: 'General Santos' })
 
-  const queryClient = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
+  const queryClient = trackQueryClient(
+    new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+  )
   const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries')
 
   const view = render(
@@ -153,7 +155,9 @@ test('the form fills from the settled read, never from the copy left in the cach
   const database = createTestDatabase()
   await seedCity(database, { uuid: 'city-gensan', serverId: 5, name: 'General Santos' })
 
-  const queryClient = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
+  const queryClient = trackQueryClient(
+    new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+  )
   queryClient.setQueryData(['explorer-profile', 'me'], profileFixture({ bio: 'The stale one.' }))
   ;(getMyProfile as jest.Mock).mockResolvedValue(profileFixture({ bio: 'The fresh one.' }))
 
@@ -174,7 +178,13 @@ test('the form fills from the settled read, never from the copy left in the cach
 test("a 422 on username renders the server's own message and keeps the form open", async () => {
   ;(updateMyProfile as jest.Mock).mockRejectedValue({
     isAxiosError: true,
-    response: { status: 422, data: { message: 'The given data was invalid.', errors: { username: ['That username is taken.'] } } },
+    response: {
+      status: 422,
+      data: {
+        message: 'The given data was invalid.',
+        errors: { username: ['That username is taken.'] },
+      },
+    },
   })
 
   await renderScreen()

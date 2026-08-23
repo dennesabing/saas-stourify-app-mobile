@@ -147,7 +147,14 @@ export async function runSyncCycle(options: {
   trigger: SyncTrigger
 }): Promise<SyncCycleOutcome> {
   if (inFlight) {
-    return { trigger: options.trigger, skipped: 'in-flight', drain: IDLE_DRAIN, pulled: false, pulledRows: 0, error: null }
+    return {
+      trigger: options.trigger,
+      skipped: 'in-flight',
+      drain: IDLE_DRAIN,
+      pulled: false,
+      pulledRows: 0,
+      error: null,
+    }
   }
 
   inFlight = true
@@ -170,7 +177,14 @@ export async function runSyncCycle(options: {
     }
 
     if (!drain.fullyAcked) {
-      return { trigger: options.trigger, skipped: null, drain, pulled: false, pulledRows: 0, error: drain.error }
+      return {
+        trigger: options.trigger,
+        skipped: null,
+        drain,
+        pulled: false,
+        pulledRows: 0,
+        error: drain.error,
+      }
     }
 
     status.setPhase('pulling')
@@ -185,16 +199,32 @@ export async function runSyncCycle(options: {
       // should. `setOffline(true)` a few lines up already recorded the real
       // cause.
       if (!observed.networkFailure) {
-        status.setLastError(observed.error instanceof Error ? observed.error.message : String(observed.error))
+        status.setLastError(
+          observed.error instanceof Error ? observed.error.message : String(observed.error),
+        )
       }
-      return { trigger: options.trigger, skipped: null, drain, pulled: false, pulledRows: 0, error: observed.error }
+      return {
+        trigger: options.trigger,
+        skipped: null,
+        drain,
+        pulled: false,
+        pulledRows: 0,
+        error: observed.error,
+      }
     }
 
     status.recordPull(observed.rows)
     status.markSynced(Date.now())
     await publishQueueState(options.database)
 
-    return { trigger: options.trigger, skipped: null, drain, pulled: true, pulledRows: observed.rows, error: null }
+    return {
+      trigger: options.trigger,
+      skipped: null,
+      drain,
+      pulled: true,
+      pulledRows: observed.rows,
+      error: null,
+    }
   } finally {
     // Phase 2 lives in the `finally` and nowhere else (STOURIFY-29).
     //

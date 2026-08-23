@@ -45,7 +45,13 @@ it('clears the last error when a later cycle succeeds', () => {
 it('surfaces the queue depth and the failure list M2c renders', () => {
   useSyncStatusStore.getState().setPendingCount(3)
   useSyncStatusStore.getState().setFailures([
-    { recordId: 'spot-1', tableName: 'sto_spots', reason: 'validation', attempts: 1, lastError: 'title is required' },
+    {
+      recordId: 'spot-1',
+      tableName: 'sto_spots',
+      reason: 'validation',
+      attempts: 1,
+      lastError: 'title is required',
+    },
   ])
 
   expect(useSyncStatusStore.getState().pendingCount).toBe(3)
@@ -58,7 +64,13 @@ it('resetSyncStatus wipes everything, which logout depends on', () => {
   useSyncStatusStore.getState().markSynced(1)
   useSyncStatusStore.getState().setLastError('boom')
   useSyncStatusStore.getState().setFailures([
-    { recordId: 'spot-1', tableName: 'sto_spots', reason: 'validation', attempts: 1, lastError: 'title is required' },
+    {
+      recordId: 'spot-1',
+      tableName: 'sto_spots',
+      reason: 'validation',
+      attempts: 1,
+      lastError: 'title is required',
+    },
   ])
   useSyncStatusStore.getState().setPhase('pulling')
 
@@ -102,7 +114,12 @@ it('markSynced clears a stale lastError so the UI cannot show success beside a p
 it('surfaces the pending-media count and failures separately from the row queue', () => {
   useSyncStatusStore.getState().setPendingMediaCount(2)
   useSyncStatusStore.getState().setMediaFailures([
-    { id: 'media-1', filename: 'beach.jpg', attempts: 1, lastError: 'The file exceeds the maximum size.' },
+    {
+      id: 'media-1',
+      filename: 'beach.jpg',
+      attempts: 1,
+      lastError: 'The file exceeds the maximum size.',
+    },
   ])
 
   expect(useSyncStatusStore.getState().pendingMediaCount).toBe(2)
@@ -113,9 +130,9 @@ it('surfaces the pending-media count and failures separately from the row queue'
 
 it('resetSyncStatus also wipes the media counters', () => {
   useSyncStatusStore.getState().setPendingMediaCount(4)
-  useSyncStatusStore.getState().setMediaFailures([
-    { id: 'media-1', filename: 'beach.jpg', attempts: 1, lastError: 'boom' },
-  ])
+  useSyncStatusStore
+    .getState()
+    .setMediaFailures([{ id: 'media-1', filename: 'beach.jpg', attempts: 1, lastError: 'boom' }])
 
   resetSyncStatus()
 
@@ -125,10 +142,22 @@ it('resetSyncStatus also wipes the media counters', () => {
 
 it('setFailures replaces the list rather than appending to it', () => {
   useSyncStatusStore.getState().setFailures([
-    { recordId: 'spot-1', tableName: 'sto_spots', reason: 'validation', attempts: 1, lastError: 'title is required' },
+    {
+      recordId: 'spot-1',
+      tableName: 'sto_spots',
+      reason: 'validation',
+      attempts: 1,
+      lastError: 'title is required',
+    },
   ])
   useSyncStatusStore.getState().setFailures([
-    { recordId: 'spot-2', tableName: 'sto_spots', reason: 'conflict', attempts: 2, lastError: 'stale version' },
+    {
+      recordId: 'spot-2',
+      tableName: 'sto_spots',
+      reason: 'conflict',
+      attempts: 2,
+      lastError: 'stale version',
+    },
   ])
 
   const { failures } = useSyncStatusStore.getState()

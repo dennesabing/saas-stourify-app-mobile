@@ -200,7 +200,13 @@ describe('LocationPicker — when permission is refused', () => {
 
   it('still gives a usable map, centred on the home city', async () => {
     const database = createTestDatabase()
-    await seedCity(database, { serverId: 7, name: 'Cebu', slug: 'cebu', latitude: 10.3157, longitude: 123.8854 })
+    await seedCity(database, {
+      serverId: 7,
+      name: 'Cebu',
+      slug: 'cebu',
+      latitude: 10.3157,
+      longitude: 123.8854,
+    })
     await seedExplorerProfile(database, { homeCityId: 7 })
 
     renderPicker({ database })

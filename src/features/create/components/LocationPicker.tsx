@@ -167,9 +167,7 @@ export default function LocationPicker({ value, onChange }: LocationPickerProps)
       ) : null}
 
       {mapReady ? (
-        <View
-          style={[styles.frame, { borderRadius: theme.radius.button, overflow: 'hidden' }]}
-        >
+        <View style={[styles.frame, { borderRadius: theme.radius.button, overflow: 'hidden' }]}>
           <MapCanvas
             testID="location-picker-map"
             region={region}

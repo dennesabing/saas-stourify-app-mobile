@@ -66,7 +66,11 @@ function makeSpot(overrides: Partial<Spot> = {}): Spot {
     status: 'active',
     categories: ['Heritage'],
     media: [
-      { uuid: 'media-1', url: 'https://cdn.test/original.jpg', thumb_url: 'https://cdn.test/thumb.jpg' },
+      {
+        uuid: 'media-1',
+        url: 'https://cdn.test/original.jpg',
+        thumb_url: 'https://cdn.test/thumb.jpg',
+      },
     ],
     rating_average: 4.5,
     reviews_count: 12,
@@ -109,7 +113,9 @@ it('draws a pin for every spot in the shared explore query', async () => {
 
   renderScreen()
 
-  await waitFor(() => expect(screen.getByTestId('map-marker-spot-1')).toBeTruthy(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByTestId('map-marker-spot-1')).toBeTruthy(), {
+    timeout: 3000,
+  })
   expect(screen.getByTestId('map-marker-spot-2')).toBeTruthy()
   expect(getSpots).toHaveBeenCalled()
 })
@@ -140,7 +146,9 @@ it('opens on the home city when there is no device position', async () => {
 
   renderScreen({ database })
 
-  await waitFor(() => expect(lastRegion().latitude).toBeCloseTo(CEBU.latitude, 3), { timeout: 3000 })
+  await waitFor(() => expect(lastRegion().latitude).toBeCloseTo(CEBU.latitude, 3), {
+    timeout: 3000,
+  })
   expect(lastRegion().longitude).toBeCloseTo(CEBU.longitude, 3)
 })
 
@@ -153,7 +161,9 @@ it('falls back to the seeded default when there is no home city either', async (
 })
 
 it('opens on the device position when there is one', async () => {
-  ;(Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' })
+  ;(Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
+    status: 'granted',
+  })
   ;(Location.getCurrentPositionAsync as jest.Mock).mockResolvedValue({
     coords: { latitude: 14.5995, longitude: 120.9842, accuracy: 10 },
   })
@@ -167,7 +177,9 @@ it('opens on the device position when there is one', async () => {
 it('floats a peek card for the pin that was tapped, and opens that spot', async () => {
   renderScreen()
 
-  await waitFor(() => expect(screen.getByTestId('map-marker-spot-1')).toBeTruthy(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByTestId('map-marker-spot-1')).toBeTruthy(), {
+    timeout: 3000,
+  })
   expect(screen.queryByTestId('map-peek-card')).toBeNull()
 
   fireEvent.press(screen.getByTestId('map-marker-spot-1'))
@@ -185,7 +197,9 @@ it('floats a peek card for the pin that was tapped, and opens that spot', async 
 it('draws the peek card from the thumbnail', async () => {
   renderScreen()
 
-  await waitFor(() => expect(screen.getByTestId('map-marker-spot-1')).toBeTruthy(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByTestId('map-marker-spot-1')).toBeTruthy(), {
+    timeout: 3000,
+  })
   fireEvent.press(screen.getByTestId('map-marker-spot-1'))
 
   const image = screen.getAllByTestId('spot-card-image')[0]
@@ -195,7 +209,9 @@ it('draws the peek card from the thumbnail', async () => {
 it('clears the selection when the map is recentred', async () => {
   renderScreen()
 
-  await waitFor(() => expect(screen.getByTestId('map-marker-spot-1')).toBeTruthy(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByTestId('map-marker-spot-1')).toBeTruthy(), {
+    timeout: 3000,
+  })
   fireEvent.press(screen.getByTestId('map-marker-spot-1'))
   expect(screen.getByTestId('map-peek-card')).toBeTruthy()
 
@@ -211,7 +227,9 @@ it('clears the selection when the map is recentred', async () => {
  * just quietly never find the saved page.
  */
 it('draws pins from the cached explore page when the network refuses', async () => {
-  const queryClient = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
+  const queryClient = trackQueryClient(
+    new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+  )
   queryClient.setQueryData(EXPLORE_SPOTS_QUERY_KEY, [makeSpot({ uuid: 'cached-spot' })])
   ;(getSpots as jest.Mock).mockRejectedValue(new Error('Network request failed'))
 

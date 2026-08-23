@@ -66,7 +66,13 @@ function profileFixture(over: Partial<ExplorerProfile> = {}): ExplorerProfile {
     bio: 'Chasing coastlines.',
     website: null,
     interests: ['Food', 'Nature'],
-    home_city: { uuid: 'c1', name: 'General Santos', region: 'SOCCSKSARGEN', country: 'PH', is_featured: true },
+    home_city: {
+      uuid: 'c1',
+      name: 'General Santos',
+      region: 'SOCCSKSARGEN',
+      country: 'PH',
+      is_featured: true,
+    },
     is_private: false,
     counts: { spots: 3, followers: 12, following: 7 },
     viewer: { is_self: false, is_following: false, follow_status: null, follow_uuid: null },
@@ -111,13 +117,18 @@ const navigation = {
 let resetSpy: jest.SpyInstance
 
 function renderProfile(userId?: string, queryClient?: QueryClient) {
-  const qc = queryClient ?? trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
+  const qc =
+    queryClient ??
+    trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
   resetSpy = jest.spyOn(qc, 'resetQueries')
   return render(
     <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
       <ThemeProvider scheme="light">
         <QueryClientProvider client={qc}>
-          <ProfileScreen navigation={navigation} route={{ params: userId ? { userId } : undefined } as any} />
+          <ProfileScreen
+            navigation={navigation}
+            route={{ params: userId ? { userId } : undefined } as any}
+          />
         </QueryClientProvider>
       </ThemeProvider>
     </SafeAreaProvider>,
@@ -140,7 +151,11 @@ beforeEach(() => {
 
 test('the own profile reads GET /profile, never the other-user route', async () => {
   ;(getMyProfile as jest.Mock).mockResolvedValue(
-    profileFixture({ user_uuid: ME_UUID, username: 'santos_ramil', viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null } }),
+    profileFixture({
+      user_uuid: ME_UUID,
+      username: 'santos_ramil',
+      viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null },
+    }),
   )
 
   renderProfile()
@@ -151,7 +166,12 @@ test('the own profile reads GET /profile, never the other-user route', async () 
 })
 
 test('the own profile grid lists only my posts', async () => {
-  ;(getMyProfile as jest.Mock).mockResolvedValue(profileFixture({ user_uuid: ME_UUID, viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null } }))
+  ;(getMyProfile as jest.Mock).mockResolvedValue(
+    profileFixture({
+      user_uuid: ME_UUID,
+      viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null },
+    }),
+  )
 
   renderProfile()
 
@@ -162,7 +182,11 @@ test('the own profile grid lists only my posts', async () => {
 
 test('the header renders the real counts, not a placeholder dash', async () => {
   ;(getMyProfile as jest.Mock).mockResolvedValue(
-    profileFixture({ user_uuid: ME_UUID, counts: { spots: 3, followers: 12, following: 7 }, viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null } }),
+    profileFixture({
+      user_uuid: ME_UUID,
+      counts: { spots: 3, followers: 12, following: 7 },
+      viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null },
+    }),
   )
 
   renderProfile()
@@ -181,7 +205,12 @@ test('an explorer who has not finished onboarding is told so, not shown a blank 
 })
 
 test('my own profile offers Edit and Settings, never a Follow button', async () => {
-  ;(getMyProfile as jest.Mock).mockResolvedValue(profileFixture({ user_uuid: ME_UUID, viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null } }))
+  ;(getMyProfile as jest.Mock).mockResolvedValue(
+    profileFixture({
+      user_uuid: ME_UUID,
+      viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null },
+    }),
+  )
 
   renderProfile()
 
@@ -195,7 +224,12 @@ test('my own profile inside the feed stack hides actions that stack cannot reach
   // registers no EditProfile or Settings. Offering the buttons there navigates
   // to a route that does not exist and throws.
   routeNames = ['Home', 'PostDetail', 'Profile', 'Comments']
-  ;(getMyProfile as jest.Mock).mockResolvedValue(profileFixture({ user_uuid: ME_UUID, viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null } }))
+  ;(getMyProfile as jest.Mock).mockResolvedValue(
+    profileFixture({
+      user_uuid: ME_UUID,
+      viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null },
+    }),
+  )
 
   renderProfile(ME_UUID)
 
@@ -233,7 +267,14 @@ test('the header shows the display name above the handle, never the handle twice
 
 test('the Follow button reflects the server-side relationship rather than defaulting to Follow', async () => {
   ;(getProfile as jest.Mock).mockResolvedValue(
-    profileFixture({ viewer: { is_self: false, is_following: true, follow_status: 'active', follow_uuid: 'edge-1' } }),
+    profileFixture({
+      viewer: {
+        is_self: false,
+        is_following: true,
+        follow_status: 'active',
+        follow_uuid: 'edge-1',
+      },
+    }),
   )
 
   renderProfile(OTHER_UUID)
@@ -246,7 +287,15 @@ test('the Follow button reflects the server-side relationship rather than defaul
 
 test('a pending request to a private account renders Requested, not Following', async () => {
   ;(getProfile as jest.Mock).mockResolvedValue(
-    profileFixture({ is_private: true, viewer: { is_self: false, is_following: false, follow_status: 'pending', follow_uuid: 'edge-2' } }),
+    profileFixture({
+      is_private: true,
+      viewer: {
+        is_self: false,
+        is_following: false,
+        follow_status: 'pending',
+        follow_uuid: 'edge-2',
+      },
+    }),
   )
 
   renderProfile(OTHER_UUID)
@@ -257,7 +306,14 @@ test('a pending request to a private account renders Requested, not Following', 
 
 test('unfollowing addresses the edge uuid the viewer block carries', async () => {
   ;(getProfile as jest.Mock).mockResolvedValue(
-    profileFixture({ viewer: { is_self: false, is_following: true, follow_status: 'active', follow_uuid: 'edge-1' } }),
+    profileFixture({
+      viewer: {
+        is_self: false,
+        is_following: true,
+        follow_status: 'active',
+        follow_uuid: 'edge-1',
+      },
+    }),
   )
   ;(unfollow as jest.Mock).mockResolvedValue(undefined)
 
@@ -271,7 +327,15 @@ test('unfollowing addresses the edge uuid the viewer block carries', async () =>
 
 test('cancelling a pending request deletes the same edge', async () => {
   ;(getProfile as jest.Mock).mockResolvedValue(
-    profileFixture({ is_private: true, viewer: { is_self: false, is_following: false, follow_status: 'pending', follow_uuid: 'edge-2' } }),
+    profileFixture({
+      is_private: true,
+      viewer: {
+        is_self: false,
+        is_following: false,
+        follow_status: 'pending',
+        follow_uuid: 'edge-2',
+      },
+    }),
   )
   ;(unfollow as jest.Mock).mockResolvedValue(undefined)
 
@@ -442,7 +506,9 @@ describe('a failed posts fetch is not an empty posts grid', () => {
   test('keeps showing posts already on screen when a later fetch fails', async () => {
     ;(getPosts as jest.Mock).mockRejectedValue(new Error('offline'))
 
-    const seeded = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
+    const seeded = trackQueryClient(
+      new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+    )
     seeded.setQueryData(['explorer-posts', 'me'], postsPage([postFixture()]))
 
     renderProfile(undefined, seeded)
@@ -622,7 +688,9 @@ describe('a failed profile refresh does not throw away a profile already in hand
   const MY_KEY = ['explorer-profile', 'me']
 
   function seededClient(key: unknown[], value: unknown) {
-    const qc = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
+    const qc = trackQueryClient(
+      new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+    )
     qc.setQueryData(key, value)
     return qc
   }

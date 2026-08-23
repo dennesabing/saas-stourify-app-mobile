@@ -8,6 +8,8 @@ import type { PaginatedResponse, Review } from './types'
  * WatermelonDB write (`createLocalReview`), never a call through this file.
  */
 export async function getSpotReviews(spotUuid: string): Promise<PaginatedResponse<Review>> {
-  const res = await client.get('/reviews', { params: { spot_uuid: spotUuid, sort: 'created_at', direction: 'desc' } })
+  const res = await client.get('/reviews', {
+    params: { spot_uuid: spotUuid, sort: 'created_at', direction: 'desc' },
+  })
   return res.data
 }

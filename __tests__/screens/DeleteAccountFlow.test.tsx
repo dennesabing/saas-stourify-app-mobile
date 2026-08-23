@@ -33,7 +33,9 @@ import { trackQueryClient } from '../support/queryClients'
 const mockNavigation = { goBack: jest.fn() } as any
 
 function renderSettings() {
-  const qc = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
+  const qc = trackQueryClient(
+    new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+  )
   return render(
     <QueryClientProvider client={qc}>
       <SettingsScreen navigation={mockNavigation} route={{} as any} />
@@ -120,7 +122,7 @@ test('a timed-out deletion signs out rather than claiming failure', async () => 
   // error means the outcome is UNKNOWN, and the safe reading of unknown is
   // that it worked.
   ;(accountApi.deleteAccount as jest.Mock).mockRejectedValueOnce(
-    Object.assign(new Error('timeout of 60000ms exceeded'), { code: 'ECONNABORTED' })
+    Object.assign(new Error('timeout of 60000ms exceeded'), { code: 'ECONNABORTED' }),
   )
 
   const { getByText, getByPlaceholderText, queryByText } = renderSettings()
