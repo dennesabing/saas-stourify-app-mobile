@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A photo waiting to upload now counts towards the Offline & sync banner** (STOURIFY-165).
+
+  With a photo queued and nothing else, the banner said *"You're offline · Nothing waiting to
+  send"* — directly above a Photos section showing that photo, waiting to be sent. A till receipt
+  that leaves items off: every line on it is true, the total is wrong, and the total is the line
+  people read.
+
+  `SyncStatusScreen` pulls six lists out of one hook and renders all six as sections, but handed the
+  banner only four of them. The two media lists were missing.
+
+  Fixed, and the rule behind it is the part worth keeping: **the banner counts exactly what the
+  screen lists.** This defect has now appeared twice — once the moment a post could be queued, which
+  STOURIFY-161 fixed for posts alone, and once for photos, which had it all along. Fixing the
+  instance rather than the class is what let it happen a second time, so every list rendered on the
+  screen now contributes to the total above it.
+
+  Note what a queued photo includes: any `pending_media` row in the `pending` state, which covers a
+  photo captured into a draft that has not been published. That photo is already listed on the
+  screen, so counting it is what makes the total agree with the list.
+
+  **`useSyncStatusStore` is untouched.** `pendingCount` and `pendingMediaCount` stay separate,
+  because the skip-pull gate reads the first and a photo must never make it fire. This changes only
+  what the screen displays.
+
 - **The password box that confirms deleting your account now has a Show button** (STOURIFY-164).
 
   STOURIFY-99 added a Show / Hide toggle to password fields by putting it inside the shared `Input`

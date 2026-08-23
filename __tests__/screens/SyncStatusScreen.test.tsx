@@ -528,3 +528,70 @@ it('still offers no discard on a waiting photo', async () => {
   await waitFor(() => expect(screen.getByText('Photo · beach.jpg')).toBeTruthy())
   expect(screen.queryByLabelText('Discard Photo · beach.jpg')).toBeNull()
 })
+
+/**
+ * The banner counts exactly what the screen lists (STOURIFY-165).
+ *
+ * A till receipt that leaves items off: every line on it is true, and the total
+ * is wrong — and the total is the line people read. With a photo queued and
+ * nothing else the banner used to say "Nothing waiting to send", directly above
+ * a Photos section showing that photo waiting.
+ *
+ * The same defect appeared for posts the moment posts could be queued, and
+ * STOURIFY-161 fixed that instance. These cases pin the class: every list the
+ * screen renders contributes to the total above it, so the seventh queue somebody
+ * adds cannot quietly go uncounted.
+ */
+it('does not claim nothing is waiting while a photo is', async () => {
+  const database = createTestDatabase()
+  useSyncStatusStore.getState().setOffline(true)
+  await seedPendingMedia(database)
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() => {
+    expect(screen.getByText("1 change waiting · they'll send when you reconnect")).toBeTruthy()
+  })
+  expect(screen.queryByText('Nothing waiting to send')).toBeNull()
+})
+
+it('counts a queued photo and a queued post together', async () => {
+  const database = createTestDatabase()
+  useSyncStatusStore.getState().setOffline(true)
+  await seedPendingMedia(database)
+  await seedQueuedPost(database, { caption: 'Written in a tunnel' })
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() => {
+    expect(screen.getByText("2 changes waiting · they'll send when you reconnect")).toBeTruthy()
+  })
+})
+
+it('counts a failed photo among the failures', async () => {
+  const database = createTestDatabase()
+  await seedPendingMedia(database, {
+    id: 'media-failed-1',
+    state: 'failed',
+    attempts: 3,
+    lastError: 'Upload refused',
+  })
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() => {
+    expect(screen.getByText('1 change needs your attention')).toBeTruthy()
+  })
+})
