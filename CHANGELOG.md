@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The password box that confirms deleting your account now has a Show button** (STOURIFY-164).
+
+  STOURIFY-99 added a Show / Hide toggle to password fields by putting it inside the shared `Input`
+  component, so every field built from that got it for free — Login, Register's two, Reset
+  password's two. This one was hand-rolled from React Native's own `TextInput` on its own screen,
+  so the shared change went straight past it. Every door in the house was fitted with the same
+  handle; one door had been hung earlier from a different set of parts, and was simply not part of
+  the set.
+
+  It is also the field where seeing what you typed matters most rather than least: get it wrong and
+  the server answers with a validation error that reads like a wrong password, on an action that
+  cannot be undone. Note that it is **not** a change-password box — there is no change-password form
+  on Settings — which is the second thing STOURIFY-99's commit message got wrong about it.
+
+  Fixed by building both confirmation fields from the shared `Input` rather than by copying the
+  toggle, so the next shared improvement does not go past this field as well.
+
+  Two things came with that. Both fields now carry a name a screen reader can announce; previously
+  the only text on either was the placeholder, which disappears the moment you type. And the two
+  fields now follow the app's theme while the dialog around them does not — in dark mode they look
+  as they always did, in light mode they are light on a dark card. `SettingsScreen` carries 17 more
+  colour literals and no use of the theme at all; converting it is filed separately.
+
 ### Added
 
 - **The app is prettier-formatted, and a check now enforces it** (STOURIFY-163): prettier pinned at
