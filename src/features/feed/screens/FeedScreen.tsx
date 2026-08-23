@@ -133,6 +133,7 @@ export default function FeedScreen({ navigation }: Props) {
             : undefined
         }
         onMorePress={() => setReportingPost(item.uuid)}
+        onHashtagPress={(slug) => navigation.navigate('Tag', { slug })}
       />
     ),
     [navigation, likeMutation],

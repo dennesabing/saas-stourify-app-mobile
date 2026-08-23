@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Hashtags are links, and tapping one opens that tag's page** (STOURIFY-173).
+
+  Write `great noodles #StreetFood` and the word now reads as a link rather than as ordinary grey
+  text. Tap it and you land on a page gathering the posts and spots carrying it. The links appear
+  on a feed card, on a post's own screen, and in a spot's description.
+
+  **The words are read out of the caption, not fetched from the server**, and that is the decision
+  the whole thing hangs off (STOURIFY-103, decision 7). A post written with no signal is waiting in
+  the send-later queue and has never been near the server, so there is no list of tags to read — but
+  the caption is already in hand. `src/shared/utils/hashtags.ts` is a deliberate mirror of the
+  server's parser; the server stays authoritative for what is *stored*, and this copy only decides
+  what is underlined.
+
+  Two rules a plain regular expression gets wrong, and both are pinned by tests: `#food#drink` is
+  **two** tags, and `C#` is **none**. A hash glued to the end of a word starts nothing — unless what
+  it is glued to was the tail of the tag before it.
+
+  **The tag page tells five situations apart, not two.** Still loading, the tag does not exist, the
+  request failed, the tag exists with nothing on it, and there is content — five different sentences.
+  The pair that matters is *could not load* against *nothing here*: a reader told there is nothing
+  goes and looks elsewhere, while a reader told it failed tries again, which is the one move that
+  helps. That is the defect STOURIFY-85 to STOURIFY-90 are about, and it is why STOURIFY-172 built
+  the lookup as its own request that can answer `404`.
+
 ### Fixed
 
 - **A photo waiting to upload now counts towards the Offline & sync banner** (STOURIFY-165).

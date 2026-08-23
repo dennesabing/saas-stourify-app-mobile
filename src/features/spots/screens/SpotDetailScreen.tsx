@@ -7,7 +7,15 @@ import { useDatabase } from '@nozbe/watermelondb/react'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
 import { getSpot, getSpotPosts } from '@/shared/api/spots'
-import { Button, EmptyState, Rating, Skeleton, Tag, Text } from '@/shared/components/ui'
+import {
+  Button,
+  EmptyState,
+  HashtagText,
+  Rating,
+  Skeleton,
+  Tag,
+  Text,
+} from '@/shared/components/ui'
 import type { Post } from '@/shared/api/types'
 import { createLocalWishlistItem } from '@/features/spots/api/createLocalWishlistItem'
 import SpotAboutTab from '@/features/spots/components/SpotAboutTab'
@@ -351,7 +359,13 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
           />
         ) : (
           <View style={{ padding: theme.gutter, gap: theme.spacing[2] }}>
-            {spot?.description ? <Text variant="body">{spot.description}</Text> : null}
+            {spot?.description ? (
+              <HashtagText
+                variant="body"
+                text={spot.description}
+                onPressHashtag={(slug) => navigation.navigate('Tag', { slug })}
+              />
+            ) : null}
             {spot?.address ? (
               <Text variant="caption" color="muted">
                 📍 {spot.address}

@@ -6,7 +6,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
 import { getPost, setPostLike } from '@/shared/api/posts'
 import PostActionsSheet from '@/features/social/components/PostActionsSheet'
-import { Avatar, Button, Skeleton, Tag, Text } from '@/shared/components/ui'
+import { Avatar, Button, HashtagText, Skeleton, Tag, Text } from '@/shared/components/ui'
 import type { Post } from '@/shared/api/types'
 import { useTheme } from '@/theme/ThemeProvider'
 
@@ -163,7 +163,13 @@ export default function PostDetailScreen({ route, navigation }: Props) {
               </Pressable>
             ) : null}
 
-            {post.caption ? <Text variant="body">{post.caption}</Text> : null}
+            {post.caption ? (
+              <HashtagText
+                variant="body"
+                text={post.caption}
+                onPressHashtag={(slug) => navigation.navigate('Tag', { slug })}
+              />
+            ) : null}
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[6] }}>
               <Pressable
