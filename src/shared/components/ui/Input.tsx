@@ -1,25 +1,25 @@
-import { useState } from "react";
-import { Pressable, TextInput, View } from "react-native";
-import { useTheme } from "@/theme/ThemeProvider";
-import Text from "./Text";
+import { useState } from 'react'
+import { Pressable, TextInput, View } from 'react-native'
+import { useTheme } from '@/theme/ThemeProvider'
+import Text from './Text'
 
 export interface InputProps {
-  label?: string;
-  placeholder?: string;
-  value: string;
-  onChangeText: (text: string) => void;
-  error?: string;
-  secureTextEntry?: boolean;
-  keyboardType?: "default" | "email-address" | "numeric";
-  autoCapitalize?: "none" | "words" | "sentences";
-  multiline?: boolean;
+  label?: string
+  placeholder?: string
+  value: string
+  onChangeText: (text: string) => void
+  error?: string
+  secureTextEntry?: boolean
+  keyboardType?: 'default' | 'email-address' | 'numeric'
+  autoCapitalize?: 'none' | 'words' | 'sentences'
+  multiline?: boolean
   /**
    * Stop typing at the server's own limit rather than letting a long answer be
    * refused after it has been written. A cap the writer can feel while writing
    * is kinder than a 422 after they press send.
    */
-  maxLength?: number;
-  testID?: string;
+  maxLength?: number
+  testID?: string
 }
 
 /**
@@ -53,19 +53,19 @@ export default function Input({
   onChangeText,
   error,
   secureTextEntry = false,
-  keyboardType = "default",
-  autoCapitalize = "sentences",
+  keyboardType = 'default',
+  autoCapitalize = 'sentences',
   multiline = false,
   maxLength,
   testID,
 }: InputProps) {
-  const theme = useTheme();
-  const hasError = error !== undefined && error !== "";
-  const [revealed, setRevealed] = useState(false);
+  const theme = useTheme()
+  const hasError = error !== undefined && error !== ''
+  const [revealed, setRevealed] = useState(false)
 
   // Reserve room for the button so a long password never runs underneath it.
   // Applied only when the button is there, so every other field is untouched.
-  const revealWidth = theme.spacing[4] * 4;
+  const revealWidth = theme.spacing[4] * 4
 
   return (
     <View style={{ gap: theme.spacing[1] }}>
@@ -107,20 +107,20 @@ export default function Input({
           <Pressable
             onPress={() => setRevealed((current) => !current)}
             accessibilityRole="button"
-            accessibilityLabel={revealed ? "Hide password" : "Show password"}
+            accessibilityLabel={revealed ? 'Hide password' : 'Show password'}
             hitSlop={theme.spacing[2]}
             style={{
-              position: "absolute",
+              position: 'absolute',
               right: 0,
               top: 0,
               bottom: 0,
               minHeight: theme.minTouchTarget,
-              justifyContent: "center",
+              justifyContent: 'center',
               paddingHorizontal: theme.spacing[4],
             }}
           >
             <Text variant="caption" color="primary">
-              {revealed ? "Hide" : "Show"}
+              {revealed ? 'Hide' : 'Show'}
             </Text>
           </Pressable>
         ) : null}
@@ -132,5 +132,5 @@ export default function Input({
         </Text>
       ) : null}
     </View>
-  );
+  )
 }

@@ -1,0 +1,7 @@
+# Prettier already skips node_modules. Everything below is either generated,
+# vendored, or a native project this repo does not hand-edit.
+.expo/
+android/
+ios/
+coverage/
+package-lock.json
