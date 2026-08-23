@@ -2,7 +2,6 @@ import { useState } from 'react'
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   Modal,
   StyleSheet,
@@ -18,6 +17,7 @@ import * as authApi from '@/shared/api/auth'
 import { deleteAccount, deletionOutcomeIsUnknown } from '@/shared/api/account'
 import { signOut } from '@/sync/session'
 import { PRIVACY_POLICY_URL, TERMS_URL, ACCOUNT_DELETION_URL } from '@/shared/config/legal'
+import Input from '@/shared/components/ui/Input'
 
 type Props = NativeStackScreenProps<ProfileStackParamList, 'Settings'>
 
@@ -276,19 +276,38 @@ export default function SettingsScreen({ navigation }: Props) {
               from the app. Enter your email address and password to confirm.
             </Text>
 
-            <TextInput
-              style={styles.input}
+            {/*
+              Built from the shared `Input` rather than from a raw TextInput,
+              and that is the whole of STOURIFY-164. The Show / Hide toggle
+              STOURIFY-99 added lives INSIDE that component, so every field
+              built from it got the toggle for free and this one — hand-rolled
+              here with its own styles — silently did not. The same will be
+              true of the next shared improvement unless the field is part of
+              the set, which is the argument on STOURIFY-67 for not keeping a
+              private copy of a shared decision.
+
+              These two also had no accessible name at all: the only text on
+              either was the placeholder, and a placeholder is gone the moment
+              you type. `label` fixes that as well as captioning the field.
+
+              Known and accepted: `Input` follows the theme and this dialog
+              does not — it is painted dark whatever the system says, like the
+              other seventeen colour literals on this screen. In dark mode the
+              fields look as they always did; in light mode they are light on a
+              dark card. Theming the rest of the screen is its own card.
+            */}
+            <Input
+              label="Email"
               placeholder="Your email address"
-              placeholderTextColor="#7a8794"
               autoCapitalize="none"
               keyboardType="email-address"
               value={deleteEmail}
               onChangeText={setDeleteEmail}
             />
-            <TextInput
-              style={styles.input}
+            <Input
+              label="Password"
               placeholder="Your password"
-              placeholderTextColor="#7a8794"
+              autoCapitalize="none"
               secureTextEntry
               value={deletePassword}
               onChangeText={setDeletePassword}
@@ -352,16 +371,6 @@ const styles = StyleSheet.create({
   modalTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
   modalBody: { color: '#b9c4cf', fontSize: 14, lineHeight: 20 },
   modalError: { color: '#ff6b6b', fontSize: 13 },
-  input: {
-    backgroundColor: '#0f1923',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    color: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-  },
   destructiveButton: {
     backgroundColor: '#c0392b',
     borderRadius: 8,

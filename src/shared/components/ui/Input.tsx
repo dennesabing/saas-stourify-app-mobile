@@ -31,9 +31,20 @@ export interface InputProps {
  *
  * **A password field carries its own Show / Hide button** (STOURIFY-99). It
  * lives here rather than on the screens so that all six password fields in the
- * app — Login, Register's two, Reset password's two, and Settings' — behave
- * identically without any screen deciding anything. Three properties are
- * load-bearing:
+ * app — Login, Register's two, Reset password's two, and the one that confirms
+ * account deletion on Settings — behave identically without any screen deciding
+ * anything.
+ *
+ * That last one was only true from STOURIFY-164, and the gap is the reason this
+ * paragraph is worth reading. The claim was written here when STOURIFY-99
+ * landed, and it was wrong twice over: that field was built from a raw
+ * `TextInput` on its own screen rather than from this component, so it never
+ * got the button — and it is not a change-password box, which does not exist,
+ * but the confirmation for an irreversible deletion. A shared fix reaches
+ * exactly the callers that are actually shared, and a sentence in a docstring
+ * cannot make a screen one of them.
+ *
+ * Three properties are load-bearing:
  *
  * - It **starts hidden** and nothing can pass it in revealed. The state is
  *   private to this component precisely so that stays true.

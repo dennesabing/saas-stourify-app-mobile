@@ -138,3 +138,80 @@ test('a timed-out deletion signs out rather than claiming failure', async () => 
 
   expect(queryByText('Could not delete your account. Please try again.')).toBeNull()
 })
+
+// ---------------------------------------------------------------------------
+// The reveal toggle (STOURIFY-164).
+//
+// STOURIFY-99 put a Show / Hide button on password fields by putting it inside
+// the shared `Input` component, so every field built from that got it for free.
+// This one was built from React Native's own TextInput, so the change went
+// straight past it -- and it is the field where seeing what you typed matters
+// most, because getting it wrong comes back as a validation error that reads
+// like a wrong password, on an action that cannot be undone.
+//
+// These cases assert the BEHAVIOUR here rather than trusting that the component
+// swap happened. `Input`'s own suite already proves the toggle works; what it
+// cannot prove is that this screen uses it, and that is the entire bug.
+// ---------------------------------------------------------------------------
+
+test('the delete-account password field offers a reveal button', () => {
+  const { getByText, getByLabelText } = renderSettings()
+
+  fireEvent.press(getByText('Delete account'))
+
+  expect(getByLabelText('Show password')).toBeTruthy()
+})
+
+test('the delete-account password starts masked and reveals on Show', () => {
+  const { getByText, getByPlaceholderText, getByLabelText } = renderSettings()
+
+  fireEvent.press(getByText('Delete account'))
+  const field = getByPlaceholderText('Your password')
+  fireEvent.changeText(field, 'hunter2')
+
+  // Starts hidden, every time. Nothing can pass it in revealed.
+  expect(field.props.secureTextEntry).toBe(true)
+
+  fireEvent.press(getByLabelText('Show password'))
+  expect(getByPlaceholderText('Your password').props.secureTextEntry).toBe(false)
+  expect(getByText('Hide')).toBeTruthy()
+
+  fireEvent.press(getByLabelText('Hide password'))
+  expect(getByPlaceholderText('Your password').props.secureTextEntry).toBe(true)
+})
+
+test('the reveal survives carrying on typing', () => {
+  // The property a naive implementation breaks: this screen re-renders on every
+  // keystroke, so a reveal reset on change would flick back to dots during the
+  // exact activity it exists for.
+  const { getByText, getByPlaceholderText, getByLabelText } = renderSettings()
+
+  fireEvent.press(getByText('Delete account'))
+  fireEvent.changeText(getByPlaceholderText('Your password'), 'hunt')
+  fireEvent.press(getByLabelText('Show password'))
+  fireEvent.changeText(getByPlaceholderText('Your password'), 'hunter2')
+
+  expect(getByPlaceholderText('Your password').props.secureTextEntry).toBe(false)
+})
+
+test('the email field is not given a password toggle', () => {
+  // The reveal belongs to the password field alone. A component swap that put
+  // one on both would be a different bug wearing this fix's clothes.
+  const { getByText, getAllByLabelText } = renderSettings()
+
+  fireEvent.press(getByText('Delete account'))
+
+  expect(getAllByLabelText('Show password')).toHaveLength(1)
+})
+
+test('both confirmation fields carry a name a screen reader can announce', () => {
+  // They never did. The only text on either node was the placeholder, and a
+  // placeholder disappears the moment the field has content -- so once you had
+  // typed, there was nothing left to identify the field by.
+  const { getByText, getByLabelText } = renderSettings()
+
+  fireEvent.press(getByText('Delete account'))
+
+  expect(getByLabelText('Email')).toBeTruthy()
+  expect(getByLabelText('Password')).toBeTruthy()
+})
