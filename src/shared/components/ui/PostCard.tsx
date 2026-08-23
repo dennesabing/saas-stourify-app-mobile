@@ -4,6 +4,7 @@ import { useTheme } from '@/theme/ThemeProvider'
 import type { Post } from '@/shared/api/types'
 import Avatar from './Avatar'
 import Card from './Card'
+import HashtagText from './HashtagText'
 import Tag from './Tag'
 import Text from './Text'
 
@@ -23,6 +24,13 @@ interface Props {
    * report to, and a control that does nothing is worse than no control.
    */
   onMorePress?: () => void
+  /**
+   * Opens a hashtag from the caption. Optional for exactly the reason
+   * `onAuthorPress` is: a card rendered somewhere with no tag route — a picker,
+   * a preview — must not offer a tap that goes nowhere, so without it the
+   * hashtags render as ordinary text (STOURIFY-173).
+   */
+  onHashtagPress?: (slug: string) => void
 }
 
 /**
@@ -46,7 +54,14 @@ interface Props {
  * made a feed row a dead end — the parent card's "a spot with an author you
  * cannot tap is a broken loop".
  */
-function PostCard({ post, onPress, onLikePress, onAuthorPress, onMorePress }: Props) {
+function PostCard({
+  post,
+  onPress,
+  onLikePress,
+  onAuthorPress,
+  onMorePress,
+  onHashtagPress,
+}: Props) {
   const theme = useTheme()
   const author = post.author
   const liked = post.is_liked === true
@@ -136,13 +151,26 @@ function PostCard({ post, onPress, onLikePress, onAuthorPress, onMorePress }: Pr
       ) : null}
 
       {post.caption ? (
-        <Text
-          variant="body"
-          numberOfLines={2}
-          style={{ paddingHorizontal: theme.spacing[3], paddingBottom: theme.spacing[3] }}
-        >
-          {post.caption}
-        </Text>
+        // `numberOfLines` still works because HashtagText is one Text with
+        // nested Text runs rather than a row of views — see its docblock. A
+        // caption with no hashtag renders byte-identically to before.
+        onHashtagPress ? (
+          <HashtagText
+            text={post.caption}
+            onPressHashtag={onHashtagPress}
+            variant="body"
+            numberOfLines={2}
+            style={{ paddingHorizontal: theme.spacing[3], paddingBottom: theme.spacing[3] }}
+          />
+        ) : (
+          <Text
+            variant="body"
+            numberOfLines={2}
+            style={{ paddingHorizontal: theme.spacing[3], paddingBottom: theme.spacing[3] }}
+          >
+            {post.caption}
+          </Text>
+        )
       ) : null}
 
       <View style={[styles.actions, { padding: theme.spacing[3], gap: theme.spacing[6] }]}>

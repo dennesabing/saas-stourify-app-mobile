@@ -28,6 +28,7 @@ import PhotoGalleryScreen from '@/features/spots/screens/PhotoGalleryScreen'
 import SpotDetailScreen from '@/features/spots/screens/SpotDetailScreen'
 import SyncStatusScreen from '@/features/sync/screens/SyncStatusScreen'
 import DraftsScreen from '@/features/social/screens/DraftsScreen'
+import TagScreen from '@/features/tags/screens/TagScreen'
 import TabBar from './TabBar'
 import type {
   ActivityStackParamList,
@@ -60,6 +61,7 @@ function HomeStackNav() {
       <HomeStack.Screen name="PhotoGallery" component={PhotoGalleryScreen} />
       <HomeStack.Screen name="Reviews" component={ReviewsScreen} />
       <HomeStack.Screen name="WriteReview" component={WriteReviewScreen} />
+      <HomeStack.Screen name="Tag" component={TagScreen} />
     </HomeStack.Navigator>
   )
 }
@@ -78,6 +80,7 @@ function DiscoverStackNav() {
       <DiscoverStack.Screen name="PhotoGallery" component={PhotoGalleryScreen} />
       <DiscoverStack.Screen name="Reviews" component={ReviewsScreen} />
       <DiscoverStack.Screen name="WriteReview" component={WriteReviewScreen} />
+      <DiscoverStack.Screen name="Tag" component={TagScreen} />
     </DiscoverStack.Navigator>
   )
 }
@@ -132,6 +135,7 @@ function ProfileStackNav() {
       <ProfileStack.Screen name="PhotoGallery" component={PhotoGalleryScreen} />
       <ProfileStack.Screen name="Reviews" component={ReviewsScreen} />
       <ProfileStack.Screen name="WriteReview" component={WriteReviewScreen} />
+      <ProfileStack.Screen name="Tag" component={TagScreen} />
       <ProfileStack.Screen name="ThemeGallery" component={ThemeGalleryScreen} />
     </ProfileStack.Navigator>
   )

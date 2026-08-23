@@ -226,3 +226,36 @@ test('pressing the overflow control does not also open the post', () => {
   expect(onMorePress).toHaveBeenCalledTimes(1)
   expect(onPress).not.toHaveBeenCalled()
 })
+
+/**
+ * The hashtag half (STOURIFY-173).
+ *
+ * Note what `mockPost` does NOT have: a `tags` array. That absence is the whole
+ * point of these two tests rather than an oversight in the fixture. A post
+ * written with no signal waits in the send-later queue and has never been near
+ * the server, so the server has never parsed it and there is no `tags` array to
+ * read — but the caption is in hand, and the card reads the words from that.
+ * Render the chips from the response instead and a queued post's hashtags are
+ * invisible at exactly the moment somebody is most likely to be looking at it.
+ */
+test('makes a hashtag in the caption pressable, from the caption alone', () => {
+  const onHashtagPress = jest.fn()
+  const post = { ...mockPost, caption: 'great noodles #StreetFood' }
+
+  renderThemed(<PostCard post={post} onPress={() => {}} onHashtagPress={onHashtagPress} />)
+  fireEvent.press(screen.getByText('#StreetFood'))
+
+  // The word keeps the author's spelling on screen; the slug is what travels.
+  expect(onHashtagPress).toHaveBeenCalledWith('streetfood')
+})
+
+test('leaves the caption as plain text where there is nowhere for a tap to go', () => {
+  // A card rendered somewhere with no tag route — a picker, a preview — must
+  // not offer a tap that does nothing, which is the defect STOURIFY-9 and
+  // STOURIFY-148 both record. Without the handler the words stay ordinary.
+  const post = { ...mockPost, caption: 'great noodles #StreetFood' }
+
+  renderThemed(<PostCard post={post} onPress={() => {}} />)
+
+  expect(screen.getByText('great noodles #StreetFood')).toBeTruthy()
+})

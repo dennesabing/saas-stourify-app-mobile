@@ -77,6 +77,21 @@ export type HomeStackParamList = {
   PhotoGallery: { spotId: string }
   Reviews: { spotId: string }
   WriteReview: { spotId: string }
+  /**
+   * Everything carrying one hashtag, reached by tapping the word in a caption
+   * or a spot description (STOURIFY-173).
+   *
+   * The parameter is the **slug** — the lowercased form — because that is what
+   * the API matches on and what `HashtagText` hands back. The display spelling
+   * comes from the lookup, so `#StreetFood` reads as the author wrote it.
+   *
+   * Registered on the Home, Discover and Profile stacks, and the repetition is
+   * the point: a hashtag is rendered in a feed row, in a spot reached from
+   * search, and on a profile's posts. A route registered on one of those makes
+   * the same word tappable in one place and dead in another, which is the
+   * defect STOURIFY-9 and STOURIFY-148 both record.
+   */
+  Tag: { slug: string }
 }
 
 export type DiscoverStackParamList = {
@@ -103,6 +118,8 @@ export type DiscoverStackParamList = {
   PhotoGallery: { spotId: string }
   Reviews: { spotId: string }
   WriteReview: { spotId: string }
+  /** Registered here too — see the Home stack's note. */
+  Tag: { slug: string }
 }
 
 export type CreateStackParamList = {
@@ -190,6 +207,8 @@ export type ProfileStackParamList = {
   SyncStatus: undefined
   /** Posts started and not shared — reached from your own profile. */
   Drafts: undefined
+  /** Registered here too — see the Home stack's note. */
+  Tag: { slug: string }
   /** Development-only: renders every primitive for visual review. */
   ThemeGallery: undefined
 }

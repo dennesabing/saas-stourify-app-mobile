@@ -137,6 +137,17 @@ export interface Post {
   author?: PostAuthor
   /** Always an array, never null — mirrors `PostResource::toArray()`'s `media` key (M3c Task 1). */
   media?: SpotMedia[]
+  /**
+   * The hashtags the server parsed out of the caption, present only when the
+   * relation was eager-loaded (STOURIFY-171).
+   *
+   * **The app does not render from this**, and that is deliberate: a post
+   * waiting in the send-later queue has never reached the server and has no
+   * such array, so its hashtags would be invisible at the moment somebody is
+   * most likely to be looking at it. `HashtagText` reads the caption instead.
+   * This is here because the field is on the wire and typing it is honest.
+   */
+  tags?: Tag[]
   created_at: string
   updated_at: string
   can: Record<string, boolean>
@@ -257,7 +268,35 @@ export interface City {
   is_featured: boolean
 }
 
-/** The result types `SearchRequest::TYPES` accepts. `tags` is NOT one — see STOURIFY-25. */
+/**
+ * A hashtag somebody typed, as `TagResource` sends it.
+ *
+ * `slug` is the matching form and the thing to put in a request; `name` is the
+ * spelling of whoever wrote the word first, which is why a tag page can read
+ * `#StreetFood` rather than shouting the lowercased version at everybody.
+ *
+ * There is deliberately no count — see `TagResource` for why (STOURIFY-172).
+ */
+export interface Tag {
+  uuid: string
+  slug: string
+  name: string
+}
+
+/**
+ * The result types this app asks discover search for.
+ *
+ * **Narrower than the server's list on purpose.** `SearchRequest::TYPES` gained
+ * `tags` in STOURIFY-172 — it used to answer `422`, because there was no
+ * hashtag vocabulary to search until STOURIFY-171 created one, which was the
+ * open question on STOURIFY-25. This app does not offer that tab yet: a hashtag
+ * is reached by tapping one in a caption (STOURIFY-173), and a Tags rail on the
+ * Search screen is a separate piece of work.
+ *
+ * Widening this union without adding the tab would make `groupOneType` in
+ * `SearchScreen` silently return three empty sections for a `tags` search — a
+ * type that compiles and a screen that lies.
+ */
 export type DiscoverSearchType = 'spots' | 'cities' | 'people'
 
 /**
