@@ -35,6 +35,23 @@ export interface CreatePostInput {
    * `publishPost` finishes it — see `PostStoreRequest`'s docblock.
    */
   publish?: boolean
+  /**
+   * A name the CLIENT puts on this request, so the server can recognise a
+   * retry of it instead of making a second post.
+   *
+   * It exists because the post's id is minted server-side: between the server
+   * committing and this app writing that id down there is an instant in which
+   * a crash loses the id while the post survives, and the next attempt makes
+   * another one (STOURIFY-166). Nothing here can close that window — the app
+   * cannot know an id it has not been told.
+   *
+   * Optional, and only the send-later queue sends one: it is the only caller
+   * that retries, and the only one holding something durable enough to derive
+   * a key from. A key that is not identical on every attempt does nothing at
+   * all, so it must come from stored state, never from `Date.now()` or a fresh
+   * random value.
+   */
+  idempotency_key?: string
 }
 
 /**
