@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A prettier configuration, so a formatter that gets run here does less damage** (STOURIFY-162).
+
+  `.prettierrc` records the style this code is actually written in — single quotes, no semicolons, a
+  100-column print width, and each file's own line endings — read off the existing files rather than
+  chosen fresh. `.prettierignore` keeps prettier out of the native projects and the generated
+  directories.
+
+  Read `docs/code-formatting.md` before pointing a formatter at anything here, because the config is
+  a seatbelt rather than a fix: this code is hand-wrapped, so about 110 of the app's 244 TypeScript
+  files still come out different under prettier at any print width. The disagreement is purely about
+  where lines break — quotes, semicolons and trailing commas already match. Prettier is deliberately
+  not a dependency, and there is deliberately no `format` script.
+
 - **A draft's photo is now kept by the app, so it is still there days later** (STOURIFY-160, under
   STOURIFY-104).
 
@@ -112,6 +125,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   this one), and `src/features/spots/components/SpotAboutTab.tsx`.
 
 ### Fixed
+
+- **Two files no longer carry a whole-file reformat that nobody asked for** (STOURIFY-162).
+
+  Landing STOURIFY-99 finished by running `npx prettier --write` over the two files it had edited.
+  This repo had no prettier configuration, so prettier used its own defaults — double quotes and
+  semicolons — where the code is written with single quotes and none. It rewrote both files end to
+  end, and a forty-line feature landed as 459 insertions and 217 deletions. Nothing broke; the
+  reader of the diff paid the whole cost.
+
+  `src/shared/components/ui/Input.tsx` and `__tests__/components/ui.test.tsx` have been rebuilt from
+  the commit before that feature, with the password reveal toggle re-applied in the house style. The
+  same change now reads as 159 insertions and 26 deletions, and every line of it is the feature.
+  Nothing about how the toggle behaves has changed.
 
 - **A comment you had just posted jumped from the bottom of the thread to the top** (STOURIFY-151).
   You pressed send, the comment appeared at the end of the list, and a second later — when the
