@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A draft's photo is now kept by the app, so it is still there days later** (STOURIFY-160, under
+  STOURIFY-104).
+
+  When you pick a photo, the gallery hands the app a borrowed address — a pointer into a folder
+  Android empties whenever it wants the space. A draft saved with only that address could come back
+  next week with the words intact and a blank square where the picture was.
+
+  The photo is now copied into the app's own storage as the draft is saved, and the draft points at
+  the copy. Deleting a draft, and sharing one successfully, delete the copy as well, so nothing
+  accumulates on your phone.
+
+  If a photo cannot be copied for any reason, the draft is still saved with what it had. A worse
+  photo is a much smaller loss than a lost caption.
+
 - **The app keeps a post you started but did not share, and there is a Drafts page to find it**
   (STOURIFY-159, under STOURIFY-104).
 

@@ -1,6 +1,7 @@
 import { Q, type Database } from '@nozbe/watermelondb'
 import type { Observable } from 'rxjs'
 import PostDraftModel, { type DraftMedia } from '@/db/models/PostDraft'
+import { copyDraftPhotos, deleteDraftPhotos } from '@/features/social/api/draftPhotoStore'
 
 /** What the compose screen holds, and therefore what a draft is made of. */
 export interface DraftContent {
@@ -55,13 +56,18 @@ export async function saveDraft(
   const existing = draftId != null ? await findDraft(database, draftId) : null
 
   if (existing !== null) {
+    // The photos are copied into storage this app owns before the row points at
+    // them; the picker's address is in a folder the system empties at will
+    // (STOURIFY-160). Already-copied photos cost nothing here.
+    const media = await copyDraftPhotos(existing.id, content.media)
+
     await database.write(async () => {
       await existing.update((row: any) => {
         row._raw.caption = content.caption
         row._raw.visibility = content.visibility
         row._raw.spot_uuid = content.spotUuid ?? null
         row._raw.spot_title = content.spotTitle ?? null
-        row._raw.media = JSON.stringify(content.media)
+        row._raw.media = JSON.stringify(media)
         row._raw.updated_at = now
       })
     })
@@ -79,6 +85,17 @@ export async function saveDraft(
       row._raw.updated_at = now
     }),
   )
+
+  // A new draft's id only exists once the row does, and the copies are named
+  // after it — so the copy happens here and the row is corrected in place. The
+  // window in between is one write on the same device, and what it holds is the
+  // picker's address, which is what the draft would have held anyway.
+  const media = await copyDraftPhotos(created.id, content.media)
+  await database.write(async () => {
+    await created.update((row: any) => {
+      row._raw.media = JSON.stringify(media)
+    })
+  })
 
   return created.id
 }
@@ -130,7 +147,13 @@ export async function deleteDraft(database: Database, draftId: string): Promise<
   const draft = await findDraft(database, draftId)
   if (draft === null) return
 
+  // The files as well as the row. Skipping the file half does not fail
+  // anything; it just fills the phone with copies nothing will ever read.
+  const media = draft.media
+
   await database.write(async () => {
     await draft.destroyPermanently()
   })
+
+  await deleteDraftPhotos(media)
 }

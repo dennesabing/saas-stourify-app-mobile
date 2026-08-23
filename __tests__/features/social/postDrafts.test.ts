@@ -1,6 +1,19 @@
+/**
+ * The photo copying is asserted in `draftPhotoStore.test.ts` against a stand-in
+ * filesystem. Here it is stubbed, so these tests can say the store is CALLED
+ * and go on being about the drafts themselves (STOURIFY-160).
+ */
+jest.mock('@/features/social/api/draftPhotoStore', () => ({
+  copyDraftPhotos: jest.fn(async (draftId: string, photos: any[]) =>
+    photos.map((photo, index) => ({ ...photo, uri: `file:///kept/${draftId}-${index}.jpg` })),
+  ),
+  deleteDraftPhotos: jest.fn(async () => undefined),
+}))
+
 import { firstValueFrom } from 'rxjs'
 import type { Database } from '@nozbe/watermelondb'
 import { createTestDatabase } from '../../support/testDatabase'
+import { copyDraftPhotos, deleteDraftPhotos } from '@/features/social/api/draftPhotoStore'
 import {
   DEFAULT_VISIBILITY,
   deleteDraft,
@@ -75,9 +88,11 @@ describe('saveDraft', () => {
     expect(draft?.visibility).toBe('public')
     expect(draft?.spotUuid).toBe('spot-1')
     expect(draft?.spotTitle).toBe('The Pier')
+    // The address is the app's own copy, not the picker's — see the
+    // `keeping the photos` block below (STOURIFY-160).
     expect(draft?.media).toEqual([
       {
-        uri: 'file:///cache/photo.jpg',
+        uri: `file:///kept/${id}-0.jpg`,
         fileName: 'photo.jpg',
         type: 'image/jpeg',
       },
@@ -134,6 +149,11 @@ describe('observeDrafts', () => {
  */
 it('tells a list that is already open when a draft is edited', async () => {
   const database = createTestDatabase()
+  // Step the clock: the query re-emits on `updated_at` changing, and two saves
+  // inside one millisecond carry the same value. Real saves are at least a
+  // debounce apart.
+  let clock = 1_700_000_000_000
+  jest.spyOn(Date, 'now').mockImplementation(() => (clock += 1_000))
   const seen: string[][] = []
   const subscription = observeDrafts(database).subscribe((rows) => {
     seen.push(rows.map((row) => row.caption))
@@ -142,10 +162,39 @@ it('tells a list that is already open when a draft is edited', async () => {
   const id = await saveDraft(database, content({ caption: 'First words' }))
   await saveDraft(database, content({ caption: 'Second thoughts' }), id)
 
-  await new Promise((resolve) => setTimeout(resolve, 0))
+  // Wait for the emission rather than for a fixed tick: a save now does more
+  // than one write (the photos are copied and the row corrected), so a
+  // hard-coded delay is a race dressed up as a test.
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (seen[seen.length - 1]?.[0] === 'Second thoughts') break
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
   subscription.unsubscribe()
 
   expect(seen[seen.length - 1]).toEqual(['Second thoughts'])
+  jest.restoreAllMocks()
+})
+
+describe('keeping the photos', () => {
+  it('stores the copy the phone owns, not the address the picker handed over', async () => {
+    const database = createTestDatabase()
+
+    const id = await saveDraft(database, content({ caption: 'With a photo' }))
+
+    expect(copyDraftPhotos).toHaveBeenCalled()
+    expect((await findDraft(database, id))?.media[0].uri).toBe(`file:///kept/${id}-0.jpg`)
+  })
+
+  it('takes the copies with it when the draft goes', async () => {
+    const database = createTestDatabase()
+    const id = await saveDraft(database, content({ caption: 'Throwaway' }))
+
+    await deleteDraft(database, id)
+
+    expect(deleteDraftPhotos).toHaveBeenCalledWith([
+      expect.objectContaining({ uri: `file:///kept/${id}-0.jpg` }),
+    ])
+  })
 })
 
 describe('deleteDraft', () => {
