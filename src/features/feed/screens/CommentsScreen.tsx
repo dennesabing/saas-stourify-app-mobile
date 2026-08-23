@@ -137,7 +137,9 @@ export default function CommentsScreen({ route }: Props) {
     mutationFn: (body: string) => host.create(body),
     onMutate: async (body: string) => {
       await queryClient.cancelQueries({ queryKey: COMMENTS_QUERY_KEY(hostId) })
-      const previous = queryClient.getQueryData<PaginatedResponse<Comment>>(COMMENTS_QUERY_KEY(hostId))
+      const previous = queryClient.getQueryData<PaginatedResponse<Comment>>(
+        COMMENTS_QUERY_KEY(hostId),
+      )
 
       const now = new Date().toISOString()
       const optimistic: Comment = {
@@ -239,7 +241,11 @@ export default function CommentsScreen({ route }: Props) {
         <FlatList
           data={rows}
           keyExtractor={(row) => row.comment.id}
-          contentContainerStyle={rows.length === 0 ? { flex: 1 } : { paddingHorizontal: theme.gutter, gap: theme.spacing[3] }}
+          contentContainerStyle={
+            rows.length === 0
+              ? { flex: 1 }
+              : { paddingHorizontal: theme.gutter, gap: theme.spacing[3] }
+          }
           ListEmptyComponent={empty}
           renderItem={({ item }) => (
             <View

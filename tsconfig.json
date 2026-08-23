@@ -6,17 +6,10 @@
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "src/*"
-      ],
-      "@soxerp/offline-sync-core": [
-        "src/types/offline-sync-core.d.ts"
-      ]
+      "@/*": ["src/*"],
+      "@soxerp/offline-sync-core": ["src/types/offline-sync-core.d.ts"]
     },
-    "types": [
-      "jest",
-      "node"
-    ]
+    "types": ["jest", "node"]
   },
   "include": ["src", "__tests__", "App.tsx"],
   "exclude": ["node_modules", "../packages/**"]

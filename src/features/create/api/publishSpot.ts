@@ -2,11 +2,7 @@ import type { Database } from '@nozbe/watermelondb'
 import type PendingMedia from '@/db/models/PendingMedia'
 import type Spot from '@/db/models/Spot'
 import { uuidv4 } from '@/shared/utils/uuid'
-import {
-  DRAFT_HOST_TYPE,
-  MAX_DRAFT_PHOTOS,
-  listDraftMedia,
-} from '@/features/media/api/draftMedia'
+import { DRAFT_HOST_TYPE, MAX_DRAFT_PHOTOS, listDraftMedia } from '@/features/media/api/draftMedia'
 
 export interface PublishSpotInput {
   title: string

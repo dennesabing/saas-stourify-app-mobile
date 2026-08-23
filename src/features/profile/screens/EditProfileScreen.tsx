@@ -52,7 +52,11 @@ export default function EditProfileScreen({ navigation }: Props) {
   const queryClient = useQueryClient()
   const cities = useCities()
 
-  const { data: profile, isFetching, isSuccess } = useQuery({
+  const {
+    data: profile,
+    isFetching,
+    isSuccess,
+  } = useQuery({
     // The SAME key `ProfileScreen` reads its own profile under, deliberately.
     // The first version of this screen invented `['profile','me']`, and the
     // consequence only showed up on a device: the save reached the server, the

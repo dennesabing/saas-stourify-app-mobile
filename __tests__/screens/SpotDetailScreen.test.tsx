@@ -50,7 +50,11 @@ function makeSpot(overrides: Partial<any> = {}) {
   }
 }
 
-function renderScreen(database = createTestDatabase(), spotId = 'spot-1', queryClient?: QueryClient) {
+function renderScreen(
+  database = createTestDatabase(),
+  spotId = 'spot-1',
+  queryClient?: QueryClient,
+) {
   return render(
     <TestProviders database={database} queryClient={queryClient}>
       <SpotDetailScreen navigation={navigation} route={{ params: { spotId } } as any} />
@@ -79,7 +83,11 @@ function makeAbout(overrides: Partial<any> = {}) {
 }
 
 function aboutPage(entries: any[]) {
-  return { data: entries, links: {}, meta: { current_page: 1, last_page: 1, total: entries.length } }
+  return {
+    data: entries,
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: entries.length },
+  }
 }
 
 beforeEach(() => {
@@ -92,7 +100,11 @@ beforeEach(() => {
 
 it('renders a real hero image, the rating and the review count', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
 
   renderScreen()
 
@@ -116,7 +128,11 @@ it('shows a loading hero, and says nothing about photos, while the spot request 
   // A promise that never settles is the whole point: it holds the screen in the
   // state a slow network puts it in, for as long as the test looks at it.
   ;(getSpot as jest.Mock).mockReturnValue(new Promise(() => {}))
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
 
   renderScreen()
 
@@ -139,7 +155,11 @@ it('shows a loading hero, and says nothing about photos, while the spot request 
 
 it('says the request failed, and offers a retry, when the spot cannot be fetched', async () => {
   ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
 
   renderScreen()
 
@@ -164,7 +184,20 @@ it('says the request failed, and offers a retry, when the spot cannot be fetched
 it('shows no spot facts and no spot actions when the spot cannot be fetched', async () => {
   ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))
   ;(getSpotPosts as jest.Mock).mockResolvedValue({
-    data: [{ uuid: 'post-1', caption: 'x', visibility: 'public', is_published: true, published_at: null, likes_count: 0, comments_count: 0, created_at: '', updated_at: '', can: {} }],
+    data: [
+      {
+        uuid: 'post-1',
+        caption: 'x',
+        visibility: 'public',
+        is_published: true,
+        published_at: null,
+        likes_count: 0,
+        comments_count: 0,
+        created_at: '',
+        updated_at: '',
+        can: {},
+      },
+    ],
     links: {},
     meta: { current_page: 1, last_page: 1, total: 1 },
   })
@@ -193,7 +226,11 @@ it('shows no spot facts and no spot actions when the spot cannot be fetched', as
 
 it('renders no coordinates line on the About tab when the spot failed to load', async () => {
   ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
 
   renderScreen()
 
@@ -216,7 +253,11 @@ it('renders no coordinates line on the About tab when the spot failed to load', 
 
 it('renders no coordinates line at all for a spot that has none', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot({ latitude: null, longitude: null }))
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
 
   renderScreen()
 
@@ -235,7 +276,11 @@ it('renders no coordinates line at all for a spot that has none', async () => {
 
 it('renders the coordinates of a spot on the equator, which are real coordinates', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot({ latitude: 0, longitude: 0 }))
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
 
   renderScreen()
 
@@ -251,7 +296,11 @@ it('renders the coordinates of a spot on the equator, which are real coordinates
 
 it('re-runs the spot request when Try again is pressed', async () => {
   ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
 
   renderScreen()
 
@@ -269,11 +318,17 @@ it('keeps showing a spot it already has while the refetch is failing', async () 
   // rather than on `isError` alone. Yesterday's spot is in the persisted cache,
   // today's network is gone: the reader should read the spot, not an apology
   // for not having one.
-  const queryClient = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
+  const queryClient = trackQueryClient(
+    new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+  )
   queryClient.setQueryData(['spot', 'spot-1'], makeSpot())
 
   ;(getSpot as jest.Mock).mockRejectedValue(new Error('offline'))
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
 
   renderScreen(createTestDatabase(), 'spot-1', queryClient)
 
@@ -293,7 +348,11 @@ it('keeps showing a spot it already has while the refetch is failing', async () 
 
 it('renders a design-system placeholder hero when the spot has no photos, never a bare grey box', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot({ media: [] }))
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
 
   renderScreen()
 
@@ -319,7 +378,11 @@ it('renders a design-system placeholder hero when the spot has no photos, never 
 
 it('opens the gallery when the hero is tapped', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
 
   renderScreen()
 
@@ -339,7 +402,11 @@ it('opens the gallery when the hero is tapped', async () => {
 
 it('navigates to the reviews list and to write review', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
 
   renderScreen()
 
@@ -360,7 +427,11 @@ it('navigates to the reviews list and to write review', async () => {
  */
 it('puts Save on the same row as the rating, as an icon-and-text button', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
 
   renderScreen()
 
@@ -380,7 +451,11 @@ it('saves to the wishlist as a local write, never touching the network', async (
   global.fetch = fetchSpy as unknown as typeof fetch
 
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
 
   renderScreen(database)
 
@@ -405,7 +480,20 @@ it('saves to the wishlist as a local write, never touching the network', async (
 it('preserves the Posts and About tabs', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
   ;(getSpotPosts as jest.Mock).mockResolvedValue({
-    data: [{ uuid: 'post-1', caption: 'x', visibility: 'public', is_published: true, published_at: null, likes_count: 0, comments_count: 0, created_at: '', updated_at: '', can: {} }],
+    data: [
+      {
+        uuid: 'post-1',
+        caption: 'x',
+        visibility: 'public',
+        is_published: true,
+        published_at: null,
+        likes_count: 0,
+        comments_count: 0,
+        created_at: '',
+        updated_at: '',
+        can: {},
+      },
+    ],
     links: {},
     meta: { current_page: 1, last_page: 1, total: 1 },
   })
@@ -435,12 +523,31 @@ it('preserves the Posts and About tabs', async () => {
  */
 it('lists the notes in the order the server sent them, most-liked first', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
   ;(getSpotAbouts as jest.Mock).mockResolvedValue(
     aboutPage([
-      makeAbout({ uuid: 'a-popular', body: 'Go at sunrise.', likes_count: 5, author: { uuid: 'u1', name: 'Mila Reyes', username: 'mila', avatar_url: null } }),
-      makeAbout({ uuid: 'a-middling', body: 'The side entrance is the open one.', likes_count: 2, author: { uuid: 'u2', name: 'Ben Cruz', username: null, avatar_url: null } }),
-      makeAbout({ uuid: 'a-fresh', body: 'Parking is behind the church.', likes_count: 0, author: { uuid: 'u3', name: 'Ana Lim', username: null, avatar_url: null } }),
+      makeAbout({
+        uuid: 'a-popular',
+        body: 'Go at sunrise.',
+        likes_count: 5,
+        author: { uuid: 'u1', name: 'Mila Reyes', username: 'mila', avatar_url: null },
+      }),
+      makeAbout({
+        uuid: 'a-middling',
+        body: 'The side entrance is the open one.',
+        likes_count: 2,
+        author: { uuid: 'u2', name: 'Ben Cruz', username: null, avatar_url: null },
+      }),
+      makeAbout({
+        uuid: 'a-fresh',
+        body: 'Parking is behind the church.',
+        likes_count: 0,
+        author: { uuid: 'u3', name: 'Ana Lim', username: null, avatar_url: null },
+      }),
     ]),
   )
 
@@ -464,7 +571,11 @@ it('lists the notes in the order the server sent them, most-liked first', async 
  */
 it('shows who wrote each note and how long ago, not a raw timestamp', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
   ;(getSpotAbouts as jest.Mock).mockResolvedValue(aboutPage([makeAbout()]))
 
   renderScreen()
@@ -484,7 +595,11 @@ it('shows who wrote each note and how long ago, not a raw timestamp', async () =
  */
 it('keeps the spot description, address and coordinates above the notes', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
   ;(getSpotAbouts as jest.Mock).mockResolvedValue(aboutPage([makeAbout()]))
 
   renderScreen()
@@ -495,7 +610,9 @@ it('keeps the spot description, address and coordinates above the notes', async 
   // Wait for the NOTE, not for the description. The description is on screen
   // from the first frame of the tab, so waiting for it returns while the notes
   // request is still in flight and the three assertions below race it.
-  await waitFor(() => expect(screen.getByText('Go at sunrise, the light is worth it.')).toBeTruthy())
+  await waitFor(() =>
+    expect(screen.getByText('Go at sunrise, the light is worth it.')).toBeTruthy(),
+  )
   expect(screen.getByText('A quiet cove.')).toBeTruthy()
   expect(screen.getByText('📍 Coastal Road')).toBeTruthy()
   expect(screen.getByTestId('spot-coordinates')).toBeTruthy()
@@ -509,7 +626,11 @@ it('keeps the spot description, address and coordinates above the notes', async 
  */
 it('shows placeholders, and claims nothing about the notes, while the request is in flight', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
   ;(getSpotAbouts as jest.Mock).mockReturnValue(new Promise(() => {}))
 
   renderScreen()
@@ -524,7 +645,11 @@ it('shows placeholders, and claims nothing about the notes, while the request is
 
 it('says the notes request failed, and offers a retry that actually asks again', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
   ;(getSpotAbouts as jest.Mock).mockRejectedValue(new Error('offline'))
 
   renderScreen()
@@ -538,12 +663,18 @@ it('says the notes request failed, and offers a retry that actually asks again',
 
   const before = (getSpotAbouts as jest.Mock).mock.calls.length
   fireEvent.press(screen.getByText('Try again'))
-  await waitFor(() => expect((getSpotAbouts as jest.Mock).mock.calls.length).toBeGreaterThan(before))
+  await waitFor(() =>
+    expect((getSpotAbouts as jest.Mock).mock.calls.length).toBeGreaterThan(before),
+  )
 })
 
 it('invites the first note when the spot genuinely has none', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
   ;(getSpotAbouts as jest.Mock).mockResolvedValue(aboutPage([]))
 
   renderScreen()
@@ -563,8 +694,14 @@ it('invites the first note when the spot genuinely has none', async () => {
  */
 it('fills the heart and raises the count before the request has answered', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
-  ;(getSpotAbouts as jest.Mock).mockResolvedValue(aboutPage([makeAbout({ likes_count: 5, is_liked: false })]))
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
+  ;(getSpotAbouts as jest.Mock).mockResolvedValue(
+    aboutPage([makeAbout({ likes_count: 5, is_liked: false })]),
+  )
   ;(addReaction as jest.Mock).mockReturnValue(new Promise(() => {}))
 
   renderScreen()
@@ -592,8 +729,14 @@ it('fills the heart and raises the count before the request has answered', async
  */
 it('removes a like with removeReaction, never by posting the same reaction twice', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
-  ;(getSpotAbouts as jest.Mock).mockResolvedValue(aboutPage([makeAbout({ likes_count: 5, is_liked: true })]))
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
+  ;(getSpotAbouts as jest.Mock).mockResolvedValue(
+    aboutPage([makeAbout({ likes_count: 5, is_liked: true })]),
+  )
   ;(removeReaction as jest.Mock).mockReturnValue(new Promise(() => {}))
 
   renderScreen()
@@ -616,8 +759,14 @@ it('removes a like with removeReaction, never by posting the same reaction twice
  */
 it('puts the heart and the count back when the like request fails', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
-  ;(getSpotAbouts as jest.Mock).mockResolvedValue(aboutPage([makeAbout({ likes_count: 5, is_liked: false })]))
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
+  ;(getSpotAbouts as jest.Mock).mockResolvedValue(
+    aboutPage([makeAbout({ likes_count: 5, is_liked: false })]),
+  )
 
   // The rejection is held back until the optimistic frame has been observed.
   // Rejecting straight away makes the flip and the revert land in the same
@@ -643,7 +792,9 @@ it('puts the heart and the count back when the like request fails', async () => 
   failTheRequest()
 
   await waitFor(() => expect(screen.getByText('5')).toBeTruthy())
-  expect(screen.getByTestId('spot-about-like-about-1').props.accessibilityState.selected).toBe(false)
+  expect(screen.getByTestId('spot-about-like-about-1').props.accessibilityState.selected).toBe(
+    false,
+  )
 })
 
 /**
@@ -654,11 +805,21 @@ it('puts the heart and the count back when the like request fails', async () => 
  */
 it('adds a note and shows it without the reader doing anything else', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
   ;(getSpotAbouts as jest.Mock)
     .mockResolvedValueOnce(aboutPage([]))
-    .mockResolvedValue(aboutPage([makeAbout({ uuid: 'about-new', body: 'Parking is behind the church.', likes_count: 0 })]))
-  ;(createSpotAbout as jest.Mock).mockResolvedValue(makeAbout({ uuid: 'about-new', body: 'Parking is behind the church.' }))
+    .mockResolvedValue(
+      aboutPage([
+        makeAbout({ uuid: 'about-new', body: 'Parking is behind the church.', likes_count: 0 }),
+      ]),
+    )
+  ;(createSpotAbout as jest.Mock).mockResolvedValue(
+    makeAbout({ uuid: 'about-new', body: 'Parking is behind the church.' }),
+  )
 
   renderScreen()
 
@@ -666,7 +827,10 @@ it('adds a note and shows it without the reader doing anything else', async () =
   fireEvent.press(screen.getByText('About'))
 
   await waitFor(() => expect(screen.getByTestId('spot-about-composer')).toBeTruthy())
-  fireEvent.changeText(screen.getByTestId('spot-about-composer'), '  Parking is behind the church.  ')
+  fireEvent.changeText(
+    screen.getByTestId('spot-about-composer'),
+    '  Parking is behind the church.  ',
+  )
   fireEvent.press(screen.getByLabelText('Post note'))
 
   // The stray spaces are trimmed off — what the server stores is what the reader
@@ -680,7 +844,11 @@ it('adds a note and shows it without the reader doing anything else', async () =
 
 it('does nothing when the box is empty, or holds only spaces', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
   ;(getSpotAbouts as jest.Mock).mockResolvedValue(aboutPage([]))
 
   renderScreen()
@@ -712,8 +880,14 @@ it('does nothing when the box is empty, or holds only spaces', async () => {
  */
 it('opens a note’s replies when the reply count is pressed', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
-  ;(getSpotAbouts as jest.Mock).mockResolvedValue(aboutPage([makeAbout({ uuid: 'about-7', comments_count: 2 })]))
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
+  ;(getSpotAbouts as jest.Mock).mockResolvedValue(
+    aboutPage([makeAbout({ uuid: 'about-7', comments_count: 2 })]),
+  )
 
   renderScreen()
 
@@ -734,7 +908,11 @@ it('opens a note’s replies when the reply count is pressed', async () => {
  */
 it('prints no reply count at all when the server did not send one', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
-  ;(getSpotPosts as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
   const withoutCount = makeAbout()
   delete (withoutCount as Record<string, unknown>).comments_count
   ;(getSpotAbouts as jest.Mock).mockResolvedValue(aboutPage([withoutCount]))
@@ -744,7 +922,9 @@ it('prints no reply count at all when the server did not send one', async () => 
   await waitFor(() => expect(screen.getByText('Blue Cove')).toBeTruthy())
   fireEvent.press(screen.getByText('About'))
 
-  await waitFor(() => expect(screen.getByText('Go at sunrise, the light is worth it.')).toBeTruthy())
+  await waitFor(() =>
+    expect(screen.getByText('Go at sunrise, the light is worth it.')).toBeTruthy(),
+  )
   expect(screen.queryByText('💬 0')).toBeNull()
   // No count means no door either — there is nothing to say how many replies
   // are behind it, so the row offers none.

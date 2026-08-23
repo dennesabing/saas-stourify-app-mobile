@@ -27,7 +27,9 @@ function changes(count: number): string {
 }
 
 function lastSyncedLine(lastSyncedAt: number | null, now: number): string {
-  return lastSyncedAt === null ? 'Not synced yet' : `Last synced ${formatRelativeTime(lastSyncedAt, now)}`
+  return lastSyncedAt === null
+    ? 'Not synced yet'
+    : `Last synced ${formatRelativeTime(lastSyncedAt, now)}`
 }
 
 /**
@@ -99,7 +101,14 @@ export default function SyncBanner({ pending, failed }: Props) {
   const offline = useSyncStatusStore((state) => state.offline)
   const lastSyncedAt = useSyncStatusStore((state) => state.lastSyncedAt)
 
-  const state = resolveBannerState({ phase, offline, pending, failed, lastSyncedAt, now: Date.now() })
+  const state = resolveBannerState({
+    phase,
+    offline,
+    pending,
+    failed,
+    lastSyncedAt,
+    now: Date.now(),
+  })
 
   const background: Record<BannerTone, string> = {
     success: theme.colors.success,

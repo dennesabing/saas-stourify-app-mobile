@@ -84,7 +84,10 @@ jest.mock('expo-camera', () => {
 })
 
 const mockLaunchImageLibraryAsync = jest.fn()
-const mockRequestMediaLibraryPermissionsAsync = jest.fn(async () => ({ granted: true, status: 'granted' }))
+const mockRequestMediaLibraryPermissionsAsync = jest.fn(async () => ({
+  granted: true,
+  status: 'granted',
+}))
 
 jest.mock('expo-image-picker', () => ({
   __esModule: true,
@@ -107,7 +110,11 @@ beforeEach(() => {
   fsCalls.writes = []
   fsCalls.deletes = []
   mockPermission = { granted: true, canAskAgain: true }
-  mockTakePictureAsync.mockResolvedValue({ uri: 'file:///cache/Camera/shot.jpg', width: 4, height: 3 })
+  mockTakePictureAsync.mockResolvedValue({
+    uri: 'file:///cache/Camera/shot.jpg',
+    width: 4,
+    height: 3,
+  })
   mockLaunchImageLibraryAsync.mockResolvedValue({ canceled: true, assets: null })
 })
 
@@ -181,7 +188,13 @@ describe('gallery pick', () => {
   it('opens the picker with its built-in editor and lands the asset in the same outbox', async () => {
     mockLaunchImageLibraryAsync.mockResolvedValue({
       canceled: false,
-      assets: [{ uri: 'content://media/external/images/media/42', fileName: 'cove.png', mimeType: 'image/png' }],
+      assets: [
+        {
+          uri: 'content://media/external/images/media/42',
+          fileName: 'cove.png',
+          mimeType: 'image/png',
+        },
+      ],
     })
 
     renderScreen()
@@ -194,7 +207,9 @@ describe('gallery pick', () => {
 
     // Crop comes from the picker's own native editor — cut-list item 4 kills
     // filters, not cropping.
-    expect(mockLaunchImageLibraryAsync).toHaveBeenCalledWith(expect.objectContaining({ allowsEditing: true }))
+    expect(mockLaunchImageLibraryAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ allowsEditing: true }),
+    )
 
     const [row] = await database.get<PendingMedia>('pending_media').query().fetch()
     expect(row.filename).toBe('cove.png')
@@ -210,7 +225,11 @@ describe('the cap', () => {
     await waitFor(() => expect(screen.getByTestId('camera-preview')).toBeTruthy())
 
     for (let i = 0; i < 3; i += 1) {
-      mockTakePictureAsync.mockResolvedValue({ uri: `file:///cache/Camera/shot-${i}.jpg`, width: 4, height: 3 })
+      mockTakePictureAsync.mockResolvedValue({
+        uri: `file:///cache/Camera/shot-${i}.jpg`,
+        width: 4,
+        height: 3,
+      })
       fireEvent.press(screen.getByLabelText('Take photo'))
       // eslint-disable-next-line no-await-in-loop
       await waitFor(async () => {

@@ -131,7 +131,10 @@ export default function CameraCaptureScreen({ navigation }: Props) {
   // the user of refusing something they were never asked.
   if (permission === null) {
     return (
-      <SafeAreaView style={[styles.fill, { backgroundColor: theme.colors.surface }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.fill, { backgroundColor: theme.colors.surface }]}
+        edges={['top']}
+      >
         <View style={[styles.centred, { padding: theme.gutter }]}>
           <Text variant="body" color="muted">
             Preparing the camera…
@@ -143,13 +146,16 @@ export default function CameraCaptureScreen({ navigation }: Props) {
 
   if (!permission.granted) {
     return (
-      <SafeAreaView style={[styles.fill, { backgroundColor: theme.colors.surface }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.fill, { backgroundColor: theme.colors.surface }]}
+        edges={['top']}
+      >
         <View style={[styles.centred, { padding: theme.gutter, gap: theme.spacing[4] }]}>
           <Text style={styles.glyph}>📷</Text>
           <Text variant="h1">Camera access</Text>
           <Text variant="body" color="muted" style={styles.centredText}>
-            Stourify uses the camera to capture the spots you share. Photos stay on this device until
-            you publish them.
+            Stourify uses the camera to capture the spots you share. Photos stay on this device
+            until you publish them.
           </Text>
           {error !== null ? (
             <Text variant="caption" style={{ color: theme.colors.danger }}>

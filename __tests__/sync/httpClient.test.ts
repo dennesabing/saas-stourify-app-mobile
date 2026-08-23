@@ -1,4 +1,10 @@
-import { splitApiUrl, syncHttpClient, setSyncAuthRejectionHandler, resetSyncAuthGuard, SYNC_TIMEOUT_MS } from '@/sync/httpClient'
+import {
+  splitApiUrl,
+  syncHttpClient,
+  setSyncAuthRejectionHandler,
+  resetSyncAuthGuard,
+  SYNC_TIMEOUT_MS,
+} from '@/sync/httpClient'
 import { useAuthStore } from '@/shared/store/auth'
 
 jest.mock('expo-secure-store', () => ({
@@ -66,7 +72,9 @@ describe('the sync client', () => {
     setSyncAuthRejectionHandler(onRejection)
 
     global.fetch = jest.fn(() =>
-      Promise.resolve(new Response(JSON.stringify({ message: 'Unauthenticated.' }), { status: 401 })),
+      Promise.resolve(
+        new Response(JSON.stringify({ message: 'Unauthenticated.' }), { status: 401 }),
+      ),
     ) as unknown as typeof fetch
 
     await expect(syncHttpClient.get('/stourify/sync/delta')).rejects.toThrow()
@@ -81,7 +89,9 @@ describe('the sync client', () => {
     setSyncAuthRejectionHandler(onRejection)
 
     global.fetch = jest.fn(() =>
-      Promise.resolve(new Response(JSON.stringify({ message: 'Unauthenticated.' }), { status: 401 })),
+      Promise.resolve(
+        new Response(JSON.stringify({ message: 'Unauthenticated.' }), { status: 401 }),
+      ),
     ) as unknown as typeof fetch
 
     await expect(syncHttpClient.get('/stourify/sync/delta')).rejects.toThrow()

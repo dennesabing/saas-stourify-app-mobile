@@ -39,7 +39,11 @@ const HOST_TABLES: Record<string, string> = {
  * the local write and the push preserves it, so the uuid is valid the moment
  * the row's local `_status` reads `synced` — never before.
  */
-async function isHostAcked(database: Database, hostType: string, hostUuid: string): Promise<boolean> {
+async function isHostAcked(
+  database: Database,
+  hostType: string,
+  hostUuid: string,
+): Promise<boolean> {
   const table = HOST_TABLES[hostType]
   if (table === undefined) return false
 
@@ -92,7 +96,10 @@ async function deleteLocalFile(path: string): Promise<void> {
  * the pull the way a rejected row does.
  */
 export async function drainPendingMedia(database: Database): Promise<MediaDrainOutcome> {
-  const rows = await database.get<PendingMedia>('pending_media').query(Q.where('state', 'pending')).fetch()
+  const rows = await database
+    .get<PendingMedia>('pending_media')
+    .query(Q.where('state', 'pending'))
+    .fetch()
 
   if (rows.length === 0) return IDLE_MEDIA_DRAIN
 

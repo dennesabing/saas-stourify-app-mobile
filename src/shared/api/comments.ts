@@ -31,12 +31,17 @@ export async function deleteComment(commentUuid: string): Promise<void> {
  * posts already have (STOURIFY-146; `specs/2026-08-22-spot-about-design.md`
  * §2.3).
  */
-export async function getSpotAboutComments(spotAboutUuid: string): Promise<PaginatedResponse<Comment>> {
+export async function getSpotAboutComments(
+  spotAboutUuid: string,
+): Promise<PaginatedResponse<Comment>> {
   const res = await client.get(`/spot-abouts/${spotAboutUuid}/comments`)
   return res.data
 }
 
-export async function createSpotAboutComment(spotAboutUuid: string, body: string): Promise<Comment> {
+export async function createSpotAboutComment(
+  spotAboutUuid: string,
+  body: string,
+): Promise<Comment> {
   const res = await client.post(`/spot-abouts/${spotAboutUuid}/comments`, { body })
   return res.data.data
 }

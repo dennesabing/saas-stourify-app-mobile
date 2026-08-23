@@ -100,9 +100,7 @@ export default function MapScreen({ navigation }: Props) {
   const pins = useMemo<MapPin[]>(
     () =>
       spots
-        .filter(
-          (spot) => typeof spot.latitude === 'number' && typeof spot.longitude === 'number',
-        )
+        .filter((spot) => typeof spot.latitude === 'number' && typeof spot.longitude === 'number')
         .map((spot) => ({
           id: spot.uuid,
           coordinate: { latitude: spot.latitude, longitude: spot.longitude },

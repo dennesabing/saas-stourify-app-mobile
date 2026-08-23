@@ -217,6 +217,11 @@ export default function MapCanvas({
 
 const styles = StyleSheet.create({
   container: { flex: 1, overflow: 'hidden' },
-  recenter: { position: 'absolute', alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  recenter: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
   peek: { position: 'absolute' },
 })

@@ -79,7 +79,10 @@ export default function WriteReviewScreen({ route, navigation }: Props) {
               justifyContent: 'center',
             }}
           >
-            <Text variant="h1" style={{ color: rating >= value ? theme.colors.accent2 : theme.colors.hairline }}>
+            <Text
+              variant="h1"
+              style={{ color: rating >= value ? theme.colors.accent2 : theme.colors.hairline }}
+            >
               ★
             </Text>
           </Pressable>

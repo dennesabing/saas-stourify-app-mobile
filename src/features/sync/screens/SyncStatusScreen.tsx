@@ -180,7 +180,11 @@ export default function SyncStatusScreen({ navigation }: Props) {
               Pending uploads
             </Text>
             {pending.map((row) => (
-              <SyncQueueRow key={`pending-${row.tableName}-${row.id}`} variant="pending" row={row} />
+              <SyncQueueRow
+                key={`pending-${row.tableName}-${row.id}`}
+                variant="pending"
+                row={row}
+              />
             ))}
           </View>
         ) : null}

@@ -34,7 +34,14 @@ jest.mock('expo-file-system', () => {
 
 async function seedPendingMedia(
   database: Database,
-  overrides: Partial<{ id: string; filename: string; state: string; attempts: number; lastError: string | null; localPath: string }> = {},
+  overrides: Partial<{
+    id: string
+    filename: string
+    state: string
+    attempts: number
+    lastError: string | null
+    localPath: string
+  }> = {},
 ): Promise<PendingMedia> {
   const seed = {
     id: 'media-1',
@@ -122,7 +129,10 @@ it('retrying a row clears its failure and runs a cycle', async () => {
   const database = createTestDatabase()
   await seedSpot(database, { uuid: 'spot-1', title: 'Hidden Cove' })
   await upsertSyncFailure(database, {
-    recordId: 'spot-1', tableName: 'sto_spots', reason: 'validation', lastError: '{}',
+    recordId: 'spot-1',
+    tableName: 'sto_spots',
+    reason: 'validation',
+    lastError: '{}',
   })
 
   render(
@@ -144,7 +154,10 @@ it('discarding asks first, then destroys the row permanently', async () => {
   const database = createTestDatabase()
   await seedSpot(database, { uuid: 'spot-1', title: 'Hidden Cove' })
   await upsertSyncFailure(database, {
-    recordId: 'spot-1', tableName: 'sto_spots', reason: 'validation', lastError: '{}',
+    recordId: 'spot-1',
+    tableName: 'sto_spots',
+    reason: 'validation',
+    lastError: '{}',
   })
 
   const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
@@ -175,7 +188,10 @@ it('retry all clears every failure and runs a cycle', async () => {
   const database = createTestDatabase()
   await seedSpot(database, { uuid: 'spot-1' })
   await upsertSyncFailure(database, {
-    recordId: 'spot-1', tableName: 'sto_spots', reason: 'validation', lastError: '{}',
+    recordId: 'spot-1',
+    tableName: 'sto_spots',
+    reason: 'validation',
+    lastError: '{}',
   })
 
   render(
@@ -271,7 +287,12 @@ it('discarding a photo deletes the local file as well as the row', async () => {
 
 it('retrying a failed photo resets it to pending and runs a cycle', async () => {
   const database = createTestDatabase()
-  await seedPendingMedia(database, { filename: 'cove.png', state: 'failed', attempts: 1, lastError: 'boom' })
+  await seedPendingMedia(database, {
+    filename: 'cove.png',
+    state: 'failed',
+    attempts: 1,
+    lastError: 'boom',
+  })
 
   render(
     <TestProviders database={database}>

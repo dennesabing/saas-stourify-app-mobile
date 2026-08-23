@@ -52,7 +52,11 @@ describe('serializeForPush', () => {
 
   it('falls back to the local-only city_uuid column when the city is not local', async () => {
     const database = createTestDatabase()
-    const spot = await seedSpot(database, { uuid: 'spot-fallback', cityId: 41, cityUuid: 'city-not-local' })
+    const spot = await seedSpot(database, {
+      uuid: 'spot-fallback',
+      cityId: 41,
+      cityUuid: 'city-not-local',
+    })
 
     const row = await serializeForPush(database, 'sto_spots', spot)
 
@@ -100,7 +104,12 @@ describe('serializeForPush', () => {
 
     const row = await serializeForPush(database, 'sto_reviews', review)
 
-    expect(row).toEqual({ uuid: 'review-1', spot_uuid: 'spot-reviewed', rating: 5, body: 'Worth the hike.' })
+    expect(row).toEqual({
+      uuid: 'review-1',
+      spot_uuid: 'spot-reviewed',
+      rating: 5,
+      body: 'Worth the hike.',
+    })
   })
 
   it('omits a cleared nullable field on a created row (nothing to clear yet)', async () => {
@@ -112,7 +121,7 @@ describe('serializeForPush', () => {
     expect('description' in row).toBe(false)
   })
 
-  it('sends an explicit null for a cleared nullable field on an updated row, so SpotUpdateRequest\'s sometimes|nullable rule actually clears the column', async () => {
+  it("sends an explicit null for a cleared nullable field on an updated row, so SpotUpdateRequest's sometimes|nullable rule actually clears the column", async () => {
     const database = createTestDatabase()
     const spot = await seedSpot(database, { uuid: 'spot-cleared-description' })
     await markSynced(database, spot)
@@ -295,8 +304,18 @@ describe('the sync_failures lifecycle', () => {
   it('creates a failure row, then bumps attempts on the next one', async () => {
     const database = createTestDatabase()
 
-    await upsertSyncFailure(database, { recordId: 'spot-1', tableName: 'sto_spots', reason: 'error', lastError: 'boom' })
-    await upsertSyncFailure(database, { recordId: 'spot-1', tableName: 'sto_spots', reason: 'error', lastError: 'boom again' })
+    await upsertSyncFailure(database, {
+      recordId: 'spot-1',
+      tableName: 'sto_spots',
+      reason: 'error',
+      lastError: 'boom',
+    })
+    await upsertSyncFailure(database, {
+      recordId: 'spot-1',
+      tableName: 'sto_spots',
+      reason: 'error',
+      lastError: 'boom again',
+    })
 
     const failures = await listSyncFailures(database)
 
@@ -308,9 +327,24 @@ describe('the sync_failures lifecycle', () => {
   it('excludes validation and forbidden rows from the next drain, but not error rows', async () => {
     const database = createTestDatabase()
 
-    await upsertSyncFailure(database, { recordId: 'spot-v', tableName: 'sto_spots', reason: 'validation', lastError: 'title required' })
-    await upsertSyncFailure(database, { recordId: 'spot-f', tableName: 'sto_spots', reason: 'forbidden', lastError: 'not yours' })
-    await upsertSyncFailure(database, { recordId: 'spot-e', tableName: 'sto_spots', reason: 'error', lastError: 'duplicate key' })
+    await upsertSyncFailure(database, {
+      recordId: 'spot-v',
+      tableName: 'sto_spots',
+      reason: 'validation',
+      lastError: 'title required',
+    })
+    await upsertSyncFailure(database, {
+      recordId: 'spot-f',
+      tableName: 'sto_spots',
+      reason: 'forbidden',
+      lastError: 'not yours',
+    })
+    await upsertSyncFailure(database, {
+      recordId: 'spot-e',
+      tableName: 'sto_spots',
+      reason: 'error',
+      lastError: 'duplicate key',
+    })
 
     const excluded = await loadExcludedRecordIds(database)
 
@@ -324,7 +358,12 @@ describe('the sync_failures lifecycle', () => {
 
   it('clearing a failure puts the row back in the drain', async () => {
     const database = createTestDatabase()
-    await upsertSyncFailure(database, { recordId: 'spot-v', tableName: 'sto_spots', reason: 'validation', lastError: 'title required' })
+    await upsertSyncFailure(database, {
+      recordId: 'spot-v',
+      tableName: 'sto_spots',
+      reason: 'validation',
+      lastError: 'title required',
+    })
 
     await clearSyncFailure(database, 'spot-v')
 

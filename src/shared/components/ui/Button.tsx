@@ -83,7 +83,11 @@ export default function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'secondary' || variant === 'ghost' ? theme.colors.primary : theme.colors.onButton}
+          color={
+            variant === 'secondary' || variant === 'ghost'
+              ? theme.colors.primary
+              : theme.colors.onButton
+          }
         />
       ) : (
         <View style={styles.content}>

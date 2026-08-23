@@ -9,7 +9,10 @@ import type PendingMedia from '@/db/models/PendingMedia'
 
 jest.mock('@/shared/api/media', () => ({
   requestUploadUrl: jest.fn(async () => {
-    throw Object.assign(new Error('stuck upload'), { isAxiosError: true, response: { status: 500, data: {} } })
+    throw Object.assign(new Error('stuck upload'), {
+      isAxiosError: true,
+      response: { status: 500, data: {} },
+    })
   }),
   putFile: jest.fn(),
   attachMedia: jest.fn(),
@@ -164,7 +167,16 @@ it('SKIPS the pull when a row is left un-acked, so the local edit survives', asy
   const get = jest.fn(async () => ({ data: DELTA_THAT_WOULD_CLOBBER }))
   const post = jest.fn(async () => ({
     data: {
-      results: [{ table: 'sto_spots', uuid: 'spot-local-edit', op: 'updated', status: 'rejected', reason: 'validation', errors: { title: ['nope'] } }],
+      results: [
+        {
+          table: 'sto_spots',
+          uuid: 'spot-local-edit',
+          op: 'updated',
+          status: 'rejected',
+          reason: 'validation',
+          errors: { title: ['nope'] },
+        },
+      ],
       server_time: 'now',
     },
   }))
@@ -191,7 +203,11 @@ it('skips the pull on a network failure and leaves the cursor alone', async () =
     throw error
   })
 
-  const outcome = await runSyncCycle({ database, client: { get, post } as any, trigger: 'connectivity' })
+  const outcome = await runSyncCycle({
+    database,
+    client: { get, post } as any,
+    trigger: 'connectivity',
+  })
 
   expect(get).not.toHaveBeenCalled()
   expect(outcome.pulled).toBe(false)
@@ -230,7 +246,16 @@ it('publishes queue depth, failures and last-synced into the status store', asyn
 
   const post = jest.fn(async () => ({
     data: {
-      results: [{ table: 'sto_spots', uuid: 'spot-status', op: 'created', status: 'rejected', reason: 'validation', errors: { title: ['too short'] } }],
+      results: [
+        {
+          table: 'sto_spots',
+          uuid: 'spot-status',
+          op: 'created',
+          status: 'rejected',
+          reason: 'validation',
+          errors: { title: ['too short'] },
+        },
+      ],
       server_time: 'now',
     },
   }))
@@ -250,7 +275,10 @@ it('stamps lastSyncedAt only when the cycle both drained and pulled', async () =
 
   await runSyncCycle({
     database,
-    client: { get: jest.fn(async () => ({ data: { server_time: 'now' } })), post: jest.fn() } as any,
+    client: {
+      get: jest.fn(async () => ({ data: { server_time: 'now' } })),
+      post: jest.fn(),
+    } as any,
     trigger: 'login',
   })
 
@@ -266,7 +294,11 @@ it('resets phase to idle and releases the mutex when an ordinary error escapes t
   })
 
   await expect(
-    runSyncCycle({ database, client: { get: jest.fn(), post: jest.fn() } as any, trigger: 'manual' }),
+    runSyncCycle({
+      database,
+      client: { get: jest.fn(), post: jest.fn() } as any,
+      trigger: 'manual',
+    }),
   ).rejects.toThrow('boom: local read failed')
 
   expect(isSyncInFlight()).toBe(false)
@@ -276,7 +308,11 @@ it('resets phase to idle and releases the mutex when an ordinary error escapes t
 
   // A subsequent cycle must be able to start — the mutex was not left held.
   const get = jest.fn(async () => ({ data: { server_time: 'now' } }))
-  const outcome = await runSyncCycle({ database, client: { get, post: jest.fn() } as any, trigger: 'manual' })
+  const outcome = await runSyncCycle({
+    database,
+    client: { get, post: jest.fn() } as any,
+    trigger: 'manual',
+  })
   expect(outcome.skipped).toBeNull()
   expect(get).toHaveBeenCalledTimes(1)
 })
@@ -296,7 +332,11 @@ it('an empty outbox with an offline pull leaves lastError untouched — only off
   })
   const post = jest.fn()
 
-  const outcome = await runSyncCycle({ database, client: { get, post } as any, trigger: 'connectivity' })
+  const outcome = await runSyncCycle({
+    database,
+    client: { get, post } as any,
+    trigger: 'connectivity',
+  })
 
   expect(post).not.toHaveBeenCalled()
   expect(get).toHaveBeenCalledTimes(1)
@@ -319,7 +359,11 @@ it('clears a stale offline flag once a later drain succeeds over the network, ev
     throw error
   })
 
-  await runSyncCycle({ database, client: { get: jest.fn(), post: failingPost } as any, trigger: 'connectivity' })
+  await runSyncCycle({
+    database,
+    client: { get: jest.fn(), post: failingPost } as any,
+    trigger: 'connectivity',
+  })
   expect(useSyncStatusStore.getState().offline).toBe(true)
 
   // Cycle 2: the POST itself succeeds (proof of connectivity) but the row it
@@ -327,13 +371,26 @@ it('clears a stale offline flag once a later drain succeeds over the network, ev
   // the pull is skipped, but `offline` must not stay stuck at `true`.
   const post2 = jest.fn(async () => ({
     data: {
-      results: [{ table: 'sto_spots', uuid: 'spot-flaky', op: 'created', status: 'rejected', reason: 'validation', errors: {} }],
+      results: [
+        {
+          table: 'sto_spots',
+          uuid: 'spot-flaky',
+          op: 'created',
+          status: 'rejected',
+          reason: 'validation',
+          errors: {},
+        },
+      ],
       server_time: 'now',
     },
   }))
   const get2 = jest.fn()
 
-  const outcome = await runSyncCycle({ database, client: { get: get2, post: post2 } as any, trigger: 'manual' })
+  const outcome = await runSyncCycle({
+    database,
+    client: { get: get2, post: post2 } as any,
+    trigger: 'manual',
+  })
 
   expect(post2).toHaveBeenCalledTimes(1)
   expect(get2).not.toHaveBeenCalled()
@@ -397,7 +454,11 @@ it('STOURIFY-29: a pull that fails with a real server error does not hold the ph
     throw new Error('Request failed with status code 500')
   })
 
-  const outcome = await runSyncCycle({ database, client: { get, post: jest.fn() } as any, trigger: 'connectivity' })
+  const outcome = await runSyncCycle({
+    database,
+    client: { get, post: jest.fn() } as any,
+    trigger: 'connectivity',
+  })
 
   expect(get).toHaveBeenCalledTimes(1)
   expect(outcome.pulled).toBe(false)
@@ -413,7 +474,11 @@ it('STOURIFY-29: a pull that fails on a dropped radio does not hold the photo qu
     throw networkError()
   })
 
-  const outcome = await runSyncCycle({ database, client: { get, post: jest.fn() } as any, trigger: 'connectivity' })
+  const outcome = await runSyncCycle({
+    database,
+    client: { get, post: jest.fn() } as any,
+    trigger: 'connectivity',
+  })
 
   expect(outcome.pulled).toBe(false)
   expect(useSyncStatusStore.getState().offline).toBe(true)
@@ -435,7 +500,16 @@ it('STOURIFY-29: one rejected row in the outbox does not hold the photo queue ei
   const get = jest.fn()
   const post = jest.fn(async () => ({
     data: {
-      results: [{ table: 'sto_spots', uuid: 'spot-rejected', op: 'created', status: 'rejected', reason: 'validation', errors: {} }],
+      results: [
+        {
+          table: 'sto_spots',
+          uuid: 'spot-rejected',
+          op: 'created',
+          status: 'rejected',
+          reason: 'validation',
+          errors: {},
+        },
+      ],
       server_time: 'now',
     },
   }))
@@ -452,7 +526,11 @@ it('STOURIFY-29: the photo phase never changes what the cycle reports', async ()
   await seedSyncedSpotWithWaitingPhoto(database, 'media-quiet')
 
   const get = jest.fn(async () => ({ data: { server_time: 'now' } }))
-  const outcome = await runSyncCycle({ database, client: { get, post: jest.fn() } as any, trigger: 'manual' })
+  const outcome = await runSyncCycle({
+    database,
+    client: { get, post: jest.fn() } as any,
+    trigger: 'manual',
+  })
 
   // The photo failed with a `500`, and the cycle still reports a clean pull.
   // Photo trouble surfaces on the Sync Status screen through the media counters,

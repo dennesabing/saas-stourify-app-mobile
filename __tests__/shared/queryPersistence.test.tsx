@@ -72,7 +72,11 @@ async function seedSavedCopy(value: string) {
         queries: online
           .getQueryCache()
           .getAll()
-          .map((query) => ({ queryKey: query.queryKey, queryHash: query.queryHash, state: query.state })),
+          .map((query) => ({
+            queryKey: query.queryKey,
+            queryHash: query.queryHash,
+            state: query.state,
+          })),
       },
     }),
   )
@@ -142,9 +146,12 @@ it('keeps a saved copy across THREE offline cold starts, not just the first', as
     const client = trackQueryClient(createQueryClient())
     const view = render(<ColdStart client={client} />)
 
-    await waitFor(() => {
-      expect(screen.getByTestId('probe')).toHaveTextContent('from-server')
-    }, { timeout: 5_000 })
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('probe')).toHaveTextContent('from-server')
+      },
+      { timeout: 5_000 },
+    )
 
     // Let the doomed refresh fail, so this launch ends holding data in an
     // `error` state — the exact shape the old rule refused to write back.

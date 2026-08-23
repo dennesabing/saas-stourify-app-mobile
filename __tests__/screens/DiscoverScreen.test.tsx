@@ -26,7 +26,13 @@ function makeSpot(overrides: Partial<Spot> = {}): Spot {
     longitude: 120.28,
     status: 'active',
     categories: ['Heritage'],
-    media: [{ uuid: 'media-1', url: 'https://cdn.test/original.jpg', thumb_url: 'https://cdn.test/thumb.jpg' }],
+    media: [
+      {
+        uuid: 'media-1',
+        url: 'https://cdn.test/original.jpg',
+        thumb_url: 'https://cdn.test/thumb.jpg',
+      },
+    ],
     rating_average: 4.5,
     reviews_count: 12,
     ...overrides,
@@ -53,7 +59,9 @@ beforeEach(() => {
 it('renders a grid of spots from the spot index', async () => {
   renderScreen()
 
-  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
+    timeout: 3000,
+  })
   expect(getSpots).toHaveBeenCalled()
 })
 
@@ -66,7 +74,9 @@ it('renders a grid of spots from the spot index', async () => {
 it('draws a cell from the thumbnail, not the full-size original', async () => {
   renderScreen()
 
-  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
+    timeout: 3000,
+  })
 
   // `expo-image` normalises whatever it is given into an array of sources, so
   // the assertion is against that shape rather than the object handed in.
@@ -82,12 +92,18 @@ it('draws a cell from the thumbnail, not the full-size original', async () => {
  */
 it('shows a placeholder rather than falling back to the original when no thumb exists', async () => {
   ;(getSpots as jest.Mock).mockResolvedValue(
-    page([makeSpot({ media: [{ uuid: 'media-1', url: 'https://cdn.test/original.jpg', thumb_url: null }] })]),
+    page([
+      makeSpot({
+        media: [{ uuid: 'media-1', url: 'https://cdn.test/original.jpg', thumb_url: null }],
+      }),
+    ]),
   )
 
   renderScreen()
 
-  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
+    timeout: 3000,
+  })
 
   // No sources at all — not one source pointing at the original.
   const image = screen.getAllByTestId('spot-card-image')[0]
@@ -105,7 +121,9 @@ it('shows a placeholder rather than falling back to the original when no thumb e
  * return deletes without anyone noticing, because online it never fires.
  */
 it('keeps showing cached spots when the network refuses', async () => {
-  const queryClient = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
+  const queryClient = trackQueryClient(
+    new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+  )
   queryClient.setQueryData(EXPLORE_SPOTS_QUERY_KEY, [makeSpot({ title: 'Cached Cove' })])
   ;(getSpots as jest.Mock).mockRejectedValue(new Error('Network request failed'))
 
@@ -118,7 +136,9 @@ it('keeps showing cached spots when the network refuses', async () => {
 it('opens a spot from its cell', async () => {
   renderScreen()
 
-  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
+    timeout: 3000,
+  })
   fireEvent.press(screen.getByText('Kalaklan Lighthouse'))
 
   expect(navigation.navigate).toHaveBeenCalledWith('SpotDetail', { spotId: 'spot-1' })
@@ -142,7 +162,9 @@ it('reports a genuinely empty index as empty', async () => {
 
   renderScreen()
 
-  await waitFor(() => expect(screen.getByText('Nothing to explore yet')).toBeTruthy(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByText('Nothing to explore yet')).toBeTruthy(), {
+    timeout: 3000,
+  })
 })
 
 /**
@@ -154,13 +176,17 @@ it('offers a retry when there is neither a network nor a cache', async () => {
 
   renderScreen()
 
-  await waitFor(() => expect(screen.getByText("Can't reach Stourify")).toBeTruthy(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByText("Can't reach Stourify")).toBeTruthy(), {
+    timeout: 3000,
+  })
 })
 
 it('keeps the search and nearby entry points', async () => {
   renderScreen()
 
-  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
+    timeout: 3000,
+  })
 
   fireEvent.press(screen.getByText('Spots near me'))
   expect(navigation.navigate).toHaveBeenCalledWith('Nearby')
@@ -179,7 +205,9 @@ it('keeps the search and nearby entry points', async () => {
 it('keeps the nearby entry point on one line', async () => {
   renderScreen()
 
-  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
+    timeout: 3000,
+  })
 
   expect(screen.getByText('Spots near me').props.numberOfLines).toBe(1)
   expect(screen.getByText('Search spots').props.numberOfLines).toBe(1)
@@ -192,7 +220,9 @@ it('keeps the nearby entry point on one line', async () => {
 it('opens the map from the grid', async () => {
   renderScreen()
 
-  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
+    timeout: 3000,
+  })
 
   fireEvent.press(screen.getByText('Explore on a map'))
   expect(navigation.navigate).toHaveBeenCalledWith('Map')

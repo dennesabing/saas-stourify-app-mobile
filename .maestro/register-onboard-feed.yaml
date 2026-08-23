@@ -20,34 +20,34 @@ appId: com.zivsluck.stourify
 - launchApp
 
 # Welcome -> Register
-- tapOn: "Get started"
+- tapOn: 'Get started'
 
 # Register
-- tapOn: "Your name"
-- inputText: "Maestro Explorer"
-- tapOn: "you@example.com"
+- tapOn: 'Your name'
+- inputText: 'Maestro Explorer'
+- tapOn: 'you@example.com'
 - inputText: "${'maestro-' + Date.now() + '@stourify.test'}"
-- tapOn: "At least 8 characters"
-- inputText: "Password123!"
-- tapOn: "Repeat your password"
-- inputText: "Password123!"
-- tapOn: "Create account"
+- tapOn: 'At least 8 characters'
+- inputText: 'Password123!'
+- tapOn: 'Repeat your password'
+- inputText: 'Password123!'
+- tapOn: 'Create account'
 
 # Onboarding: Permissions -> Interests -> Home city -> Follow suggestions,
 # skipping every optional step.
-- assertVisible: "Find spots near you"
-- tapOn: "Skip"
+- assertVisible: 'Find spots near you'
+- tapOn: 'Skip'
 
-- assertVisible: "What draws you to a place?"
-- tapOn: "Skip"
+- assertVisible: 'What draws you to a place?'
+- tapOn: 'Skip'
 
 - assertVisible:
-    text: "Where do you explore from?|Still syncing your cities"
-- tapOn: "Skip"
+    text: 'Where do you explore from?|Still syncing your cities'
+- tapOn: 'Skip'
 
-- assertVisible: "Find people to follow"
-- tapOn: "Skip"
+- assertVisible: 'Find people to follow'
+- tapOn: 'Skip'
 
 # Feed reached — a fresh account follows no one, so the feed's own empty
 # state is the honest, deterministic proof.
-- assertVisible: "Your feed is empty"
+- assertVisible: 'Your feed is empty'

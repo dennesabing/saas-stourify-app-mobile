@@ -76,7 +76,11 @@ jest.mock('@/features/media/api/draftMedia', () => {
   }
 })
 
-import { listDraftMedia, queueCapturedPhoto, MAX_DRAFT_PHOTOS } from '@/features/media/api/draftMedia'
+import {
+  listDraftMedia,
+  queueCapturedPhoto,
+  MAX_DRAFT_PHOTOS,
+} from '@/features/media/api/draftMedia'
 import { publishSpot } from '@/features/create/api/publishSpot'
 
 const DRAFT_INPUT = {
@@ -145,7 +149,11 @@ it('publishes a spot with no photos at all', async () => {
 it('trims the title and stores an empty description as null', async () => {
   const database = createTestDatabase()
 
-  const result = await publishSpot(database, { ...DRAFT_INPUT, title: '  Kalaklan Point  ', description: '   ' })
+  const result = await publishSpot(database, {
+    ...DRAFT_INPUT,
+    title: '  Kalaklan Point  ',
+    description: '   ',
+  })
 
   const spot = await database.get<Spot>('sto_spots').find(result.uuid)
   expect(spot.title).toBe('Kalaklan Point')

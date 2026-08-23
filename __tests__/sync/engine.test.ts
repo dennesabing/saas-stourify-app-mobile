@@ -1,4 +1,9 @@
-import { countDeltaRows, createObservedClient, createSanitizeRaw, createStourifySyncEngine } from '@/sync/engine'
+import {
+  countDeltaRows,
+  createObservedClient,
+  createSanitizeRaw,
+  createStourifySyncEngine,
+} from '@/sync/engine'
 import { createTestDatabase } from '../support/testDatabase'
 import type Spot from '@/db/models/Spot'
 import type City from '@/db/models/City'
@@ -10,7 +15,11 @@ const NETWORK_FAILURE_MARKER = Symbol.for('offline-sync-core.networkFailure')
 
 function networkError(message: string): Error {
   const error = new Error(message)
-  Object.defineProperty(error, NETWORK_FAILURE_MARKER, { value: true, enumerable: false, configurable: true })
+  Object.defineProperty(error, NETWORK_FAILURE_MARKER, {
+    value: true,
+    enumerable: false,
+    configurable: true,
+  })
   return error
 }
 
@@ -91,7 +100,14 @@ describe('createObservedClient', () => {
   it('records the row count of a successful pull', async () => {
     const observed = { rows: 0, error: null as unknown, networkFailure: false }
     const client = createObservedClient(
-      { get: async () => ({ data: { server_time: 'now', sto_spots: { created: [{ uuid: 'a' }], updated: [], deleted: [] } } as any }) },
+      {
+        get: async () => ({
+          data: {
+            server_time: 'now',
+            sto_spots: { created: [{ uuid: 'a' }], updated: [], deleted: [] },
+          } as any,
+        }),
+      },
       observed,
     )
 
@@ -173,8 +189,32 @@ describe('createStourifySyncEngine', () => {
 
   it('hard-deletes a uuid the server reports as deleted', async () => {
     const database = createTestDatabase()
-    const first = { server_time: 'a', sto_spots: { created: [{ id: 5, uuid: 'gone-1', title: 'Doomed', latitude: 1, longitude: 1, status: 'draft', is_verified: false, reviews_count: 0, saves_count: 0, created_at: '2026-07-01T00:00:00+00:00', updated_at: '2026-07-01T00:00:00+00:00' }], updated: [], deleted: [] } }
-    const second = { server_time: 'b', sto_spots: { created: [], updated: [], deleted: ['gone-1'] } }
+    const first = {
+      server_time: 'a',
+      sto_spots: {
+        created: [
+          {
+            id: 5,
+            uuid: 'gone-1',
+            title: 'Doomed',
+            latitude: 1,
+            longitude: 1,
+            status: 'draft',
+            is_verified: false,
+            reviews_count: 0,
+            saves_count: 0,
+            created_at: '2026-07-01T00:00:00+00:00',
+            updated_at: '2026-07-01T00:00:00+00:00',
+          },
+        ],
+        updated: [],
+        deleted: [],
+      },
+    }
+    const second = {
+      server_time: 'b',
+      sto_spots: { created: [], updated: [], deleted: ['gone-1'] },
+    }
 
     let call = 0
     const engine = createStourifySyncEngine(database, {

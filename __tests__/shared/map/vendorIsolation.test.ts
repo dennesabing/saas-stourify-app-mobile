@@ -50,9 +50,9 @@ describe(`the ${VENDOR} boundary`, () => {
   it('has that file actually present — a deleted wrapper must fail, not vacuously pass', () => {
     // Without this, renaming the wrapper away leaves an empty match set, and an
     // empty set trivially satisfies "nothing outside the wrapper imports it".
-    expect(sourceFiles(SRC).map((f) => relative(join(SRC, '..'), f).split(sep).join('/'))).toContain(
-      WRAPPER,
-    )
+    expect(
+      sourceFiles(SRC).map((f) => relative(join(SRC, '..'), f).split(sep).join('/')),
+    ).toContain(WRAPPER)
   })
 
   it('walks a source tree it actually found — an empty walk is a broken test, not a pass', () => {

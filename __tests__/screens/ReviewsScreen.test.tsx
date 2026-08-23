@@ -78,12 +78,18 @@ it('merges a queued local review with the server list, newest first, with a queu
   })
 
   // Newest (the just-written local review) renders before the older server one.
-  const bodies = screen.getAllByText(/Fresh local write\.|Stunning sunrise\./).map((n) => n.props.children)
+  const bodies = screen
+    .getAllByText(/Fresh local write\.|Stunning sunrise\./)
+    .map((n) => n.props.children)
   expect(bodies[0]).toBe('Fresh local write.')
 })
 
 it('shows an empty state when there are no reviews at all', async () => {
-  ;(getSpotReviews as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getSpotReviews as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
 
   renderScreen()
 

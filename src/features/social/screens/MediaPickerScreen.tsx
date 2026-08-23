@@ -26,11 +26,17 @@ export default function MediaPickerScreen({ navigation }: Props) {
         const assets = result.assets
         setSelected(assets)
         navigation.navigate('PostCompose', {
-          mediaAssets: assets.map((a) => ({ uri: a.uri, type: a.mimeType, fileName: a.fileName ?? undefined })),
+          mediaAssets: assets.map((a) => ({
+            uri: a.uri,
+            type: a.mimeType,
+            fileName: a.fileName ?? undefined,
+          })),
         })
       })
       .catch(() => {})
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [navigation])
 
   return (
@@ -44,7 +50,11 @@ export default function MediaPickerScreen({ navigation }: Props) {
           onPress={() => {
             if (selected.length > 0) {
               navigation.navigate('PostCompose', {
-                mediaAssets: selected.map((a) => ({ uri: a.uri, type: a.mimeType, fileName: a.fileName ?? undefined })),
+                mediaAssets: selected.map((a) => ({
+                  uri: a.uri,
+                  type: a.mimeType,
+                  fileName: a.fileName ?? undefined,
+                })),
               })
             }
           }}
@@ -62,7 +72,13 @@ export default function MediaPickerScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f1923' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingTop: 48 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    paddingTop: 48,
+  },
   cancel: { color: '#fff', fontSize: 20 },
   title: { color: '#fff', fontWeight: '700', fontSize: 16 },
   next: { color: '#00b4d8', fontWeight: '700' },

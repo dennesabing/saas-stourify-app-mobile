@@ -24,7 +24,10 @@ it('writes the review straight to the local database and never touches the netwo
   renderScreen(database)
 
   fireEvent.press(screen.getByLabelText('Rate 5 stars'))
-  fireEvent.changeText(screen.getByPlaceholderText('Share what made this spot worth the trip'), 'Incredible view.')
+  fireEvent.changeText(
+    screen.getByPlaceholderText('Share what made this spot worth the trip'),
+    'Incredible view.',
+  )
   fireEvent.press(screen.getByText('Post review'))
 
   await waitFor(async () => {

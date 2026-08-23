@@ -131,7 +131,12 @@ describe('drainPendingMedia', () => {
     const callOrder: string[] = []
     mockRequestUploadUrl.mockImplementation(async () => {
       callOrder.push('presign')
-      return { key: 'media-outbox/media-1.jpg', url: 'https://s3.example.com/x', headers: { 'Content-Type': 'image/jpeg' }, expires_at: 'later' }
+      return {
+        key: 'media-outbox/media-1.jpg',
+        url: 'https://s3.example.com/x',
+        headers: { 'Content-Type': 'image/jpeg' },
+        expires_at: 'later',
+      }
     })
     mockPutFile.mockImplementation(async () => {
       callOrder.push('put')
@@ -148,7 +153,11 @@ describe('drainPendingMedia', () => {
       expect.objectContaining({ modelType: 'stourify_spot', modelUuid: 'spot-uuid-1' }),
     )
     expect(mockAttachMedia).toHaveBeenCalledWith(
-      expect.objectContaining({ modelType: 'stourify_spot', modelUuid: 'spot-uuid-1', key: 'media-outbox/media-1.jpg' }),
+      expect.objectContaining({
+        modelType: 'stourify_spot',
+        modelUuid: 'spot-uuid-1',
+        key: 'media-outbox/media-1.jpg',
+      }),
     )
   })
 
@@ -165,7 +174,12 @@ describe('drainPendingMedia', () => {
 
     expect(markersOf(mockOutboxBytes)).toContain(MARKER.APP1_EXIF)
 
-    mockRequestUploadUrl.mockResolvedValueOnce({ key: 'k', url: 'https://s3.example.com/x', headers: {}, expires_at: 'later' })
+    mockRequestUploadUrl.mockResolvedValueOnce({
+      key: 'k',
+      url: 'https://s3.example.com/x',
+      headers: {},
+      expires_at: 'later',
+    })
     mockPutFile.mockResolvedValueOnce(undefined)
     mockAttachMedia.mockResolvedValueOnce({ uuid: 'media-uuid-1' })
 
@@ -179,9 +193,17 @@ describe('drainPendingMedia', () => {
     const database = createTestDatabase()
     const spot = await seedSpot(database, { uuid: 'spot-uuid-1' })
     await markSynced(database, spot)
-    await seedPendingMedia(database, { hostUuid: 'spot-uuid-1', localPath: 'file:///document-dir/media-outbox/media-1.jpg' })
+    await seedPendingMedia(database, {
+      hostUuid: 'spot-uuid-1',
+      localPath: 'file:///document-dir/media-outbox/media-1.jpg',
+    })
 
-    mockRequestUploadUrl.mockResolvedValueOnce({ key: 'k', url: 'https://s3.example.com/x', headers: {}, expires_at: 'later' })
+    mockRequestUploadUrl.mockResolvedValueOnce({
+      key: 'k',
+      url: 'https://s3.example.com/x',
+      headers: {},
+      expires_at: 'later',
+    })
     mockPutFile.mockResolvedValueOnce(undefined)
     mockAttachMedia.mockResolvedValueOnce({ uuid: 'media-uuid-1' })
 
@@ -198,7 +220,10 @@ describe('drainPendingMedia', () => {
     await markSynced(database, spot)
     await seedPendingMedia(database, { hostUuid: 'spot-uuid-1' })
 
-    const networkError = Object.assign(new Error('Network Error'), { isAxiosError: true, request: {} })
+    const networkError = Object.assign(new Error('Network Error'), {
+      isAxiosError: true,
+      request: {},
+    })
     mockRequestUploadUrl.mockRejectedValueOnce(networkError)
 
     const outcome = await drainPendingMedia(database)
@@ -219,11 +244,19 @@ describe('drainPendingMedia', () => {
     await markSynced(database, spot)
     await seedPendingMedia(database, { hostUuid: 'spot-uuid-1' })
 
-    mockRequestUploadUrl.mockResolvedValueOnce({ key: 'k', url: 'https://s3.example.com/x', headers: {}, expires_at: 'later' })
+    mockRequestUploadUrl.mockResolvedValueOnce({
+      key: 'k',
+      url: 'https://s3.example.com/x',
+      headers: {},
+      expires_at: 'later',
+    })
     mockPutFile.mockResolvedValueOnce(undefined)
     const rejection = Object.assign(new Error('Request failed with status code 422'), {
       isAxiosError: true,
-      response: { status: 422, data: { message: 'The file exceeds the maximum size.', errors: { size: ['too large'] } } },
+      response: {
+        status: 422,
+        data: { message: 'The file exceeds the maximum size.', errors: { size: ['too large'] } },
+      },
     })
     mockAttachMedia.mockRejectedValueOnce(rejection)
 
@@ -256,13 +289,20 @@ describe('drainPendingMedia', () => {
     await markSynced(database, spot)
     await seedPendingMedia(database, { id: 'media-1', hostUuid: 'spot-uuid-1' })
 
-    mockRequestUploadUrl.mockResolvedValueOnce({ key: 'uploads/pending/a/file.jpg', url: 'https://s3.example.com/x', headers: {}, expires_at: 'later' })
+    mockRequestUploadUrl.mockResolvedValueOnce({
+      key: 'uploads/pending/a/file.jpg',
+      url: 'https://s3.example.com/x',
+      headers: {},
+      expires_at: 'later',
+    })
     mockPutFile.mockResolvedValueOnce(undefined)
     mockAttachMedia.mockResolvedValueOnce({ uuid: 'media-uuid-1' })
 
     await drainPendingMedia(database)
 
-    expect(mockAttachMedia).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: 'media-1' }))
+    expect(mockAttachMedia).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'media-1' }),
+    )
   })
 
   it('reproduces the duplicate: a lost attach RESPONSE is retried next cycle under the same idempotency key', async () => {
@@ -276,13 +316,21 @@ describe('drainPendingMedia', () => {
     let presignCount = 0
     mockRequestUploadUrl.mockImplementation(async () => {
       presignCount += 1
-      return { key: `uploads/pending/attempt-${presignCount}/file.jpg`, url: 'https://s3.example.com/x', headers: {}, expires_at: 'later' }
+      return {
+        key: `uploads/pending/attempt-${presignCount}/file.jpg`,
+        url: 'https://s3.example.com/x',
+        headers: {},
+        expires_at: 'later',
+      }
     })
     mockPutFile.mockResolvedValue(undefined)
 
     // Cycle 1: the server committed, but the reply never came back. axios
     // reports no `response`, so `isMediaNetworkFailure` is true.
-    const lostResponse = Object.assign(new Error('timeout of 0ms exceeded'), { isAxiosError: true, request: {} })
+    const lostResponse = Object.assign(new Error('timeout of 0ms exceeded'), {
+      isAxiosError: true,
+      request: {},
+    })
     mockAttachMedia.mockRejectedValueOnce(lostResponse)
 
     const first = await drainPendingMedia(database)

@@ -1,1 +1,133 @@
-{"sto_spots":{"created":[{"id":1,"uuid":"5dd2ccb3-ddc8-45ff-aeea-e5db2b31e9fa","organization_id":1,"user_id":1,"city_id":1,"owner_user_id":null,"title":"Voluptatem Ratione Eum","slug":"voluptatem-ratione-eum-k1fz","description":"Autem in et non. Dolorem ut quia sequi atque. Consequatur eum deserunt sequi id maxime temporibus eius. Consequuntur est facere quas facere et qui.","latitude":9.725257,"longitude":118.942798,"address":"680 Crooks Branch Apt. 802\nHudsonmouth, ND 53774","categories":["coast","nature"],"hours":null,"status":"published","is_verified":false,"rating_average":2,"reviews_count":1,"saves_count":0,"created_at":"2026-07-28T05:09:34+00:00","updated_at":"2026-07-28T05:09:36+00:00","deleted_at":null}],"updated":[],"deleted":[]},"sto_reviews":{"created":[{"id":1,"uuid":"f2affce5-6beb-4de1-9a19-1167779bfa2c","organization_id":1,"user_id":1,"spot_id":1,"rating":2,"body":"Quidem sit voluptates voluptates reiciendis voluptatem qui vel. Sit libero eum eum consequuntur accusantium.","helpful_count":0,"created_at":"2026-07-28T05:09:35+00:00","updated_at":"2026-07-28T05:09:35+00:00","deleted_at":null}],"updated":[],"deleted":[]},"sto_wishlist_items":{"created":[{"id":1,"uuid":"9ab1683d-5280-44af-8c35-59e13f33f66f","organization_id":1,"user_id":1,"spot_id":1,"city_id":1,"note":null,"is_downloaded_offline":false,"created_at":"2026-07-28T05:09:37+00:00","updated_at":"2026-07-28T05:09:37+00:00"}],"updated":[],"deleted":[]},"sto_follows":{"created":[{"id":1,"uuid":"8d6e4864-4b87-4f6a-a51a-7aedf050ec0c","organization_id":1,"follower_id":1,"followee_id":10,"status":"active","accepted_at":"2026-07-28T05:09:40+00:00","created_at":"2026-07-28T05:09:40+00:00","updated_at":"2026-07-28T05:09:40+00:00"}],"updated":[],"deleted":[]},"sto_explorer_profiles":{"created":[{"id":1,"uuid":"dfb72d44-c671-439d-b769-3da7b3246d2e","organization_id":1,"user_id":1,"home_city_id":1,"username":"akonopelskiftnf","bio":"Voluptatem voluptas officiis ut eligendi soluta est.","website":null,"interests":["art","coffee","beaches"],"spots_count":0,"followers_count":0,"following_count":0,"is_private":false,"shows_location_on_spots":true,"created_at":"2026-07-28T05:09:38+00:00","updated_at":"2026-07-28T05:09:38+00:00"}],"updated":[],"deleted":[]},"sto_cities":{"created":[{"id":1,"uuid":"1b2fb8dd-f30c-4ffd-ad88-eafee405a01b","organization_id":1,"name":"General Santos","slug":"general-santos","region":"Soccsksargen","country":"PH","latitude":6.1164,"longitude":125.1716,"spot_count":0,"is_featured":true,"created_at":"2026-07-28T05:09:33+00:00","updated_at":"2026-07-28T05:09:33+00:00","deleted_at":null}],"updated":[],"deleted":[]},"server_time":"2026-07-28T05:10:08+00:00"}
+{
+  "sto_spots": {
+    "created": [
+      {
+        "id": 1,
+        "uuid": "5dd2ccb3-ddc8-45ff-aeea-e5db2b31e9fa",
+        "organization_id": 1,
+        "user_id": 1,
+        "city_id": 1,
+        "owner_user_id": null,
+        "title": "Voluptatem Ratione Eum",
+        "slug": "voluptatem-ratione-eum-k1fz",
+        "description": "Autem in et non. Dolorem ut quia sequi atque. Consequatur eum deserunt sequi id maxime temporibus eius. Consequuntur est facere quas facere et qui.",
+        "latitude": 9.725257,
+        "longitude": 118.942798,
+        "address": "680 Crooks Branch Apt. 802\nHudsonmouth, ND 53774",
+        "categories": ["coast", "nature"],
+        "hours": null,
+        "status": "published",
+        "is_verified": false,
+        "rating_average": 2,
+        "reviews_count": 1,
+        "saves_count": 0,
+        "created_at": "2026-07-28T05:09:34+00:00",
+        "updated_at": "2026-07-28T05:09:36+00:00",
+        "deleted_at": null
+      }
+    ],
+    "updated": [],
+    "deleted": []
+  },
+  "sto_reviews": {
+    "created": [
+      {
+        "id": 1,
+        "uuid": "f2affce5-6beb-4de1-9a19-1167779bfa2c",
+        "organization_id": 1,
+        "user_id": 1,
+        "spot_id": 1,
+        "rating": 2,
+        "body": "Quidem sit voluptates voluptates reiciendis voluptatem qui vel. Sit libero eum eum consequuntur accusantium.",
+        "helpful_count": 0,
+        "created_at": "2026-07-28T05:09:35+00:00",
+        "updated_at": "2026-07-28T05:09:35+00:00",
+        "deleted_at": null
+      }
+    ],
+    "updated": [],
+    "deleted": []
+  },
+  "sto_wishlist_items": {
+    "created": [
+      {
+        "id": 1,
+        "uuid": "9ab1683d-5280-44af-8c35-59e13f33f66f",
+        "organization_id": 1,
+        "user_id": 1,
+        "spot_id": 1,
+        "city_id": 1,
+        "note": null,
+        "is_downloaded_offline": false,
+        "created_at": "2026-07-28T05:09:37+00:00",
+        "updated_at": "2026-07-28T05:09:37+00:00"
+      }
+    ],
+    "updated": [],
+    "deleted": []
+  },
+  "sto_follows": {
+    "created": [
+      {
+        "id": 1,
+        "uuid": "8d6e4864-4b87-4f6a-a51a-7aedf050ec0c",
+        "organization_id": 1,
+        "follower_id": 1,
+        "followee_id": 10,
+        "status": "active",
+        "accepted_at": "2026-07-28T05:09:40+00:00",
+        "created_at": "2026-07-28T05:09:40+00:00",
+        "updated_at": "2026-07-28T05:09:40+00:00"
+      }
+    ],
+    "updated": [],
+    "deleted": []
+  },
+  "sto_explorer_profiles": {
+    "created": [
+      {
+        "id": 1,
+        "uuid": "dfb72d44-c671-439d-b769-3da7b3246d2e",
+        "organization_id": 1,
+        "user_id": 1,
+        "home_city_id": 1,
+        "username": "akonopelskiftnf",
+        "bio": "Voluptatem voluptas officiis ut eligendi soluta est.",
+        "website": null,
+        "interests": ["art", "coffee", "beaches"],
+        "spots_count": 0,
+        "followers_count": 0,
+        "following_count": 0,
+        "is_private": false,
+        "shows_location_on_spots": true,
+        "created_at": "2026-07-28T05:09:38+00:00",
+        "updated_at": "2026-07-28T05:09:38+00:00"
+      }
+    ],
+    "updated": [],
+    "deleted": []
+  },
+  "sto_cities": {
+    "created": [
+      {
+        "id": 1,
+        "uuid": "1b2fb8dd-f30c-4ffd-ad88-eafee405a01b",
+        "organization_id": 1,
+        "name": "General Santos",
+        "slug": "general-santos",
+        "region": "Soccsksargen",
+        "country": "PH",
+        "latitude": 6.1164,
+        "longitude": 125.1716,
+        "spot_count": 0,
+        "is_featured": true,
+        "created_at": "2026-07-28T05:09:33+00:00",
+        "updated_at": "2026-07-28T05:09:33+00:00",
+        "deleted_at": null
+      }
+    ],
+    "updated": [],
+    "deleted": []
+  },
+  "server_time": "2026-07-28T05:10:08+00:00"
+}

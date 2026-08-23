@@ -24,7 +24,12 @@ export default function PhotoGalleryScreen({ route, navigation }: Props) {
   const theme = useTheme()
   const [index, setIndex] = useState(0)
 
-  const { data: spot, isLoading, isError, refetch } = useQuery({
+  const {
+    data: spot,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['spot', spotId],
     queryFn: () => getSpot(spotId),
   })
@@ -134,7 +139,11 @@ export default function PhotoGalleryScreen({ route, navigation }: Props) {
           <Skeleton height={height} radius={0} />
         </View>
       ) : media.length === 0 ? (
-        <EmptyState icon="🖼" title="No photos yet" subtitle="This spot has no photos to show yet." />
+        <EmptyState
+          icon="🖼"
+          title="No photos yet"
+          subtitle="This spot has no photos to show yet."
+        />
       ) : (
         <>
           <FlatList

@@ -226,9 +226,7 @@ describe('Input', () => {
   })
 
   it('surfaces an error message and marks itself invalid', () => {
-    renderThemed(
-      <Input label="Email" value="" onChangeText={() => {}} error="Email is required" />,
-    )
+    renderThemed(<Input label="Email" value="" onChangeText={() => {}} error="Email is required" />)
 
     expect(screen.getByText('Email is required')).toBeTruthy()
   })
@@ -237,12 +235,7 @@ describe('Input', () => {
     const onChangeText = jest.fn()
 
     renderThemed(
-      <Input
-        label="Email"
-        placeholder="you@example.com"
-        value=""
-        onChangeText={onChangeText}
-      />,
+      <Input label="Email" placeholder="you@example.com" value="" onChangeText={onChangeText} />,
     )
 
     fireEvent.changeText(screen.getByPlaceholderText('you@example.com'), 'typed')

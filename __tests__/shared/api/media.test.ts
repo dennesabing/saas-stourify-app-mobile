@@ -134,7 +134,11 @@ describe('attachMedia', () => {
     mockClientPost.mockRejectedValueOnce(error)
 
     await expect(
-      attachMedia({ key: 'media-outbox/big.jpg', modelType: 'stourify_spot', modelUuid: 'spot-uuid-1' }),
+      attachMedia({
+        key: 'media-outbox/big.jpg',
+        modelType: 'stourify_spot',
+        modelUuid: 'spot-uuid-1',
+      }),
     ).rejects.toMatchObject({
       response: { status: 422, data: { message: 'The file exceeds the maximum size.' } },
     })

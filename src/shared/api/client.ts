@@ -55,7 +55,7 @@ client.interceptors.response.use(
       authRejectionHandler?.()
     }
     return Promise.reject(error)
-  }
+  },
 )
 
 export function extractApiError(error: unknown): string {

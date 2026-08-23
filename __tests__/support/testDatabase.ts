@@ -57,7 +57,10 @@ const SPOT_DEFAULTS: SpotSeed = {
 }
 
 /** Creates a spot in `_status: 'created'` — the state a local offline write leaves it in. */
-export async function seedSpot(database: Database, overrides: Partial<SpotSeed> = {}): Promise<Spot> {
+export async function seedSpot(
+  database: Database,
+  overrides: Partial<SpotSeed> = {},
+): Promise<Spot> {
   const seed: SpotSeed = { ...SPOT_DEFAULTS, ...overrides }
 
   return database.write(async () =>
@@ -100,7 +103,10 @@ const CITY_DEFAULTS: CitySeed = {
   longitude: null,
 }
 
-export async function seedCity(database: Database, overrides: Partial<CitySeed> = {}): Promise<City> {
+export async function seedCity(
+  database: Database,
+  overrides: Partial<CitySeed> = {},
+): Promise<City> {
   const seed: CitySeed = { ...CITY_DEFAULTS, ...overrides }
 
   return database.write(async () =>

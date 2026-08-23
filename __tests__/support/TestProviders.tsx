@@ -37,9 +37,13 @@ const TEST_SAFE_AREA_METRICS: Metrics = {
  * appearance.
  */
 export function TestProviders({ database, children, queryClient }: Props) {
-  const client = queryClient ?? trackQueryClient(new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 } },
-  }))
+  const client =
+    queryClient ??
+    trackQueryClient(
+      new QueryClient({
+        defaultOptions: { queries: { retry: false, gcTime: 0 } },
+      }),
+    )
 
   return (
     <SafeAreaProvider initialMetrics={TEST_SAFE_AREA_METRICS}>

@@ -6,7 +6,12 @@ import { useAuthStore } from '@/shared/store/auth'
 import { navigateTo } from '@/shared/navigation/ref'
 import { queryClient as defaultQueryClient } from '@/shared/queryClient'
 import { createStourifySyncEngine } from './engine'
-import { resetSyncAuthGuard, setSyncAuthRejectionHandler, setSyncReachabilityHandler, syncHttpClient } from './httpClient'
+import {
+  resetSyncAuthGuard,
+  setSyncAuthRejectionHandler,
+  setSyncReachabilityHandler,
+  syncHttpClient,
+} from './httpClient'
 import { syncNow } from './scheduler'
 import { resetSyncStatus, useSyncStatusStore } from './status'
 

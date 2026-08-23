@@ -66,10 +66,34 @@ const GENSAN_VIEWER = { lat: 6.1164, lng: 125.1716 }
 
 const GENSAN_NEARBY_PAGE = {
   data: [
-    { uuid: 'plaza', title: 'Plaza Heneral Santos', latitude: 6.1164, longitude: 125.1716, distance_km: 0 },
-    { uuid: 'oval', title: 'Oval Plaza', latitude: 6.1264, longitude: 125.1716, distance_km: 1.113 },
-    { uuid: 'market', title: 'Bula Fish Port', latitude: 6.14, longitude: 125.1716, distance_km: 2.627 },
-    { uuid: 'lagao', title: 'Lagao Gymnasium', latitude: 6.1642, longitude: 125.1716, distance_km: 5.322 },
+    {
+      uuid: 'plaza',
+      title: 'Plaza Heneral Santos',
+      latitude: 6.1164,
+      longitude: 125.1716,
+      distance_km: 0,
+    },
+    {
+      uuid: 'oval',
+      title: 'Oval Plaza',
+      latitude: 6.1264,
+      longitude: 125.1716,
+      distance_km: 1.113,
+    },
+    {
+      uuid: 'market',
+      title: 'Bula Fish Port',
+      latitude: 6.14,
+      longitude: 125.1716,
+      distance_km: 2.627,
+    },
+    {
+      uuid: 'lagao',
+      title: 'Lagao Gymnasium',
+      latitude: 6.1642,
+      longitude: 125.1716,
+      distance_km: 5.322,
+    },
   ],
   links: {},
   meta: { current_page: 1, last_page: 1, total: 4 },

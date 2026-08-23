@@ -77,7 +77,10 @@ export default function FollowSuggestionsScreen({ navigation: _navigation }: Pro
   )
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.colors.surface }}
+      edges={['top', 'bottom']}
+    >
       <View style={{ padding: theme.gutter, gap: theme.spacing[3] }}>
         <Text variant="h1">Find people to follow</Text>
         <Input placeholder="Search people" value={query} onChangeText={setQuery} />
@@ -95,7 +98,13 @@ export default function FollowSuggestionsScreen({ navigation: _navigation }: Pro
         ItemSeparatorComponent={() => <View style={{ height: theme.spacing[3] }} />}
         ListEmptyComponent={
           !isFetching && debouncedQuery.trim().length >= 2
-            ? () => <EmptyState icon="🔍" title="No one found" subtitle="Try a different name or handle" />
+            ? () => (
+                <EmptyState
+                  icon="🔍"
+                  title="No one found"
+                  subtitle="Try a different name or handle"
+                />
+              )
             : null
         }
       />

@@ -276,7 +276,10 @@ export async function retryAllFailures(database: Database): Promise<void> {
  * `retryRecord`/`discardRecord`.
  */
 export async function listPendingMediaQueue(database: Database): Promise<PendingQueueRow[]> {
-  const rows = await database.get<PendingMedia>('pending_media').query(Q.where('state', 'pending')).fetch()
+  const rows = await database
+    .get<PendingMedia>('pending_media')
+    .query(Q.where('state', 'pending'))
+    .fetch()
 
   return rows
     .slice()
@@ -292,7 +295,10 @@ export async function listPendingMediaQueue(database: Database): Promise<Pending
 }
 
 export async function listFailedMediaQueue(database: Database): Promise<FailedQueueRow[]> {
-  const rows = await database.get<PendingMedia>('pending_media').query(Q.where('state', 'failed')).fetch()
+  const rows = await database
+    .get<PendingMedia>('pending_media')
+    .query(Q.where('state', 'failed'))
+    .fetch()
 
   return rows.map((row) => ({
     id: row.id,

@@ -12,7 +12,10 @@ beforeEach(() => {
 function renderScreen() {
   return render(
     <TestProviders database={createTestDatabase()}>
-      <CreateMenuScreen navigation={navigation} route={{ key: 'CreateMenu', name: 'CreateMenu' } as any} />
+      <CreateMenuScreen
+        navigation={navigation}
+        route={{ key: 'CreateMenu', name: 'CreateMenu' } as any}
+      />
     </TestProviders>,
   )
 }

@@ -138,7 +138,9 @@ export function stripImageMetadata(bytes: Uint8Array): Uint8Array {
 
   while (cursor < bytes.length) {
     if (bytes[cursor] !== MARKER_PREFIX) {
-      throw new MetadataStripError(`Expected a marker at byte ${cursor}, found 0x${bytes[cursor].toString(16)}.`)
+      throw new MetadataStripError(
+        `Expected a marker at byte ${cursor}, found 0x${bytes[cursor].toString(16)}.`,
+      )
     }
 
     // A run of `FF` bytes is legal padding before a marker. Walk past it, but
@@ -169,12 +171,16 @@ export function stripImageMetadata(bytes: Uint8Array): Uint8Array {
     }
 
     if (markerAt + 3 >= bytes.length) {
-      throw new MetadataStripError(`The block at byte ${markerAt} has no length — the file is truncated.`)
+      throw new MetadataStripError(
+        `The block at byte ${markerAt} has no length — the file is truncated.`,
+      )
     }
 
     const length = (bytes[markerAt + 2] << 8) | bytes[markerAt + 3]
     if (length < 2) {
-      throw new MetadataStripError(`The block at byte ${markerAt} declares an impossible length of ${length}.`)
+      throw new MetadataStripError(
+        `The block at byte ${markerAt} declares an impossible length of ${length}.`,
+      )
     }
 
     const end = markerAt + 2 + length

@@ -71,6 +71,9 @@ describe('createSpotAboutComment', () => {
   it('unwraps the single-record envelope, so the caller gets the comment itself', async () => {
     mockClientPost.mockResolvedValueOnce({ data: { data: { id: 'c-new', body: 'Thanks' } } })
 
-    await expect(createSpotAboutComment('about-1', 'Thanks')).resolves.toEqual({ id: 'c-new', body: 'Thanks' })
+    await expect(createSpotAboutComment('about-1', 'Thanks')).resolves.toEqual({
+      id: 'c-new',
+      body: 'Thanks',
+    })
   })
 })

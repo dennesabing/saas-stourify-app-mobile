@@ -68,8 +68,20 @@ function indentOf(commentId: string): number {
  */
 const postThread = {
   data: [
-    { id: 'c1', body: 'Great shot!', user: { id: 'u1', name: 'Ana Martinez' }, parent_id: null, created_at: new Date().toISOString() },
-    { id: 'c2', body: 'Agreed', user: { id: 'u2', name: 'Ben Cruz' }, parent_id: 'c1', created_at: new Date().toISOString() },
+    {
+      id: 'c1',
+      body: 'Great shot!',
+      user: { id: 'u1', name: 'Ana Martinez' },
+      parent_id: null,
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'c2',
+      body: 'Agreed',
+      user: { id: 'u2', name: 'Ben Cruz' },
+      parent_id: 'c1',
+      created_at: new Date().toISOString(),
+    },
   ],
   links: {},
   meta: { current_page: 1, last_page: 1, total: 2 },
@@ -139,7 +151,11 @@ describe('a failed comments request is not an empty thread', () => {
   })
 
   it('still says there are no comments when the request succeeds with none', async () => {
-    ;(getComments as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+    ;(getComments as jest.Mock).mockResolvedValue({
+      data: [],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 0 },
+    })
 
     renderScreen()
 
@@ -168,10 +184,18 @@ describe('a failed comments request is not an empty thread', () => {
     // Rows the reader could already read. The error branch lives inside
     // `ListEmptyComponent`, which never renders while rows exist — so a
     // failing refetch must not cover them.
-    const seeded = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
+    const seeded = trackQueryClient(
+      new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+    )
     seeded.setQueryData(['comments', 'post-1'], {
       data: [
-        { id: 'c1', body: 'Cached from earlier', user: { id: 'u1', name: 'Ana Martinez' }, parent_id: null, created_at: new Date().toISOString() },
+        {
+          id: 'c1',
+          body: 'Cached from earlier',
+          user: { id: 'u1', name: 'Ana Martinez' },
+          parent_id: null,
+          created_at: new Date().toISOString(),
+        },
       ],
       links: {},
       meta: { current_page: 1, last_page: 1, total: 1 },
@@ -188,7 +212,11 @@ describe('a failed comments request is not an empty thread', () => {
 })
 
 it('appends the new comment optimistically when posting', async () => {
-  ;(getComments as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+  ;(getComments as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
 
   let resolveCreate!: (value: unknown) => void
   ;(createComment as jest.Mock).mockReturnValue(
@@ -207,7 +235,13 @@ it('appends the new comment optimistically when posting', async () => {
   // Appears immediately, before the network call resolves.
   await waitFor(() => expect(screen.getByText('Nice spot')).toBeTruthy())
 
-  resolveCreate({ id: 'c3', body: 'Nice spot', user: { id: 'me', name: 'Me' }, parent_id: null, created_at: new Date().toISOString() })
+  resolveCreate({
+    id: 'c3',
+    body: 'Nice spot',
+    user: { id: 'me', name: 'Me' },
+    parent_id: null,
+    created_at: new Date().toISOString(),
+  })
 
   await waitFor(() => expect(createComment).toHaveBeenCalledWith('post-1', 'Nice spot'))
 })
@@ -242,9 +276,27 @@ describe('opened on a Spot About entry', () => {
    */
   const thread = {
     data: [
-      { id: 'c3', body: 'Only at weekends, in winter.', user: { id: 'u3', name: 'Cara Lim' }, parent_id: 'c1', created_at: new Date().toISOString() },
-      { id: 'c2', body: 'Confirmed, the barrier came down on us.', user: { id: 'u2', name: 'Ben Cruz' }, parent_id: null, created_at: new Date().toISOString() },
-      { id: 'c1', body: 'The car park closes at six.', user: { id: 'u1', name: 'Ana Martinez' }, parent_id: null, created_at: new Date().toISOString() },
+      {
+        id: 'c3',
+        body: 'Only at weekends, in winter.',
+        user: { id: 'u3', name: 'Cara Lim' },
+        parent_id: 'c1',
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 'c2',
+        body: 'Confirmed, the barrier came down on us.',
+        user: { id: 'u2', name: 'Ben Cruz' },
+        parent_id: null,
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: 'c1',
+        body: 'The car park closes at six.',
+        user: { id: 'u1', name: 'Ana Martinez' },
+        parent_id: null,
+        created_at: new Date().toISOString(),
+      },
     ],
     links: {},
     meta: { current_page: 1, last_page: 1, total: 3 },
@@ -318,7 +370,11 @@ describe('opened on a Spot About entry', () => {
   })
 
   it('says there are no replies when the request succeeds with none', async () => {
-    ;(getSpotAboutComments as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+    ;(getSpotAboutComments as jest.Mock).mockResolvedValue({
+      data: [],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 0 },
+    })
 
     renderAboutScreen('about-1')
 
@@ -327,7 +383,11 @@ describe('opened on a Spot About entry', () => {
   })
 
   it('shows a reply the moment it is sent, before the request settles', async () => {
-    ;(getSpotAboutComments as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
+    ;(getSpotAboutComments as jest.Mock).mockResolvedValue({
+      data: [],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 0 },
+    })
     ;(createSpotAboutComment as jest.Mock).mockReturnValue(new Promise(() => {}))
 
     renderAboutScreen('about-1')
@@ -353,10 +413,21 @@ describe('opened on a Spot About entry', () => {
    * first.
    */
   it('asks the About list to refetch, so the reply count behind it catches up', async () => {
-    ;(getSpotAboutComments as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
-    ;(createSpotAboutComment as jest.Mock).mockResolvedValue({ id: 'c9', body: 'Thanks', parent_id: null, created_at: new Date().toISOString() })
+    ;(getSpotAboutComments as jest.Mock).mockResolvedValue({
+      data: [],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 0 },
+    })
+    ;(createSpotAboutComment as jest.Mock).mockResolvedValue({
+      id: 'c9',
+      body: 'Thanks',
+      parent_id: null,
+      created_at: new Date().toISOString(),
+    })
 
-    const client = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
+    const client = trackQueryClient(
+      new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+    )
     const invalidate = jest.spyOn(client, 'invalidateQueries')
 
     renderAboutScreen('about-1', client)
@@ -367,15 +438,28 @@ describe('opened on a Spot About entry', () => {
     fireEvent.press(screen.getByLabelText('Post comment'))
 
     await waitFor(() =>
-      expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['spot-abouts'] })),
+      expect(invalidate).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: ['spot-abouts'] }),
+      ),
     )
   })
 
   it('does not touch the About list when the reply was on a post', async () => {
-    ;(getComments as jest.Mock).mockResolvedValue({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } })
-    ;(createComment as jest.Mock).mockResolvedValue({ id: 'c9', body: 'Nice', parent_id: null, created_at: new Date().toISOString() })
+    ;(getComments as jest.Mock).mockResolvedValue({
+      data: [],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 0 },
+    })
+    ;(createComment as jest.Mock).mockResolvedValue({
+      id: 'c9',
+      body: 'Nice',
+      parent_id: null,
+      created_at: new Date().toISOString(),
+    })
 
-    const client = trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
+    const client = trackQueryClient(
+      new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+    )
     const invalidate = jest.spyOn(client, 'invalidateQueries')
 
     renderScreen('post-1', client)
@@ -387,7 +471,9 @@ describe('opened on a Spot About entry', () => {
 
     await waitFor(() => expect(createComment).toHaveBeenCalled())
 
-    expect(invalidate).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['spot-abouts'] }))
+    expect(invalidate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['spot-abouts'] }),
+    )
   })
 })
 
@@ -411,8 +497,20 @@ function commentRowOrder(): string[] {
 
 const twoExistingComments = {
   data: [
-    { id: 'c1', body: 'Been there last summer', user: { id: 'u1', name: 'Ana Martinez' }, parent_id: null, created_at: new Date().toISOString() },
-    { id: 'c2', body: 'Worth the walk up', user: { id: 'u2', name: 'Ben Cruz' }, parent_id: null, created_at: new Date().toISOString() },
+    {
+      id: 'c1',
+      body: 'Been there last summer',
+      user: { id: 'u1', name: 'Ana Martinez' },
+      parent_id: null,
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 'c2',
+      body: 'Worth the walk up',
+      user: { id: 'u2', name: 'Ben Cruz' },
+      parent_id: null,
+      created_at: new Date().toISOString(),
+    },
   ],
   links: {},
   meta: { current_page: 1, last_page: 1, total: 2 },
@@ -443,7 +541,13 @@ it('puts a new comment at the TOP of a thread that already has comments', async 
 it('leaves the new comment at the top when the server’s own answer arrives', async () => {
   const serverAnswer = {
     data: [
-      { id: 'c3', body: 'Going next month', user: { id: 'me', name: 'Me' }, parent_id: null, created_at: new Date().toISOString() },
+      {
+        id: 'c3',
+        body: 'Going next month',
+        user: { id: 'me', name: 'Me' },
+        parent_id: null,
+        created_at: new Date().toISOString(),
+      },
       ...twoExistingComments.data,
     ],
     links: {},
@@ -483,7 +587,9 @@ it('leaves the new comment at the top when the server’s own answer arrives', a
   // "does not move" is a claim about two moments and asserting only the second
   // passes just as well when the row jumped in between — which is the whole
   // defect.
-  await waitFor(() => expect(commentRowOrder()).toEqual(['comment-row-c3', 'comment-row-c1', 'comment-row-c2']))
+  await waitFor(() =>
+    expect(commentRowOrder()).toEqual(['comment-row-c3', 'comment-row-c1', 'comment-row-c2']),
+  )
 })
 
 it('puts a new reply at the TOP of an About entry’s thread too', async () => {

@@ -83,7 +83,11 @@ const NETWORK_FAILURE_MARKER = Symbol.for('offline-sync-core.networkFailure')
 
 function networkFailure(): Error {
   const error = new Error('Network request failed')
-  Object.defineProperty(error, NETWORK_FAILURE_MARKER, { value: true, enumerable: false, configurable: true })
+  Object.defineProperty(error, NETWORK_FAILURE_MARKER, {
+    value: true,
+    enumerable: false,
+    configurable: true,
+  })
   return error
 }
 
@@ -138,9 +142,18 @@ it('creates a spot with 3 photos entirely offline, then attaches all 3 on reconn
   expect(fsCalls.writes).toHaveLength(3)
 
   // --- Step 2: run a cycle "offline" — nothing drains, nothing is lost ---
-  const offlineClient = { get: jest.fn(), post: jest.fn(async () => { throw networkFailure() }) }
+  const offlineClient = {
+    get: jest.fn(),
+    post: jest.fn(async () => {
+      throw networkFailure()
+    }),
+  }
 
-  const offlineOutcome = await runSyncCycle({ database, client: offlineClient as any, trigger: 'manual' })
+  const offlineOutcome = await runSyncCycle({
+    database,
+    client: offlineClient as any,
+    trigger: 'manual',
+  })
 
   expect(offlineOutcome.pulled).toBe(false)
   expect(offlineOutcome.drain.networkFailure).toBe(true)
@@ -155,12 +168,14 @@ it('creates a spot with 3 photos entirely offline, then attaches all 3 on reconn
   expect(fsCalls.deletes).toHaveLength(0)
 
   // --- Step 3: bring the client online, run a cycle ------------------------
-  mockRequestUploadUrl.mockImplementation(async (input: { modelUuid: string; filename: string }) => ({
-    key: `media-outbox/${input.filename}`,
-    url: `https://s3.example.com/${input.filename}`,
-    headers: { 'Content-Type': 'image/jpeg' },
-    expires_at: 'later',
-  }))
+  mockRequestUploadUrl.mockImplementation(
+    async (input: { modelUuid: string; filename: string }) => ({
+      key: `media-outbox/${input.filename}`,
+      url: `https://s3.example.com/${input.filename}`,
+      headers: { 'Content-Type': 'image/jpeg' },
+      expires_at: 'later',
+    }),
+  )
   mockPutFile.mockResolvedValue(undefined)
   mockAttachMedia.mockImplementation(async (input: { key: string; modelUuid: string }) => ({
     uuid: `media-uuid-${input.key}`,
@@ -184,7 +199,11 @@ it('creates a spot with 3 photos entirely offline, then attaches all 3 on reconn
     })),
   }
 
-  const onlineOutcome = await runSyncCycle({ database, client: onlineClient as any, trigger: 'manual' })
+  const onlineOutcome = await runSyncCycle({
+    database,
+    client: onlineClient as any,
+    trigger: 'manual',
+  })
 
   expect(onlineOutcome.drain.fullyAcked).toBe(true)
   expect(onlineOutcome.pulled).toBe(true)
@@ -204,7 +223,11 @@ it('creates a spot with 3 photos entirely offline, then attaches all 3 on reconn
   expect(fsCalls.deletes).toHaveLength(3)
 
   // --- Step 5: a second identical cycle attaches nothing further ----------
-  const secondCycleOutcome = await runSyncCycle({ database, client: onlineClient as any, trigger: 'manual' })
+  const secondCycleOutcome = await runSyncCycle({
+    database,
+    client: onlineClient as any,
+    trigger: 'manual',
+  })
 
   expect(secondCycleOutcome.pulled).toBe(true)
   expect(mockRequestUploadUrl).toHaveBeenCalledTimes(3)

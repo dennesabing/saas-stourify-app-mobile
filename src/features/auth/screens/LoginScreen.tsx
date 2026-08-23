@@ -57,7 +57,10 @@ export default function LoginScreen({ navigation }: Props) {
         <Controller
           control={control}
           name="email"
-          rules={{ required: 'Email is required', pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email' } }}
+          rules={{
+            required: 'Email is required',
+            pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email' },
+          }}
           render={({ field: { onChange, value } }) => (
             <Input
               label="Email"
@@ -74,7 +77,10 @@ export default function LoginScreen({ navigation }: Props) {
         <Controller
           control={control}
           name="password"
-          rules={{ required: 'Password is required', minLength: { value: 8, message: 'Min 8 characters' } }}
+          rules={{
+            required: 'Password is required',
+            minLength: { value: 8, message: 'Min 8 characters' },
+          }}
           render={({ field: { onChange, value } }) => (
             <Input
               label="Password"
@@ -88,7 +94,11 @@ export default function LoginScreen({ navigation }: Props) {
           )}
         />
 
-        <Button label="Forgot password?" variant="ghost" onPress={() => navigation.navigate('ForgotPassword')} />
+        <Button
+          label="Forgot password?"
+          variant="ghost"
+          onPress={() => navigation.navigate('ForgotPassword')}
+        />
 
         {serverError ? (
           <Text variant="caption" color="danger">

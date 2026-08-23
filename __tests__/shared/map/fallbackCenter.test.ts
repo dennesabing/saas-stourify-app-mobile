@@ -13,7 +13,13 @@ const GENSAN = { latitude: 6.1164, longitude: 125.1716 }
 
 it('uses the home city on the explorer profile when it has coordinates', async () => {
   const database = createTestDatabase()
-  await seedCity(database, { serverId: 7, name: 'Cebu', slug: 'cebu', latitude: 10.3157, longitude: 123.8854 })
+  await seedCity(database, {
+    serverId: 7,
+    name: 'Cebu',
+    slug: 'cebu',
+    latitude: 10.3157,
+    longitude: 123.8854,
+  })
   await seedExplorerProfile(database, { homeCityId: 7 })
 
   expect(await readFallbackCenter(database)).toEqual({ latitude: 10.3157, longitude: 123.8854 })
@@ -49,7 +55,12 @@ it('falls back when the home city row carries no coordinates', async () => {
 // returns the default, which looks like working code.
 it('resolves the city by its server id, not by its local record id', async () => {
   const database = createTestDatabase()
-  await seedCity(database, { uuid: 'a-uuid-that-is-not-7', serverId: 7, latitude: 1.5, longitude: 2.5 })
+  await seedCity(database, {
+    uuid: 'a-uuid-that-is-not-7',
+    serverId: 7,
+    latitude: 1.5,
+    longitude: 2.5,
+  })
   await seedExplorerProfile(database, { homeCityId: 7 })
 
   expect(await readFallbackCenter(database)).toEqual({ latitude: 1.5, longitude: 2.5 })

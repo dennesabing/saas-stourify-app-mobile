@@ -29,7 +29,10 @@ describe('stripImageMetadata', () => {
   })
 
   it('leaves the picture data byte-identical — nothing is re-encoded', () => {
-    const original = jpegWith([exifGpsSegment(), segment(MARKER.SOF0, [0x08, 0x00, 0x10, 0x00, 0x10, 0x01])])
+    const original = jpegWith([
+      exifGpsSegment(),
+      segment(MARKER.SOF0, [0x08, 0x00, 0x10, 0x00, 0x10, 0x01]),
+    ])
     const stripped = stripImageMetadata(original)
 
     const tail = scanTail()

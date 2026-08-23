@@ -122,7 +122,9 @@ export default function NearbyScreen({ navigation }: Props) {
     setLocationState('locating')
     void acquire()
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [attempt])
 
   // Named once and read in two places — the query's gate below and the strip's
@@ -351,10 +353,21 @@ export default function NearbyScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f1923' },
   map: { flex: 1 },
-  radiusBar: { backgroundColor: 'rgba(15,25,35,0.95)', padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  radiusBar: {
+    backgroundColor: 'rgba(15,25,35,0.95)',
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   radiusText: { color: '#fff', fontSize: 14 },
   radiusBtns: { flexDirection: 'row', gap: 8 },
-  radiusBtn: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.1)' },
+  radiusBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
   radiusBtnActive: { backgroundColor: '#00b4d8' },
   radiusBtnText: { color: '#fff', fontSize: 12 },
   strip: { maxHeight: 200, backgroundColor: '#0f1923' },

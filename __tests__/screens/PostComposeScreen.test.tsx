@@ -67,7 +67,13 @@ function dropped(): AxiosError {
 
 function refusal(message: string): AxiosError {
   const error = new AxiosError(message)
-  error.response = { status: 422, data: { message }, statusText: '', headers: {}, config: {} as any }
+  error.response = {
+    status: 422,
+    data: { message },
+    statusText: '',
+    headers: {},
+    config: {} as any,
+  }
   return error
 }
 

@@ -25,7 +25,12 @@ function rejectingClient(): HttpClient & { pulls: number } {
     },
     async get() {
       client.pulls += 1
-      return { data: { sto_spots: { created: [], updated: [], deleted: [] }, server_time: '2026-07-29T00:00:00Z' } }
+      return {
+        data: {
+          sto_spots: { created: [], updated: [], deleted: [] },
+          server_time: '2026-07-29T00:00:00Z',
+        },
+      }
     },
   }
 

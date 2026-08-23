@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The app is prettier-formatted, and a check now enforces it** (STOURIFY-163): prettier pinned at
+  `3.9.6` in `devDependencies`, `format` and `format:check` scripts, `.git-blame-ignore-revs`,
+  markdown excluded in `.prettierignore`, and `docs/code-formatting.md` rewritten to record a
+  decision rather than a caveat. `cd mobile && npm run format:check` joins the mobile channel's unit
+  array in the root `app.json`.
+
+  `.prettierrc` had described this code correctly since STOURIFY-162 on quotes, semicolons, trailing
+  commas, arrow parentheses and JSX quotes — and **114 of the app's 247 TypeScript files still
+  disagreed with it**, entirely about where lines are broken. That is the one state nobody chose: not
+  a description of the code, because the code failed it, and not a rule, because `prettier --check`
+  could never pass and so could never gate anything. The only defence against a repeat of the
+  STOURIFY-162 accident was a page asking people not to run a formatter.
+
+  What settled it was a measurement. Only **1.3%** of the app's 35,598 lines were longer than the
+  configured width, yet prettier changed 2,377 of them — so the churn was never about long lines. It
+  was prettier breaking constructs differently from the author, **in both directions**, on lines that
+  already fit. There was no consistent hand-wrapping style for a tool to ruin; there were 247
+  unconnected decisions, and prettier supplies the first actual rule rather than overriding one.
+
+### Changed
+
+- **122 files reformatted** (STOURIFY-163), in one commit containing nothing else. Behaviour is
+  untouched, and that is a property of the tool rather than a claim about care: prettier discards a
+  program's whitespace, rebuilds it from its structure and prints it back, so it cannot change what
+  the code does. Verified afterwards by `tsc --noEmit`, 94 jest suites and 825 tests with no test
+  edited, and a live run on a real emulator.
+
+  Turn on `git config blame.ignoreRevsFile .git-blame-ignore-revs` once per clone so `git blame`
+  looks through it; GitHub does so automatically.
+
 - **The send-later queue names its post, so an interrupted send cannot leave a stray copy behind**
   (STOURIFY-166). Every attempt to send one queued post now carries the same `idempotency_key`,
   derived from the queue entry's own id — which is minted when you press **Share** and lives as long

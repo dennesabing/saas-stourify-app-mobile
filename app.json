@@ -8,11 +8,7 @@
     "userInterfaceStyle": "automatic",
     "scheme": "stourify",
     "backgroundColor": "#F3F7FB",
-    "plugins": [
-      "expo-secure-store",
-      "expo-video",
-      "expo-font"
-    ],
+    "plugins": ["expo-secure-store", "expo-video", "expo-font"],
     "ios": {
       "bundleIdentifier": "com.zivsluck.stourify",
       "buildNumber": "2",

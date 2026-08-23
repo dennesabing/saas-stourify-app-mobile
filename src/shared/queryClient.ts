@@ -19,7 +19,9 @@ export const PERSIST_MAX_AGE_MS = 24 * 60 * 60 * 1000
  * yesterday's differently-shaped objects into today's components — a crash that
  * only reproduces on upgrade, never on a fresh install.
  */
-export const PERSIST_BUSTER = String((appJson as { expo?: { version?: string } }).expo?.version ?? '0')
+export const PERSIST_BUSTER = String(
+  (appJson as { expo?: { version?: string } }).expo?.version ?? '0',
+)
 
 /**
  * The one key in the phone's key-value store that the whole cache lives under.

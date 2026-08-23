@@ -30,7 +30,12 @@ function Splash() {
   return (
     <View
       testID="splash"
-      style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surface }}
+      style={{
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: theme.colors.surface,
+      }}
     >
       <ActivityIndicator color={theme.colors.primary} />
     </View>

@@ -64,12 +64,12 @@ describe('validateSpotForm — the location', () => {
   })
 
   it('refuses a position off the earth, which is what a broken engine event looks like', () => {
-    expect(
-      validateSpotForm({ ...VALID, coordinate: { latitude: 91, longitude: 0 } }),
-    ).toMatch(/-90/)
-    expect(
-      validateSpotForm({ ...VALID, coordinate: { latitude: 0, longitude: 181 } }),
-    ).toMatch(/-180/)
+    expect(validateSpotForm({ ...VALID, coordinate: { latitude: 91, longitude: 0 } })).toMatch(
+      /-90/,
+    )
+    expect(validateSpotForm({ ...VALID, coordinate: { latitude: 0, longitude: 181 } })).toMatch(
+      /-180/,
+    )
     expect(
       validateSpotForm({ ...VALID, coordinate: { latitude: Number.NaN, longitude: 0 } }),
     ).not.toBeNull()
@@ -91,7 +91,9 @@ describe('validateSpotForm — the categories', () => {
     expect(validateSpotForm({ ...VALID, categories: tooMany })).toMatch(
       new RegExp(String(MAX_SPOT_CATEGORIES)),
     )
-    expect(validateSpotForm({ ...VALID, categories: tooMany.slice(0, MAX_SPOT_CATEGORIES) })).toBeNull()
+    expect(
+      validateSpotForm({ ...VALID, categories: tooMany.slice(0, MAX_SPOT_CATEGORIES) }),
+    ).toBeNull()
   })
 
   it('refuses a category of 41 characters and accepts one of 40', () => {

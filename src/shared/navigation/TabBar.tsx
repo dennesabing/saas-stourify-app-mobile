@@ -48,7 +48,11 @@ export default function TabBar({ state, navigation }: BottomTabBarProps) {
         const isCreate = route.name === 'CreateTab'
 
         const onPress = () => {
-          const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true })
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          })
 
           if (!isFocused && !event.defaultPrevented) {
             navigation.navigate(route.name)

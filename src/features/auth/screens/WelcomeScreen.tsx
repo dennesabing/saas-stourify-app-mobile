@@ -17,7 +17,9 @@ export default function WelcomeScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }}>
-      <View style={{ flex: 1, justifyContent: 'center', padding: theme.gutter, gap: theme.spacing[6] }}>
+      <View
+        style={{ flex: 1, justifyContent: 'center', padding: theme.gutter, gap: theme.spacing[6] }}
+      >
         <View style={{ gap: theme.spacing[2] }}>
           <Text variant="display">Stourify</Text>
           <Text variant="bodyLg" color="muted">

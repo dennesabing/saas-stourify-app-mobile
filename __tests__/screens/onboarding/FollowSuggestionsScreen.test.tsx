@@ -35,7 +35,14 @@ it('is search-backed, not a claimed recommendation surface', () => {
 it('searches people on typing and shows a Follow button per hit', async () => {
   ;(searchPeople as jest.Mock).mockResolvedValue({
     data: [
-      { uuid: 'p1', user_uuid: 'user-1', username: 'ana', name: 'Ana Martinez', bio: null, is_private: false },
+      {
+        uuid: 'p1',
+        user_uuid: 'user-1',
+        username: 'ana',
+        name: 'Ana Martinez',
+        bio: null,
+        is_private: false,
+      },
     ],
     links: {},
     meta: { current_page: 1, last_page: 1, total: 1 },

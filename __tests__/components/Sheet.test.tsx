@@ -23,7 +23,9 @@ const METRICS: Metrics = {
 
 function renderSheet(insetBottom = 34) {
   return render(
-    <SafeAreaProvider initialMetrics={{ ...METRICS, insets: { ...METRICS.insets, bottom: insetBottom } }}>
+    <SafeAreaProvider
+      initialMetrics={{ ...METRICS, insets: { ...METRICS.insets, bottom: insetBottom } }}
+    >
       <ThemeProvider scheme="light">
         <Sheet visible onClose={() => {}} title="A title" subtitle="A subtitle">
           <View testID="sheet-child" />
