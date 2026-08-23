@@ -27,6 +27,7 @@ import MySpotsScreen from '@/features/spots/screens/MySpotsScreen'
 import PhotoGalleryScreen from '@/features/spots/screens/PhotoGalleryScreen'
 import SpotDetailScreen from '@/features/spots/screens/SpotDetailScreen'
 import SyncStatusScreen from '@/features/sync/screens/SyncStatusScreen'
+import DraftsScreen from '@/features/social/screens/DraftsScreen'
 import TabBar from './TabBar'
 import type {
   ActivityStackParamList,
@@ -99,6 +100,7 @@ function CreateStackNav() {
         this screen — is out of reach. This stack opens on a plain menu that
         reads nothing from the server.
       */}
+      <CreateStack.Screen name="Drafts" component={DraftsScreen} />
       <CreateStack.Screen name="SyncStatus" component={SyncStatusScreen} />
     </CreateStack.Navigator>
   )
@@ -122,6 +124,7 @@ function ProfileStackNav() {
       <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />
       <ProfileStack.Screen name="Settings" component={SettingsScreen} />
       <ProfileStack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
+      <ProfileStack.Screen name="Drafts" component={DraftsScreen} />
       <ProfileStack.Screen name="SyncStatus" component={SyncStatusScreen} />
       <ProfileStack.Screen name="PostDetail" component={PostDetailScreen} />
       <ProfileStack.Screen name="SpotDetail" component={SpotDetailScreen} />

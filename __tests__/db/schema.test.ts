@@ -100,8 +100,15 @@ describe('the local schema against the server allowlist', () => {
     )
   })
 
-  it('is at schema version 2, carrying the pending_media migration', () => {
-    expect(stourifySchema.version).toBe(2)
+  it('is at schema version 3, carrying the pending_media and post_drafts migrations', () => {
+    expect(stourifySchema.version).toBe(3)
+  })
+
+  it('declares the local-only post_drafts table, which is not synced', () => {
+    expect(SYNCED_TABLES).not.toContain('post_drafts')
+    expect(columnNames('post_drafts').sort()).toEqual(
+      ['caption', 'created_at', 'media', 'spot_title', 'spot_uuid', 'updated_at', 'visibility'].sort(),
+    )
   })
 
   it('declares the local-only pending_media table, which is not synced', () => {

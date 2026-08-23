@@ -3,6 +3,9 @@ import { AxiosError } from 'axios'
 import PostComposeScreen from '@/features/social/screens/PostComposeScreen'
 import { useUIStore } from '@/shared/store'
 import type { Spot } from '@/shared/api/types'
+import type { Database } from '@nozbe/watermelondb'
+import type PostDraft from '@/db/models/PostDraft'
+import { saveDraft } from '@/features/social/api/postDrafts'
 import { createTestDatabase } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
 
@@ -213,4 +216,115 @@ it('does not publish, and reports the failure, when an upload fails', async () =
 
   expect(mockPublishPost).not.toHaveBeenCalled()
   expect(navigation.popToTop).not.toHaveBeenCalled()
+})
+
+/**
+ * Drafts (STOURIFY-159).
+ *
+ * These build a database of their own, so the test can look at what the screen
+ * actually wrote down — `renderScreen` above makes a fresh one per render and
+ * does not hand it back.
+ */
+describe('drafts', () => {
+  function renderWithDatabase(database: Database, withRoute: any = route) {
+    return render(
+      <TestProviders database={database}>
+        <PostComposeScreen navigation={navigation} route={withRoute} />
+      </TestProviders>,
+    )
+  }
+
+  it('writes down what was typed when the screen goes away', async () => {
+    const database = createTestDatabase()
+    const view = renderWithDatabase(database)
+
+    fireEvent.changeText(screen.getByPlaceholderText('Write a caption...'), 'Sunset at the pier')
+    view.unmount()
+
+    await waitFor(async () => {
+      expect(await database.get('post_drafts').query().fetchCount()).toBe(1)
+    })
+
+    const drafts = await database.get<PostDraft>('post_drafts').query().fetch()
+    expect(drafts[0].caption).toBe('Sunset at the pier')
+    expect(drafts[0].media).toHaveLength(2)
+  })
+
+  it('leaves nothing behind when the author changed nothing', async () => {
+    const database = createTestDatabase()
+    const view = renderWithDatabase(database)
+
+    view.unmount()
+
+    await waitFor(() => {
+      expect(navigation.popToTop).not.toHaveBeenCalled()
+    })
+    expect(await database.get('post_drafts').query().fetchCount()).toBe(0)
+  })
+
+  it('keeps one draft, not one per edit', async () => {
+    const database = createTestDatabase()
+    const view = renderWithDatabase(database)
+    const caption = screen.getByPlaceholderText('Write a caption...')
+
+    fireEvent.changeText(caption, 'Sun')
+    fireEvent.changeText(caption, 'Sunset')
+    fireEvent.changeText(caption, 'Sunset at the pier')
+    view.unmount()
+
+    await waitFor(async () => {
+      expect(await database.get('post_drafts').query().fetchCount()).toBe(1)
+    })
+  })
+
+  it('puts the author back where they were when opened from the Drafts page', async () => {
+    const database = createTestDatabase()
+    const draftId = await saveDraft(database, {
+      caption: 'Half a thought',
+      visibility: 'public',
+      spotUuid: 'spot-uuid-1',
+      spotTitle: 'Hidden Cove',
+      media: ASSETS,
+    })
+
+    renderWithDatabase(database, { params: { draftId } } as any)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Half a thought')).toBeTruthy()
+    })
+    expect(screen.getByText('Hidden Cove')).toBeTruthy()
+  })
+
+  it('throws the draft away once the post is actually shared', async () => {
+    const database = createTestDatabase()
+    const view = renderWithDatabase(database)
+
+    fireEvent.changeText(screen.getByPlaceholderText('Write a caption...'), 'Going out')
+    fireEvent.press(screen.getByText('Share Post'))
+
+    await waitFor(() => {
+      expect(navigation.popToTop).toHaveBeenCalled()
+    })
+
+    view.unmount()
+    expect(await database.get('post_drafts').query().fetchCount()).toBe(0)
+  })
+
+  /** The work has to survive the thing that stopped it being sent. */
+  it('keeps the draft when the upload fails', async () => {
+    mockUploadPostMedia.mockRejectedValue(new AxiosError('Upload failed'))
+    const database = createTestDatabase()
+    renderWithDatabase(database)
+
+    fireEvent.changeText(screen.getByPlaceholderText('Write a caption...'), 'Nearly there')
+    fireEvent.press(screen.getByText('Share Post'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/upload failed/i)).toBeTruthy()
+    })
+
+    await waitFor(async () => {
+      expect(await database.get('post_drafts').query().fetchCount()).toBe(1)
+    })
+  })
 })

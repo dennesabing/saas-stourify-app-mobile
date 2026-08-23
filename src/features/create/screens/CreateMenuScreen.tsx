@@ -91,6 +91,19 @@ export default function CreateMenuScreen({ navigation }: Props) {
           Your work
         </Text>
 
+        {/*
+          Posts started and not shared (STOURIFY-159). It is here as well as on
+          your own profile because this menu reads nothing from the server, so
+          it opens with no signal — the same reasoning STOURIFY-118 used for
+          the offline queue screen below.
+        */}
+        <Card onPress={() => navigation.navigate('Drafts')} accessibilityLabel="Drafts">
+          <Text variant="h2">Drafts</Text>
+          <Text variant="caption" color="muted">
+            Posts you started and have not shared
+          </Text>
+        </Card>
+
         <Card onPress={() => navigation.navigate('MySpots')} accessibilityLabel="My spots">
           <Text variant="h2">My spots</Text>
           <Text variant="caption" color="muted">
