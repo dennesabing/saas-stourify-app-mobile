@@ -5,3 +5,21 @@ android/
 ios/
 coverage/
 package-lock.json
+
+# Markdown is deliberately NOT formatted, and this is a scope decision rather
+# than an oversight (STOURIFY-163).
+#
+# The prose in this repository is written to a standard that lives outside it --
+# saas-boilerplate/docs/system-wide-docs/system-teaching-docs-standard.md -- and
+# the same standard governs the documentation in three other repositories that
+# prettier does not run in. Formatting one repository's prose to a tool's
+# opinion, while its three siblings keep the standard's, produces drift in a body
+# of writing that is supposed to read as one thing. Better all four by hand than
+# one by machine.
+#
+# CHANGELOG.md and changelogs/ have a second reason: they are append-only
+# records. Reformatting history is churn on files nobody re-reads.
+#
+# What IS formatted is code -- .ts, .tsx, .js, .json, .yaml -- which is what the
+# accident in STOURIFY-162 happened to and what the gate exists for.
+*.md
