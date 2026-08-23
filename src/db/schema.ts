@@ -40,7 +40,7 @@ export type SyncedTable = (typeof SYNCED_TABLES)[number]
  *    clobbers them.
  */
 export const stourifySchema: AppSchema = appSchema({
-  version: 2,
+  version: 3,
   tables: [
     tableSchema({
       name: 'sto_spots',
@@ -198,6 +198,32 @@ export const stourifySchema: AppSchema = appSchema({
         { name: 'attempts', type: 'number' },
         { name: 'last_error', type: 'string', isOptional: true },
         { name: 'created_at', type: 'number' },
+      ],
+    }),
+    /**
+     * Local-only, like `pending_media` above: never in `SYNCED_TABLES`, never
+     * pushed, never pulled. It holds a post somebody started writing and has
+     * not shared yet (STOURIFY-159).
+     *
+     * `media` is a `string` column holding JSON — the same shape the compose
+     * route takes, `{ uri, type, fileName }[]`. JSON rather than a child table
+     * because nothing ever queries a draft BY its photos; the list is read and
+     * written whole, with the draft.
+     *
+     * `spot_title` duplicates a title that lives on the spot row. That is
+     * deliberate: the Drafts page has to name a tagged spot with no network,
+     * and a spot the author tagged may not be in the local database at all.
+     */
+    tableSchema({
+      name: 'post_drafts',
+      columns: [
+        { name: 'caption', type: 'string' },
+        { name: 'visibility', type: 'string' },
+        { name: 'spot_uuid', type: 'string', isOptional: true },
+        { name: 'spot_title', type: 'string', isOptional: true },
+        { name: 'media', type: 'string' },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number', isIndexed: true },
       ],
     }),
   ],

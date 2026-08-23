@@ -7,6 +7,8 @@ import SpotModel from '@/db/models/Spot'
 import SyncFailureModel from '@/db/models/SyncFailure'
 import type Spot from '@/db/models/Spot'
 import type PendingMedia from '@/db/models/PendingMedia'
+import PendingMediaModel from '@/db/models/PendingMedia'
+import type PostDraft from '@/db/models/PostDraft'
 
 /**
  * The pre-migration schema: version 1, `pending_media` absent — a snapshot
@@ -19,7 +21,12 @@ const schemaV1 = appSchema({
       name: 'sto_spots',
       columns: [
         { name: 'uuid', type: 'string', isIndexed: true },
-        { name: 'server_id', type: 'number', isOptional: true, isIndexed: true },
+        {
+          name: 'server_id',
+          type: 'number',
+          isOptional: true,
+          isIndexed: true,
+        },
         { name: 'organization_id', type: 'number', isOptional: true },
         { name: 'user_id', type: 'number', isOptional: true },
         { name: 'city_id', type: 'number', isOptional: true },
@@ -134,5 +141,89 @@ describe('v1 -> v2 migration (adds pending_media)', () => {
       }),
     )
     expect(pendingMedia.hostUuid).toBe('spot-uuid-migrated')
+  })
+})
+
+/**
+ * The v2 schema as it shipped: `pending_media` present, `post_drafts` absent.
+ * Minimal, like `schemaV1` above — it stands in for an installed app, so it
+ * only needs the tables this test actually writes to.
+ */
+const schemaV2 = appSchema({
+  version: 2,
+  tables: [
+    tableSchema({
+      name: 'pending_media',
+      columns: [
+        { name: 'host_type', type: 'string' },
+        { name: 'host_uuid', type: 'string', isIndexed: true },
+        { name: 'local_path', type: 'string' },
+        { name: 'filename', type: 'string' },
+        { name: 'mime', type: 'string' },
+        { name: 'size', type: 'number' },
+        { name: 'state', type: 'string', isIndexed: true },
+        { name: 'attempts', type: 'number' },
+        { name: 'last_error', type: 'string', isOptional: true },
+        { name: 'created_at', type: 'number' },
+      ],
+    }),
+  ],
+})
+
+describe('v2 -> v3 migration (adds post_drafts)', () => {
+  it('keeps un-drained offline media and adds the new table', async () => {
+    const v2Adapter = new LokiJSAdapter({
+      schema: schemaV2,
+      useWebWorker: false,
+      useIncrementalIndexedDB: false,
+      extraLokiOptions: { autosave: false },
+    })
+    const v2Database = new Database({
+      adapter: v2Adapter,
+      modelClasses: [PendingMediaModel],
+    })
+
+    // A photo waiting to be uploaded — the kind of row a destructive schema
+    // bump would silently destroy, which is why this has to be a migration.
+    await v2Database.write(async () =>
+      v2Database.get<PendingMedia>('pending_media').create((row: any) => {
+        row._raw.host_type = 'stourify_spot'
+        row._raw.host_uuid = 'spot-uuid'
+        row._raw.local_path = 'file:///media-outbox/1.jpg'
+        row._raw.filename = 'photo.jpg'
+        row._raw.mime = 'image/jpeg'
+        row._raw.size = 4242
+        row._raw.state = 'pending'
+        row._raw.attempts = 0
+        row._raw.created_at = 1_700_000_000_000
+      }),
+    )
+
+    await new Promise<void>((resolve, reject) => {
+      const driver = (v2Adapter as any)._driver
+      driver.loki.saveDatabase((error: unknown) => (error ? reject(error) : resolve()))
+    })
+
+    const v3Adapter: any = await v2Adapter.testClone({
+      schema: stourifySchema,
+      migrations: stourifyMigrations,
+    })
+    const v3Database = createDatabase(v3Adapter)
+
+    const survivingMedia = await v3Database.get<PendingMedia>('pending_media').query().fetch()
+    expect(survivingMedia).toHaveLength(1)
+    expect(survivingMedia[0].filename).toBe('photo.jpg')
+
+    const draft = await v3Database.write(async () =>
+      v3Database.get<PostDraft>('post_drafts').create((row: any) => {
+        row._raw.caption = 'Written before the update'
+        row._raw.visibility = 'private'
+        row._raw.media = '[]'
+        row._raw.created_at = 1_700_000_000_000
+        row._raw.updated_at = 1_700_000_000_000
+      }),
+    )
+    expect(draft.caption).toBe('Written before the update')
+    expect(draft.media).toEqual([])
   })
 })

@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The app keeps a post you started but did not share, and there is a Drafts page to find it**
+  (STOURIFY-159, under STOURIFY-104).
+
+  Until now the New Post screen held your caption in memory and nowhere else. Walk away, lose
+  signal, or let the phone die, and it was gone. It is now written to the phone shortly after you
+  stop typing, and again when you leave the screen — so the worst case is roughly the last second
+  of typing.
+
+  **Profile → Drafts** and **Create → Drafts** both open the list, newest first. Continue puts you
+  back where you were: the caption, the photo, the tagged spot and the audience you had chosen.
+  Delete throws one away. Sharing successfully removes it from the list — and only success does, so
+  a photo that failed to upload leaves your words exactly where they were.
+
+  Nothing is written down until you have actually done something: opening the screen and backing
+  straight out leaves no draft behind.
+
+  A draft is kept on the phone rather than on the server, which is what makes it work with no signal
+  at all. Two consequences worth knowing: a draft does not appear on your other devices, and nothing
+  ever deletes one on its own — there is no expiry.
+
+  It is reachable from the Create menu as well as your profile deliberately. The profile screen
+  fetches your profile before it renders anything, so with no signal the one page written to
+  reassure you that your unsent work is safe would be the one page you could not open — the same
+  reasoning as STOURIFY-118.
+
+  Under the surface: a local-only `post_drafts` table, added by a migration (database schema v2 →
+  v3), so nothing already on the phone is touched.
+
 - **Every password box now has a Show button** (STOURIFY-99).
 
   Password fields hide what you type, which is right when somebody is watching and unhelpful when

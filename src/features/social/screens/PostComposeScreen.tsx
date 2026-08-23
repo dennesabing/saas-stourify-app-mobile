@@ -1,18 +1,30 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Image, ScrollView, ActivityIndicator, KeyboardAvoidingView,
 } from 'react-native'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useDatabase } from '@nozbe/watermelondb/react'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { CreateStackParamList } from '@/shared/navigation/types'
 import { createPost, publishPost, type CreatePostInput } from '@/shared/api/posts'
 import { uploadPostMedia } from '@/features/social/api/uploadPostMedia'
 import { extractApiError } from '@/shared/api/client'
 import { useUIStore } from '@/shared/store'
+import { useDebounce } from '@/shared/hooks/useDebounce'
+import {
+  deleteDraft,
+  findDraft,
+  isWorthSaving,
+  saveDraft,
+  type DraftContent,
+} from '@/features/social/api/postDrafts'
 
 type Props = NativeStackScreenProps<CreateStackParamList, 'PostCompose'>
 type Visibility = 'public' | 'followers' | 'private'
+
+/** How long after the last keystroke the draft is written down. */
+const DRAFT_SAVE_DELAY_MS = 800
 
 const VISIBILITY_OPTIONS: { label: string; value: Visibility }[] = [
   { label: '🌍 Public', value: 'public' },
@@ -21,7 +33,7 @@ const VISIBILITY_OPTIONS: { label: string; value: Visibility }[] = [
 ]
 
 export default function PostComposeScreen({ route, navigation }: Props) {
-  const { mediaAssets } = route.params
+  const [mediaAssets, setMediaAssets] = useState(route.params.mediaAssets ?? [])
   const [caption, setCaption] = useState('')
   // A new post starts locked, not shared (STOURIFY-105). The picker used to
   // open on Public, so an author who never looked at it published to everyone
@@ -29,11 +41,108 @@ export default function PostComposeScreen({ route, navigation }: Props) {
   const [visibility, setVisibility] = useState<Visibility>('private')
   const [error, setError] = useState('')
   const qc = useQueryClient()
+  const database = useDatabase()
   const { pendingSpot, setPendingSpot } = useUIStore()
+
+  /**
+   * The draft this screen is writing into (STOURIFY-159).
+   *
+   * It is `null` until the author does something worth keeping, and from then
+   * on every later save lands on the same row instead of leaving a copy behind.
+   * Arriving from the Drafts page sets it up front.
+   */
+  const [draftId, setDraftId] = useState<string | null>(route.params.draftId ?? null)
+
+  /**
+   * The spot a restored draft was tagged with.
+   *
+   * A draft keeps the spot's uuid and its name, not the whole spot — the
+   * Drafts page has to name it with no network, and the spot may not be in the
+   * local database at all. A spot picked in THIS session (`pendingSpot`) is a
+   * full record and always wins over this.
+   */
+  const [draftSpot, setDraftSpot] = useState<{ uuid: string; title: string } | null>(null)
+
+  const taggedSpot = pendingSpot
+    ? { uuid: pendingSpot.uuid, title: pendingSpot.title }
+    : draftSpot
 
   useEffect(() => {
     return () => { setPendingSpot(null) }
   }, [setPendingSpot])
+
+  // Opened from the Drafts page: put the author back where they were.
+  useEffect(() => {
+    const id = route.params.draftId
+    if (id == null) return
+
+    let cancelled = false
+    void (async () => {
+      const draft = await findDraft(database, id)
+      if (draft === null || cancelled) return
+
+      setCaption(draft.caption)
+      setVisibility(draft.visibility as Visibility)
+      setMediaAssets(draft.media)
+      setDraftSpot(
+        draft.spotUuid !== null
+          ? { uuid: draft.spotUuid, title: draft.spotTitle ?? 'Tagged spot' }
+          : null,
+      )
+    })()
+
+    return () => { cancelled = true }
+  }, [database, route.params.draftId])
+
+  const content: DraftContent = {
+    caption,
+    visibility,
+    spotUuid: taggedSpot?.uuid ?? null,
+    spotTitle: taggedSpot?.title ?? null,
+    media: mediaAssets,
+  }
+
+  /**
+   * What was last written down, as text.
+   *
+   * Two saves of identical content are a wasted write and, worse, they move
+   * the draft to the top of the Drafts page for having been *opened*. Comparing
+   * against this is how re-opening a draft and changing nothing leaves it
+   * exactly where it was.
+   */
+  const savedRef = useRef<string | null>(null)
+
+  /** Everything the unmount save needs, kept current without re-subscribing. */
+  const stateRef = useRef({ content, draftId, published: false })
+  stateRef.current.content = content
+  stateRef.current.draftId = draftId
+
+  const persist = useCallback(async (): Promise<void> => {
+    const { content: current, draftId: id, published } = stateRef.current
+    if (published) return
+    if (!isWorthSaving(current)) return
+
+    const serialised = JSON.stringify(current)
+    if (serialised === savedRef.current) return
+
+    const savedId = await saveDraft(database, current, id)
+    savedRef.current = serialised
+    stateRef.current.draftId = savedId
+    setDraftId(savedId)
+  }, [database])
+
+  // Shortly after the typing stops. Every keystroke would write to the database
+  // dozens of times a sentence for no benefit; only-on-leaving loses everything
+  // to a crash. Both together cost at most the last second of typing.
+  const debouncedCaption = useDebounce(caption, DRAFT_SAVE_DELAY_MS)
+  useEffect(() => {
+    void persist()
+  }, [persist, debouncedCaption, visibility, taggedSpot?.uuid])
+
+  // And once more on the way out, for the part the debounce had not reached.
+  useEffect(() => {
+    return () => { void persist() }
+  }, [persist])
 
   const createMutation = useMutation({
     /**
@@ -58,14 +167,26 @@ export default function PostComposeScreen({ route, navigation }: Props) {
       // (STOURIFY-2), and the association was thrown away every time.
       // `pendingSpot` is a `Spot` fetched from the server, so its uuid is
       // always in hand.
-      if (pendingSpot) payload.spot_uuid = pendingSpot.uuid
+      if (taggedSpot) payload.spot_uuid = taggedSpot.uuid
 
       const post = await createPost(payload)
       await uploadPostMedia(post.uuid, mediaAssets)
 
       return publishPost(post.uuid)
     },
-    onSuccess: () => {
+    /**
+     * The draft is thrown away here and nowhere earlier.
+     *
+     * Publishing is three steps — create the post, upload the photos, publish
+     * it — and any of them can fail. A draft deleted before the last one
+     * succeeds would take the author's work with it at exactly the moment the
+     * work could not be sent.
+     */
+    onSuccess: async () => {
+      stateRef.current.published = true
+      const id = stateRef.current.draftId
+      if (id !== null) await deleteDraft(database, id)
+
       qc.invalidateQueries({ queryKey: ['feed', 'following'] })
       navigation.popToTop()
     },
@@ -103,7 +224,7 @@ export default function PostComposeScreen({ route, navigation }: Props) {
         <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('SpotPicker')}>
           <Text style={styles.rowIcon}>📍</Text>
           <Text style={styles.rowLabel}>Tag a Spot</Text>
-          <Text style={styles.rowValue}>{pendingSpot?.title ?? 'None ›'}</Text>
+          <Text style={styles.rowValue}>{taggedSpot?.title ?? 'None ›'}</Text>
         </TouchableOpacity>
 
         <Text style={styles.sectionLabel}>Visibility</Text>

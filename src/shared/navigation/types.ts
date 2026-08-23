@@ -108,7 +108,20 @@ export type DiscoverStackParamList = {
 export type CreateStackParamList = {
   CreateMenu: undefined
   MediaPicker: undefined
-  PostCompose: { mediaAssets: { uri: string; type?: string; fileName?: string }[] }
+  /**
+   * Reached two ways, and exactly one of the two params is given each time
+   * (STOURIFY-159).
+   *
+   * From the photo picker: `mediaAssets`, the photos just chosen. From the
+   * Drafts page: `draftId`, and the screen reads the caption, the photos, the
+   * tagged spot and the visibility out of the local database itself. The draft
+   * carries its own photos, so the Drafts page never has to put a URI back
+   * into navigation state.
+   */
+  PostCompose: {
+    mediaAssets?: { uri: string; type?: string; fileName?: string }[]
+    draftId?: string
+  }
   SpotPicker: undefined
   /**
    * `undefined` on both of these is load-bearing, not laziness.
@@ -124,6 +137,14 @@ export type CreateStackParamList = {
   /** The offline-first slice: writes straight to WatermelonDB. */
   CreateSpot: undefined
   MySpots: undefined
+  /**
+   * Posts started and not shared. Registered here as well as in the Profile
+   * stack for the same reason `SyncStatus` is (STOURIFY-118): the Profile
+   * screen fetches a profile before it renders anything, so with no network the
+   * one page written to reassure somebody their unsent work is safe would be
+   * the one page they could not open. This stack reads nothing from the server.
+   */
+  Drafts: undefined
   /**
    * The same queue screen the Profile stack registers, reachable a second way
    * on purpose (STOURIFY-118).
@@ -167,6 +188,8 @@ export type ProfileStackParamList = {
   WriteReview: { spotId: string }
   /** The M2c offline queue surface — reached from Settings. */
   SyncStatus: undefined
+  /** Posts started and not shared — reached from your own profile. */
+  Drafts: undefined
   /** Development-only: renders every primitive for visual review. */
   ThemeGallery: undefined
 }

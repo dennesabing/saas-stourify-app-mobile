@@ -377,6 +377,7 @@ export default function ProfileScreen({ route, navigation }: Props) {
           canOpen={canOpen}
           onEdit={() => navigation.navigate('EditProfile')}
           onSettings={() => navigation.navigate('Settings')}
+          onDrafts={() => navigation.navigate('Drafts')}
           onFollowers={() => navigation.navigate('FollowList', { userId: targetId, type: 'followers' })}
           onFollowing={() => navigation.navigate('FollowList', { userId: targetId, type: 'following' })}
           onFollowToggle={() =>
@@ -471,6 +472,7 @@ interface HeaderProps {
   canOpen: (name: string) => boolean
   onEdit: () => void
   onSettings: () => void
+  onDrafts: () => void
   onFollowers: () => void
   onFollowing: () => void
   onFollowToggle: () => void
@@ -505,6 +507,7 @@ function ProfileHeader({
   canOpen,
   onEdit,
   onSettings,
+  onDrafts,
   onFollowers,
   onFollowing,
   onFollowToggle,
@@ -589,6 +592,7 @@ function ProfileHeader({
         canOpen={canOpen}
         onEdit={onEdit}
         onSettings={onSettings}
+        onDrafts={onDrafts}
         onFollowToggle={onFollowToggle}
         followPending={followPending}
         onMore={onMore}
@@ -605,6 +609,7 @@ interface ActionsProps {
   canOpen: (name: string) => boolean
   onEdit: () => void
   onSettings: () => void
+  onDrafts: () => void
   onFollowToggle: () => void
   followPending: boolean
   onMore: () => void
@@ -620,6 +625,7 @@ function ProfileActions({
   canOpen,
   onEdit,
   onSettings,
+  onDrafts,
   onFollowToggle,
   followPending,
   onMore,
@@ -634,6 +640,12 @@ function ProfileActions({
         ) : null}
         {canOpen('Settings') ? (
           <Button label="Settings" variant="secondary" onPress={onSettings} style={{ flex: 1 }} />
+        ) : null}
+        {/* Posts you started and did not share (STOURIFY-159). Guarded like its
+            neighbours: this renders inside four different stacks, and navigating
+            to a route a stack has not registered throws. */}
+        {canOpen('Drafts') ? (
+          <Button label="Drafts" variant="secondary" onPress={onDrafts} style={{ flex: 1 }} />
         ) : null}
       </View>
     )
