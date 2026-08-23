@@ -1,0 +1,23 @@
+# Commits that only moved text around, and that `git blame` should look straight
+# through to whoever actually wrote each line.
+#
+# HOW TO USE IT
+#
+# Git does not read this file on its own. Turn it on once, per clone:
+#
+#     git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# GitHub reads it automatically, with no configuration at all.
+#
+# WHAT BELONGS IN IT
+#
+# Only commits that changed no behaviour whatsoever -- a formatter run, a
+# whitespace sweep. Never a rename, a refactor, or "mostly formatting". The file
+# is only useful while every entry in it is certainly harmless, because a reader
+# who finds one exception stops trusting the whole list and blames through it by
+# hand anyway.
+
+# style(STOURIFY-163): format the app with prettier
+# 122 files, formatting only. The commit that made `prettier --check` pass, and
+# therefore the commit that made it possible to enforce it at all.
+0cc6a29803271896c4a561f333108f6ecf0c6ef6
