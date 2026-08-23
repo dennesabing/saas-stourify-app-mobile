@@ -78,6 +78,7 @@ describe('drainPostOutbox', () => {
       publish: false,
       caption: 'Written in a tunnel',
       spot_uuid: 'spot-1',
+      idempotency_key: `outbox-${id}`,
     })
     expect(mockUploadPostMedia).toHaveBeenCalledWith(
       'post-uuid-new',
@@ -109,7 +110,10 @@ describe('drainPostOutbox', () => {
 
     await drainPostOutbox(database)
 
-    expect(mockCreatePost).toHaveBeenCalledWith({ visibility: 'private', publish: false })
+    expect(mockCreatePost).toHaveBeenCalledWith(
+      expect.objectContaining({ visibility: 'private', publish: false }),
+    )
+    expect(mockCreatePost.mock.calls[0][0]).not.toHaveProperty('caption')
   })
 
   it('does not create a second post when the server already accepted the first', async () => {
@@ -200,6 +204,42 @@ describe('drainPostOutbox', () => {
 
     expect(outcome.attempted).toBe(0)
     expect(mockCreatePost).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The window this closes: the server commits the post, the reply is lost or
+   * the app is killed, and nothing on the phone knows the post exists. Naming
+   * the request is what lets the server recognise the second attempt as the
+   * same one instead of making a second post (STOURIFY-166).
+   *
+   * The name is the queue row's own id, which is minted when the post is queued
+   * and lives exactly as long as the entry — so it is already the durable thing
+   * the key has to be derived from.
+   */
+  it('names the create request after the queue entry it is sending', async () => {
+    const id = await queuePost(database, { caption: 'x', visibility: 'public', media: [] })
+
+    await drainPostOutbox(database)
+
+    expect(mockCreatePost.mock.calls[0][0]).toMatchObject({ idempotency_key: `outbox-${id}` })
+  })
+
+  /**
+   * The property that is the entire point, and the one an implementation
+   * minting a fresh key per attempt would fail while still looking correct: the
+   * SAME name on every attempt for one entry. A key that changes between tries
+   * is not a name, it is a coincidence.
+   */
+  it('sends the same name again when the first attempt never reached the server', async () => {
+    const id = await queuePost(database, { caption: 'x', visibility: 'public', media: [] })
+
+    mockCreatePost.mockRejectedValueOnce(networkError())
+    await drainPostOutbox(database)
+    await drainPostOutbox(database)
+
+    expect(mockCreatePost).toHaveBeenCalledTimes(2)
+    expect(mockCreatePost.mock.calls[0][0].idempotency_key).toBe(`outbox-${id}`)
+    expect(mockCreatePost.mock.calls[1][0].idempotency_key).toBe(`outbox-${id}`)
   })
 
   it('gives each photo a key that stays the same across attempts', async () => {

@@ -50,7 +50,9 @@ function messageFor(error: unknown): string {
  *
  * The `post_uuid` write between step one and step two is the important line in
  * this function. It is what makes a second attempt continue rather than create
- * another post.
+ * another post — and the `idempotency_key` on the create is what covers the
+ * instant *before* that line runs, when the server has committed and this row
+ * does not know it yet.
  */
 async function sendOne(database: Database, row: PostOutbox): Promise<void> {
   let postUuid = row.postUuid
@@ -62,6 +64,16 @@ async function sendOne(database: Database, row: PostOutbox): Promise<void> {
     const payload: CreatePostInput = {
       visibility: row.visibility as CreatePostInput['visibility'],
       publish: false,
+      // The name this request goes out under, every time. Derived from the
+      // entry's own id, which was minted when the post was queued and lives
+      // exactly as long as the entry does — so an attempt after a crash sends
+      // the identical string and the server hands back the post it already
+      // made instead of making a second (STOURIFY-166).
+      //
+      // The prefix is for whoever is one day reading the row in the database
+      // and wondering where the value came from; the photos below are named
+      // from the same id, so the whole three-step send has one identity.
+      idempotency_key: `outbox-${row.id}`,
     }
     if (row.caption !== '') payload.caption = row.caption
     if (row.spotUuid !== null) payload.spot_uuid = row.spotUuid

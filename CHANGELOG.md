@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The send-later queue names its post, so an interrupted send cannot leave a stray copy behind**
+  (STOURIFY-166). Every attempt to send one queued post now carries the same `idempotency_key`,
+  derived from the queue entry's own id — which is minted when you press **Share** and lives as long
+  as the entry does.
+
+  What this fixes: the app used to learn a post's id only from the server's reply and write it down a
+  moment later, so a crash in that instant lost the id while the post survived, and the next attempt
+  made a second one. Nothing you could ever see — the stray copy was unpublished and invisible to
+  everybody, including you — but it was a real row on the server. The photos in the same send have
+  worked this way since STOURIFY-161; now the post does too, from the same identity.
+
 - **A post you share with no signal now sends itself later** (STOURIFY-161, under STOURIFY-104).
 
   Pressing **Share** in a tunnel used to fail with an error and hand the draft back, leaving you to
