@@ -148,3 +148,53 @@ it('rejects rather than swallowing a failed attach', async () => {
     uploadPostMedia('post-uuid-1', [{ uri: 'file:///tmp/a.jpg', fileName: 'a.jpg' }]),
   ).rejects.toThrow('413 Payload Too Large')
 })
+
+/**
+ * `attachMedia` is at-least-once by construction — a response lost on the way
+ * back is indistinguishable from a request that never arrived. Nothing retried
+ * this path until the send-later queue existed, so nothing needed a key; now a
+ * retry without one attaches the same picture twice (STOURIFY-161).
+ */
+describe('the idempotency key a retry needs', () => {
+  it('sends the key the caller names, per photo', async () => {
+    await uploadPostMedia(
+      'post-uuid-1',
+      [
+        { uri: 'file:///tmp/a.jpg', fileName: 'a.jpg' },
+        { uri: 'file:///tmp/b.jpg', fileName: 'b.jpg' },
+      ],
+      { idempotencyKeyFor: (index) => `outbox-row-7-${index}` },
+    )
+
+    expect(mockAttachMedia).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ idempotencyKey: 'outbox-row-7-0' }),
+    )
+    expect(mockAttachMedia).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ idempotencyKey: 'outbox-row-7-1' }),
+    )
+  })
+
+  it('sends the same key for the same photo on a second attempt', async () => {
+    const assets = [{ uri: 'file:///tmp/a.jpg', fileName: 'a.jpg' }]
+    const keyFor = (index: number) => `outbox-row-7-${index}`
+
+    mockAttachMedia.mockRejectedValueOnce(new Error('Network Error'))
+    await expect(
+      uploadPostMedia('post-uuid-1', assets, { idempotencyKeyFor: keyFor }),
+    ).rejects.toThrow('Network Error')
+
+    await uploadPostMedia('post-uuid-1', assets, { idempotencyKeyFor: keyFor })
+
+    const keys = mockAttachMedia.mock.calls.map(([input]: [any]) => input.idempotencyKey)
+    expect(keys).toEqual(['outbox-row-7-0', 'outbox-row-7-0'])
+  })
+
+  it('sends no key at all when the caller names none, so the inline path is unchanged', async () => {
+    await uploadPostMedia('post-uuid-1', [{ uri: 'file:///tmp/a.jpg', fileName: 'a.jpg' }])
+
+    const [input] = mockAttachMedia.mock.calls[0] as [Record<string, unknown>]
+    expect(input).not.toHaveProperty('idempotencyKey')
+  })
+})

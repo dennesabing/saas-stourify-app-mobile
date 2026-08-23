@@ -2,6 +2,7 @@ import { Q, type Database, type Model } from '@nozbe/watermelondb'
 import { File } from 'expo-file-system'
 import type ExplorerProfile from '@/db/models/ExplorerProfile'
 import type PendingMedia from '@/db/models/PendingMedia'
+import type PostOutbox from '@/db/models/PostOutbox'
 import type Review from '@/db/models/Review'
 import type Spot from '@/db/models/Spot'
 import type SyncFailure from '@/db/models/SyncFailure'
@@ -33,10 +34,16 @@ export interface FailedQueueRow {
 
 /**
  * The tables the screen's subscription watches: every pushable table plus the
- * local-only failure table. `sto_cities` is excluded — it is pull-only
- * reference data and can never be queued (`syncConfig.ts:24-34`).
+ * three local-only ones — failures, the photo outbox, and the send-later post
+ * queue. `sto_cities` is excluded — it is pull-only reference data and can
+ * never be queued (`syncConfig.ts:24-34`).
  */
-export const QUEUE_TABLES: readonly string[] = [...PUSHABLE_TABLES, 'sync_failures', 'pending_media']
+export const QUEUE_TABLES: readonly string[] = [
+  ...PUSHABLE_TABLES,
+  'sync_failures',
+  'pending_media',
+  'post_outbox',
+]
 
 interface TableCopy {
   icon: string
@@ -332,4 +339,70 @@ export async function discardMediaRow(database: Database, id: string): Promise<v
   } catch {
     // Already gone — nothing left to clean up.
   }
+}
+
+/**
+ * The send-later post queue, as rows the Sync status screen can draw
+ * (STOURIFY-161).
+ *
+ * `tableName` is always `'post_outbox'` — never one of `PUSHABLE_TABLES` and
+ * never `'pending_media'` — which is how the screen's handlers tell a waiting
+ * post apart from a photo and from a row edit, and route to
+ * `retryQueuedPost`/`discardQueuedPost`.
+ */
+const POST_OUTBOX_TABLE = 'post_outbox'
+
+/**
+ * What to call a post in a list.
+ *
+ * The caption if there is one, because that is what the author will recognise;
+ * just "New post" if there is not. A queue entry with no name at all reads as a
+ * bug rather than as a post somebody wrote no words for.
+ */
+function titleForQueuedPost(caption: string): string {
+  const trimmed = caption.trim()
+  if (trimmed === '') return 'New post'
+
+  // Long enough to recognise, short enough not to wrap the row into a wall.
+  const shortened = trimmed.length > 60 ? `${trimmed.slice(0, 57)}…` : trimmed
+  return `New post · ${shortened}`
+}
+
+export async function listPendingPostQueue(database: Database): Promise<PendingQueueRow[]> {
+  const rows = await database
+    .get<PostOutbox>(POST_OUTBOX_TABLE)
+    .query(Q.where('state', 'queued'))
+    .fetch()
+
+  return rows
+    .slice()
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map((row) => ({
+      id: row.id,
+      tableName: POST_OUTBOX_TABLE,
+      op: 'created' as QueueOp,
+      icon: '📝',
+      title: titleForQueuedPost(row.caption),
+      meta: 'Waiting for a signal',
+    }))
+}
+
+export async function listFailedPostQueue(database: Database): Promise<FailedQueueRow[]> {
+  const rows = await database
+    .get<PostOutbox>(POST_OUTBOX_TABLE)
+    .query(Q.where('state', 'failed'))
+    .fetch()
+
+  return rows.map((row) => ({
+    id: row.id,
+    tableName: POST_OUTBOX_TABLE,
+    reason: row.lastError ?? 'The server rejected this post.',
+    attempts: row.attempts,
+    lastError: row.lastError ?? '',
+    icon: '📝',
+    title: titleForQueuedPost(row.caption),
+    meta: `Rejected: ${row.lastError ?? 'The server rejected this post.'} · ${row.attempts} attempt${
+      row.attempts === 1 ? '' : 's'
+    }`,
+  }))
 }

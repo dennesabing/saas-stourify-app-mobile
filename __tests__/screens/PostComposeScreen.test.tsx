@@ -54,6 +54,23 @@ const SPOT: Spot = {
   status: 'active',
 } as Spot
 
+/**
+ * Two error shapes, and telling them apart is the whole of STOURIFY-161.
+ *
+ * `dropped()` is a request that never reached a server at all — a tunnel, a
+ * lift, aeroplane mode. `refusal()` is a server that answered and said no.
+ * Before this card both were "the share failed"; now only the second one is.
+ */
+function dropped(): AxiosError {
+  return new AxiosError('Network Error', 'ERR_NETWORK')
+}
+
+function refusal(message: string): AxiosError {
+  const error = new AxiosError(message)
+  error.response = { status: 422, data: { message }, statusText: '', headers: {}, config: {} as any }
+  return error
+}
+
 beforeEach(() => {
   jest.clearAllMocks()
   calls.length = 0
@@ -205,7 +222,7 @@ it('publishes a post composed with no photos at all', async () => {
  * it is the state `PostApiController::publish()` was written for.
  */
 it('does not publish, and reports the failure, when an upload fails', async () => {
-  mockUploadPostMedia.mockRejectedValue(new AxiosError('Upload failed'))
+  mockUploadPostMedia.mockRejectedValue(refusal('Upload failed'))
   renderScreen()
 
   fireEvent.press(screen.getByText('Share Post'))
@@ -312,7 +329,7 @@ describe('drafts', () => {
 
   /** The work has to survive the thing that stopped it being sent. */
   it('keeps the draft when the upload fails', async () => {
-    mockUploadPostMedia.mockRejectedValue(new AxiosError('Upload failed'))
+    mockUploadPostMedia.mockRejectedValue(refusal('Upload failed'))
     const database = createTestDatabase()
     renderWithDatabase(database)
 
@@ -326,5 +343,93 @@ describe('drafts', () => {
     await waitFor(async () => {
       expect(await database.get('post_drafts').query().fetchCount()).toBe(1)
     })
+  })
+})
+
+/**
+ * Pressing Share with no signal (STOURIFY-161).
+ *
+ * The rule these tests pin down: the app tries the real request every time, and
+ * only what actually came back decides what happens next. A request that never
+ * reached a server means the post waits; a server that answered and refused
+ * means the author has something to fix.
+ */
+describe('sharing with no signal', () => {
+  function renderWithDatabase(database: Database, withRoute: any = route) {
+    return render(
+      <TestProviders database={database}>
+        <PostComposeScreen navigation={navigation} route={withRoute} />
+      </TestProviders>,
+    )
+  }
+
+  it('puts the post in the send-later queue instead of showing an error', async () => {
+    mockCreatePost.mockRejectedValue(dropped())
+    const database = createTestDatabase()
+    renderWithDatabase(database)
+
+    fireEvent.changeText(screen.getByPlaceholderText('Write a caption...'), 'Written in a tunnel')
+    fireEvent.press(screen.getByText('Share Post'))
+
+    await waitFor(async () => {
+      expect(await database.get('post_outbox').query().fetchCount()).toBe(1)
+    })
+
+    const [queued]: any[] = await database.get('post_outbox').query().fetch()
+    expect(queued.caption).toBe('Written in a tunnel')
+    expect(queued.state).toBe('queued')
+    expect(screen.queryByText(/network error/i)).toBeNull()
+    await waitFor(() => expect(navigation.popToTop).toHaveBeenCalled())
+  })
+
+  it('takes the post off the Drafts page, so it cannot be shared twice', async () => {
+    mockCreatePost.mockRejectedValue(dropped())
+    const database = createTestDatabase()
+    const view = renderWithDatabase(database)
+
+    fireEvent.changeText(screen.getByPlaceholderText('Write a caption...'), 'Going out later')
+    fireEvent.press(screen.getByText('Share Post'))
+
+    await waitFor(async () => {
+      expect(await database.get('post_outbox').query().fetchCount()).toBe(1)
+    })
+
+    // Unmounting is what would normally write the draft one last time. It must
+    // not resurrect a post that is already on its way.
+    view.unmount()
+    await waitFor(async () => {
+      expect(await database.get('post_drafts').query().fetchCount()).toBe(0)
+    })
+  })
+
+  it('remembers a post the server had already accepted before the signal died', async () => {
+    mockCreatePost.mockResolvedValue({ uuid: 'post-half-made' })
+    mockUploadPostMedia.mockRejectedValue(dropped())
+    const database = createTestDatabase()
+    renderWithDatabase(database)
+
+    fireEvent.press(screen.getByText('Share Post'))
+
+    await waitFor(async () => {
+      expect(await database.get('post_outbox').query().fetchCount()).toBe(1)
+    })
+
+    const [queued]: any[] = await database.get('post_outbox').query().fetch()
+    expect(queued.postUuid).toBe('post-half-made')
+    expect(mockPublishPost).not.toHaveBeenCalled()
+  })
+
+  it('queues nothing, and says what went wrong, when the server refuses the post', async () => {
+    mockCreatePost.mockRejectedValue(refusal('The caption is too long.'))
+    const database = createTestDatabase()
+    renderWithDatabase(database)
+
+    fireEvent.changeText(screen.getByPlaceholderText('Write a caption...'), 'Too much')
+    fireEvent.press(screen.getByText('Share Post'))
+
+    await waitFor(() => expect(screen.getByText(/caption is too long/i)).toBeTruthy())
+
+    expect(await database.get('post_outbox').query().fetchCount()).toBe(0)
+    expect(navigation.popToTop).not.toHaveBeenCalled()
   })
 })

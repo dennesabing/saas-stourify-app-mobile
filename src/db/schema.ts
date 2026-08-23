@@ -40,7 +40,7 @@ export type SyncedTable = (typeof SYNCED_TABLES)[number]
  *    clobbers them.
  */
 export const stourifySchema: AppSchema = appSchema({
-  version: 3,
+  version: 4,
   tables: [
     tableSchema({
       name: 'sto_spots',
@@ -224,6 +224,42 @@ export const stourifySchema: AppSchema = appSchema({
         { name: 'media', type: 'string' },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number', isIndexed: true },
+      ],
+    }),
+    /**
+     * Local-only, the third of its kind here after `pending_media` and
+     * `post_drafts`: never in `SYNCED_TABLES`, never pushed, never pulled.
+     *
+     * It holds a post the author pressed **Share** on while there was no
+     * signal (STOURIFY-161). A postbox, not a filing cabinet — the row exists
+     * only until the three calls that publish a post have all succeeded, and
+     * is deleted the moment they have.
+     *
+     * `post_uuid` is what makes the wait resumable. Publishing is three steps
+     * — create the post unpublished, upload each photo, publish it — and the
+     * signal can die between any two of them. Once the first step has
+     * succeeded the server already holds the post, so the next attempt must
+     * carry on rather than create a second one.
+     *
+     * `media` is JSON in the same shape a draft's is, and points at the same
+     * app-private copies: a queued post inherits the files from the draft it
+     * came from rather than making a second set of them.
+     */
+    tableSchema({
+      name: 'post_outbox',
+      columns: [
+        { name: 'caption', type: 'string' },
+        { name: 'visibility', type: 'string' },
+        { name: 'spot_uuid', type: 'string', isOptional: true },
+        { name: 'spot_title', type: 'string', isOptional: true },
+        { name: 'media', type: 'string' },
+        // Empty until `POST /posts` has answered; the server's id after that.
+        { name: 'post_uuid', type: 'string', isOptional: true },
+        // 'queued' | 'failed'
+        { name: 'state', type: 'string', isIndexed: true },
+        { name: 'attempts', type: 'number' },
+        { name: 'last_error', type: 'string', isOptional: true },
+        { name: 'created_at', type: 'number' },
       ],
     }),
   ],

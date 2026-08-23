@@ -305,3 +305,205 @@ it('goes back to wherever it was opened from', async () => {
   fireEvent.press(screen.getByLabelText('Go back'))
   expect(navigation.goBack).toHaveBeenCalled()
 })
+
+/**
+ * STOURIFY-161. A post pressed Share on with no signal waits here, in its own
+ * section — the same arrangement photos have, and for the same reason: it is
+ * not a row edit and never participates in the skip-pull gate.
+ */
+async function seedQueuedPost(
+  database: Database,
+  overrides: Partial<{
+    id: string
+    caption: string
+    state: string
+    attempts: number
+    lastError: string | null
+    mediaUri: string | null
+  }> = {},
+): Promise<void> {
+  const seed = {
+    id: 'outbox-1',
+    caption: 'Written in a tunnel',
+    state: 'queued',
+    attempts: 0,
+    lastError: null as string | null,
+    mediaUri: 'file:///document-dir/post-drafts/outbox-1-0.jpg' as string | null,
+    ...overrides,
+  }
+
+  await database.write(async () =>
+    database.get('post_outbox').create((row: any) => {
+      row._raw.id = seed.id
+      row._raw.caption = seed.caption
+      row._raw.visibility = 'public'
+      row._raw.media =
+        seed.mediaUri === null ? '[]' : JSON.stringify([{ uri: seed.mediaUri, fileName: 'a.jpg' }])
+      row._raw.post_uuid = null
+      row._raw.state = seed.state
+      row._raw.attempts = seed.attempts
+      row._raw.last_error = seed.lastError
+      row._raw.created_at = Date.now()
+    }),
+  )
+}
+
+it('shows a post waiting for a signal in its own Posts section', async () => {
+  const database = createTestDatabase()
+  await seedQueuedPost(database, { caption: 'Written in a tunnel' })
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() => {
+    expect(screen.getByText('Posts')).toBeTruthy()
+    expect(screen.getByText('New post · Written in a tunnel')).toBeTruthy()
+  })
+})
+
+it('names a post with no caption by something other than nothing', async () => {
+  const database = createTestDatabase()
+  await seedQueuedPost(database, { caption: '' })
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() => expect(screen.getByText('New post')).toBeTruthy())
+})
+
+it('retrying a refused post puts it back in the queue and runs a cycle', async () => {
+  const database = createTestDatabase()
+  await seedQueuedPost(database, {
+    caption: 'Refused',
+    state: 'failed',
+    attempts: 2,
+    lastError: 'The caption is too long.',
+  })
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() => expect(screen.getByLabelText('Retry New post · Refused')).toBeTruthy())
+  fireEvent.press(screen.getByLabelText('Retry New post · Refused'))
+
+  await waitFor(async () => {
+    const row: any = await database.get('post_outbox').find('outbox-1')
+    expect(row.state).toBe('queued')
+  })
+  expect(syncNow).toHaveBeenCalled()
+})
+
+it('discarding a queued post deletes its photo copies as well as the row', async () => {
+  const database = createTestDatabase()
+  await seedQueuedPost(database, {
+    caption: 'Never mind',
+    state: 'failed',
+    attempts: 1,
+    lastError: 'The server refused this post.',
+    mediaUri: 'file:///document-dir/post-drafts/outbox-1-0.jpg',
+  })
+
+  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
+    const discard = (buttons ?? []).find((button) => button.text === 'Discard')
+    void discard?.onPress?.()
+  })
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() => expect(screen.getByText('New post · Never mind')).toBeTruthy())
+  fireEvent.press(screen.getByLabelText('Discard New post · Never mind'))
+
+  await waitFor(() => {
+    expect(fsDeletes).toContain('file:///document-dir/post-drafts/outbox-1-0.jpg')
+  })
+  await expect(database.get('post_outbox').find('outbox-1')).rejects.toThrow()
+
+  alertSpy.mockRestore()
+})
+
+/**
+ * The banner is the first thing on this screen, and it used to say "Nothing
+ * waiting to send" directly above a post that was (STOURIFY-161). Found on a
+ * real emulator, which is the only place the two are visible together.
+ */
+it('does not claim nothing is waiting while a post is', async () => {
+  const database = createTestDatabase()
+  useSyncStatusStore.getState().setOffline(true)
+  await seedQueuedPost(database, { caption: 'Written in a tunnel' })
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() => {
+    expect(screen.getByText("1 change waiting · they'll send when you reconnect")).toBeTruthy()
+  })
+  expect(screen.queryByText('Nothing waiting to send')).toBeNull()
+})
+
+/**
+ * A queued post can be cancelled before it goes out (STOURIFY-161). Every other
+ * waiting row deliberately cannot — see `SyncQueueRow`'s note — because a post
+ * is a publication rather than a record, and it is never going to fail; it is
+ * going to send.
+ */
+it('lets you throw away a post that is still waiting, before it goes out', async () => {
+  const database = createTestDatabase()
+  await seedQueuedPost(database, {
+    caption: 'Second thoughts',
+    mediaUri: 'file:///document-dir/post-drafts/outbox-1-0.jpg',
+  })
+
+  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
+    const discard = (buttons ?? []).find((button) => button.text === 'Discard')
+    void discard?.onPress?.()
+  })
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() =>
+    expect(screen.getByLabelText('Discard New post · Second thoughts')).toBeTruthy(),
+  )
+  fireEvent.press(screen.getByLabelText('Discard New post · Second thoughts'))
+
+  await waitFor(() => {
+    expect(fsDeletes).toContain('file:///document-dir/post-drafts/outbox-1-0.jpg')
+  })
+  await expect(database.get('post_outbox').find('outbox-1')).rejects.toThrow()
+
+  alertSpy.mockRestore()
+})
+
+/** A queued spot or photo still offers no way out, and that has not changed. */
+it('still offers no discard on a waiting photo', async () => {
+  const database = createTestDatabase()
+  await seedPendingMedia(database, { filename: 'beach.jpg' })
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() => expect(screen.getByText('Photo · beach.jpg')).toBeTruthy())
+  expect(screen.queryByLabelText('Discard Photo · beach.jpg')).toBeNull()
+})

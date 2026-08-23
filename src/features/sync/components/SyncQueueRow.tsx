@@ -4,7 +4,21 @@ import type { FailedQueueRow, PendingQueueRow } from '@/sync/queue'
 import { useTheme } from '@/theme/ThemeProvider'
 
 export type SyncQueueRowProps =
-  | { variant: 'pending'; row: PendingQueueRow }
+  /**
+   * `onDiscard` is optional here and required on `failed`, and the asymmetry is
+   * the point (STOURIFY-161).
+   *
+   * A failed row must always offer a way out — a rejected row with no way out
+   * stalls the whole pull gate. A waiting row usually should not: a spot or a
+   * photo you made offline is your own work, and the only thing wrong with it
+   * is that the radio is off.
+   *
+   * A queued **post** is the exception, because it is a publication rather than
+   * a record. Somebody who wrote something in a tunnel and thought better of it
+   * has to be able to stop it before it goes out, and waiting for it to fail is
+   * not an option — it is not going to fail, it is going to send.
+   */
+  | { variant: 'pending'; row: PendingQueueRow; onDiscard?: () => void }
   | { variant: 'failed'; row: FailedQueueRow; onRetry: () => void; onDiscard: () => void }
 
 /**
@@ -45,6 +59,17 @@ export default function SyncQueueRow(props: SyncQueueRowProps) {
             onPress={props.onRetry}
             accessibilityLabel={`Retry ${row.title}`}
           />
+          <Button
+            label="Discard"
+            variant="danger"
+            onPress={props.onDiscard}
+            accessibilityLabel={`Discard ${row.title}`}
+          />
+        </View>
+      ) : null}
+
+      {props.variant === 'pending' && props.onDiscard !== undefined ? (
+        <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
           <Button
             label="Discard"
             variant="danger"

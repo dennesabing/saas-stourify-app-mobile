@@ -7,6 +7,7 @@ import ExplorerProfile from './models/ExplorerProfile'
 import Follow from './models/Follow'
 import PendingMedia from './models/PendingMedia'
 import PostDraft from './models/PostDraft'
+import PostOutbox from './models/PostOutbox'
 import Review from './models/Review'
 import Spot from './models/Spot'
 import SyncFailure from './models/SyncFailure'
@@ -17,6 +18,7 @@ export { default as ExplorerProfile } from './models/ExplorerProfile'
 export { default as Follow } from './models/Follow'
 export { default as PendingMedia } from './models/PendingMedia'
 export { default as PostDraft } from './models/PostDraft'
+export { default as PostOutbox } from './models/PostOutbox'
 export { default as Review } from './models/Review'
 export { default as Spot } from './models/Spot'
 export { default as SyncFailure } from './models/SyncFailure'
@@ -32,6 +34,7 @@ export const modelClasses = [
   SyncFailure,
   PendingMedia,
   PostDraft,
+  PostOutbox,
 ]
 
 /**

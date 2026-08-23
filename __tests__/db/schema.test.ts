@@ -100,8 +100,26 @@ describe('the local schema against the server allowlist', () => {
     )
   })
 
-  it('is at schema version 3, carrying the pending_media and post_drafts migrations', () => {
-    expect(stourifySchema.version).toBe(3)
+  it('is at schema version 4, carrying the pending_media, post_drafts and post_outbox migrations', () => {
+    expect(stourifySchema.version).toBe(4)
+  })
+
+  it('declares the local-only post_outbox table, which is not synced', () => {
+    expect(SYNCED_TABLES).not.toContain('post_outbox')
+    expect(columnNames('post_outbox').sort()).toEqual(
+      [
+        'attempts',
+        'caption',
+        'created_at',
+        'last_error',
+        'media',
+        'post_uuid',
+        'spot_title',
+        'spot_uuid',
+        'state',
+        'visibility',
+      ].sort(),
+    )
   })
 
   it('declares the local-only post_drafts table, which is not synced', () => {

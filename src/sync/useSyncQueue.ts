@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { useDatabase } from '@nozbe/watermelondb/react'
 import {
   listFailedMediaQueue,
+  listFailedPostQueue,
   listFailedQueue,
   listPendingMediaQueue,
+  listPendingPostQueue,
   listPendingQueue,
   QUEUE_TABLES,
   type FailedQueueRow,
@@ -21,9 +23,23 @@ export interface SyncQueue {
    */
   mediaPending: PendingQueueRow[]
   mediaFailed: FailedQueueRow[]
+  /**
+   * `post_outbox` rows — posts somebody pressed Share on with no signal
+   * (STOURIFY-161). Its own section for the same reason the photos have one: a
+   * queued post is not a row edit and never participates in the skip-pull gate.
+   */
+  postPending: PendingQueueRow[]
+  postFailed: FailedQueueRow[]
 }
 
-const EMPTY: SyncQueue = { pending: [], failed: [], mediaPending: [], mediaFailed: [] }
+const EMPTY: SyncQueue = {
+  pending: [],
+  failed: [],
+  mediaPending: [],
+  mediaFailed: [],
+  postPending: [],
+  postFailed: [],
+}
 
 /**
  * The live queue, straight from the database.
@@ -50,9 +66,11 @@ export function useSyncQueue(): SyncQueue {
         listFailedQueue(database),
         listPendingMediaQueue(database),
         listFailedMediaQueue(database),
-      ]).then(([pending, failed, mediaPending, mediaFailed]) => {
+        listPendingPostQueue(database),
+        listFailedPostQueue(database),
+      ]).then(([pending, failed, mediaPending, mediaFailed, postPending, postFailed]) => {
         if (cancelled) return
-        setQueue({ pending, failed, mediaPending, mediaFailed })
+        setQueue({ pending, failed, mediaPending, mediaFailed, postPending, postFailed })
       })
     })
 

@@ -9,6 +9,8 @@ import type Spot from '@/db/models/Spot'
 import type PendingMedia from '@/db/models/PendingMedia'
 import PendingMediaModel from '@/db/models/PendingMedia'
 import type PostDraft from '@/db/models/PostDraft'
+import PostDraftModel from '@/db/models/PostDraft'
+import type PostOutbox from '@/db/models/PostOutbox'
 
 /**
  * The pre-migration schema: version 1, `pending_media` absent — a snapshot
@@ -225,5 +227,109 @@ describe('v2 -> v3 migration (adds post_drafts)', () => {
     )
     expect(draft.caption).toBe('Written before the update')
     expect(draft.media).toEqual([])
+  })
+})
+
+/**
+ * The v3 schema as it shipped: `pending_media` and `post_drafts` present,
+ * `post_outbox` absent. Minimal for the same reason as the two above.
+ */
+const schemaV3 = appSchema({
+  version: 3,
+  tables: [
+    tableSchema({
+      name: 'pending_media',
+      columns: [
+        { name: 'host_type', type: 'string' },
+        { name: 'host_uuid', type: 'string', isIndexed: true },
+        { name: 'local_path', type: 'string' },
+        { name: 'filename', type: 'string' },
+        { name: 'mime', type: 'string' },
+        { name: 'size', type: 'number' },
+        { name: 'state', type: 'string', isIndexed: true },
+        { name: 'attempts', type: 'number' },
+        { name: 'last_error', type: 'string', isOptional: true },
+        { name: 'created_at', type: 'number' },
+      ],
+    }),
+    tableSchema({
+      name: 'post_drafts',
+      columns: [
+        { name: 'caption', type: 'string' },
+        { name: 'visibility', type: 'string' },
+        { name: 'spot_uuid', type: 'string', isOptional: true },
+        { name: 'spot_title', type: 'string', isOptional: true },
+        { name: 'media', type: 'string' },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number', isIndexed: true },
+      ],
+    }),
+  ],
+})
+
+describe('v3 -> v4 migration (adds post_outbox)', () => {
+  it('keeps un-drained photos and unfinished drafts, and adds the new table', async () => {
+    const v3Adapter = new LokiJSAdapter({
+      schema: schemaV3,
+      useWebWorker: false,
+      useIncrementalIndexedDB: false,
+      extraLokiOptions: { autosave: false },
+    })
+    const v3Database = new Database({
+      adapter: v3Adapter,
+      modelClasses: [PendingMediaModel, PostDraftModel],
+    })
+
+    // Both kinds of un-drained local work a destructive bump would destroy.
+    await v3Database.write(async () => {
+      await v3Database.get<PendingMedia>('pending_media').create((row: any) => {
+        row._raw.host_type = 'stourify_spot'
+        row._raw.host_uuid = 'spot-uuid'
+        row._raw.local_path = 'file:///media-outbox/1.jpg'
+        row._raw.filename = 'photo.jpg'
+        row._raw.mime = 'image/jpeg'
+        row._raw.size = 4242
+        row._raw.state = 'pending'
+        row._raw.attempts = 0
+        row._raw.created_at = 1_700_000_000_000
+      })
+      await v3Database.get<PostDraft>('post_drafts').create((row: any) => {
+        row._raw.caption = 'Half-written before the update'
+        row._raw.visibility = 'private'
+        row._raw.media = '[]'
+        row._raw.created_at = 1_700_000_000_000
+        row._raw.updated_at = 1_700_000_000_000
+      })
+    })
+
+    await new Promise<void>((resolve, reject) => {
+      const driver = (v3Adapter as any)._driver
+      driver.loki.saveDatabase((error: unknown) => (error ? reject(error) : resolve()))
+    })
+
+    const v4Adapter: any = await v3Adapter.testClone({
+      schema: stourifySchema,
+      migrations: stourifyMigrations,
+    })
+    const v4Database = createDatabase(v4Adapter)
+
+    expect(await v4Database.get<PendingMedia>('pending_media').query().fetchCount()).toBe(1)
+    const survivingDrafts = await v4Database.get<PostDraft>('post_drafts').query().fetch()
+    expect(survivingDrafts).toHaveLength(1)
+    expect(survivingDrafts[0].caption).toBe('Half-written before the update')
+
+    const queued = await v4Database.write(async () =>
+      v4Database.get<PostOutbox>('post_outbox').create((row: any) => {
+        row._raw.caption = 'Written in a tunnel'
+        row._raw.visibility = 'public'
+        row._raw.media = '[]'
+        row._raw.state = 'queued'
+        row._raw.attempts = 0
+        row._raw.created_at = 1_700_000_000_000
+      }),
+    )
+    expect(queued.caption).toBe('Written in a tunnel')
+    expect(queued.state).toBe('queued')
+    expect(queued.postUuid).toBeNull()
   })
 })
