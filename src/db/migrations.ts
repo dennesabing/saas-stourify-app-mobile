@@ -3,7 +3,9 @@ import { createTable, schemaMigrations } from '@nozbe/watermelondb/Schema/migrat
 /**
  * v1 -> v2 adds `pending_media`, the local-only offline media outbox; v2 -> v3
  * adds `post_drafts`, the local-only store of posts somebody started and has
- * not shared (both described in `schema.ts`). This MUST be a migration, never a
+ * not shared; v3 -> v4 adds `post_outbox`, the local-only queue of posts
+ * somebody pressed Share on with no signal (all three described in
+ * `schema.ts`). This MUST be a migration, never a
  * destructive schema-version bump: a reset (`unsafeResetDatabase`) would wipe every un-drained offline
  * write on an existing install — precisely the data this project exists to
  * protect. `stepsForMigration.js`/the adapter's `validateAdapter` refuses to
@@ -12,6 +14,26 @@ import { createTable, schemaMigrations } from '@nozbe/watermelondb/Schema/migrat
  */
 export const stourifyMigrations = schemaMigrations({
   migrations: [
+    {
+      toVersion: 4,
+      steps: [
+        createTable({
+          name: 'post_outbox',
+          columns: [
+            { name: 'caption', type: 'string' },
+            { name: 'visibility', type: 'string' },
+            { name: 'spot_uuid', type: 'string', isOptional: true },
+            { name: 'spot_title', type: 'string', isOptional: true },
+            { name: 'media', type: 'string' },
+            { name: 'post_uuid', type: 'string', isOptional: true },
+            { name: 'state', type: 'string', isIndexed: true },
+            { name: 'attempts', type: 'number' },
+            { name: 'last_error', type: 'string', isOptional: true },
+            { name: 'created_at', type: 'number' },
+          ],
+        }),
+      ],
+    },
     {
       toVersion: 3,
       steps: [

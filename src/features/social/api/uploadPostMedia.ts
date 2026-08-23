@@ -36,15 +36,36 @@ export interface PostMediaAsset {
  * once every attach resolved, and a post that goes live missing half its photos
  * is worse than one left as a draft `publish` can finish later.
  *
+ * That rejection is why `options.idempotencyKeyFor` exists (STOURIFY-161). The
+ * send-later queue calls this again after a failure, and `attachMedia` is
+ * at-least-once by construction — a response lost on the way back looks exactly
+ * like a request that never arrived. Without a stable per-photo key, a retry
+ * after a dropped reply attaches the same picture twice.
+ *
  * This is the app's SECOND upload path, and the one that is easy to forget: a
  * composed post's photos never enter the offline outbox, so they never pass the
  * strip that happens there. The metadata has to come off here as well, or every
  * post published with a photo uploads the coordinates it was taken at
  * (STOURIFY-40).
  */
+export interface UploadPostMediaOptions {
+  /**
+   * A stable name for each photo, so re-attaching one whose response was lost
+   * collapses into a single media row server-side instead of two.
+   *
+   * The index is the photo's position in `assets`, so the key has to be
+   * derived from something that outlives the attempt — the queue entry's own
+   * id, in the one caller that passes this. Omit it and no key is sent at all,
+   * which is exactly what the inline path from the compose screen wants: it
+   * never retries, so it has nothing to keep stable.
+   */
+  idempotencyKeyFor?: (index: number) => string
+}
+
 export async function uploadPostMedia(
   postUuid: string,
   assets: PostMediaAsset[],
+  options: UploadPostMediaOptions = {},
 ): Promise<void> {
   for (const [index, asset] of assets.entries()) {
     const filename = asset.fileName ?? `photo_${index}.jpg`
@@ -65,11 +86,17 @@ export async function uploadPostMedia(
 
     await putFile(presigned.url, presigned.headers, bytes)
 
+    const idempotencyKey = options.idempotencyKeyFor?.(index)
+
     await attachMedia({
       key: presigned.key,
       name: filename,
       modelType: POST_MEDIA_HOST_TYPE,
       modelUuid: postUuid,
+      // Spread rather than `idempotencyKey: undefined`, so a caller that names
+      // no key sends a request byte-identical to the one this path has always
+      // sent.
+      ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
     })
   }
 }

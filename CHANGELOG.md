@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A post you share with no signal now sends itself later** (STOURIFY-161, under STOURIFY-104).
+
+  Pressing **Share** in a tunnel used to fail with an error and hand the draft back, leaving you to
+  remember to try again. Now the app keeps the whole post — words, audience, tagged spot and photos —
+  tells you it will go out on its own, and sends it the next time it reaches the server. Think of a
+  postbox: you do not stand there waiting for the van.
+
+  While it waits you can find it under **Settings → Offline & sync**, in a new **Posts** section
+  beside the queued spots and photos — a screen that opens with no network at all, reached from the
+  Create menu. **Discard** throws a waiting post away if you change your mind. It leaves the Drafts
+  page the moment it is queued, so one post only ever lives in one place and cannot be shared twice.
+
+  Three things make it dependable rather than hopeful. The app **tries the real request every time**
+  and only queues when the request genuinely never reached a server, so a working connection is never
+  mistaken for a tunnel. Publishing a post is three steps — create it, upload each photo, publish it —
+  and the queue **remembers where it got to**, so a signal that dies halfway does not produce a second
+  post or a post missing half its pictures. And the queue is emptied by three separate triggers —
+  regaining signal, reopening the app, and the **Retry all now** button — so no single one of them has
+  to work for your post to go out.
+
+  New: `src/db/models/PostOutbox.ts`, `src/features/social/api/postOutbox.ts`,
+  `src/sync/postOutboxDrain.ts`, and the local-only `post_outbox` table, added by a v3 → v4 migration
+  so nothing already waiting on the device is lost.
+
 - **A prettier configuration, so a formatter that gets run here does less damage** (STOURIFY-162).
 
   `.prettierrc` records the style this code is actually written in — single quotes, no semicolons, a
@@ -125,6 +149,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   this one), and `src/features/spots/components/SpotAboutTab.tsx`.
 
 ### Fixed
+
+- **Offline & sync no longer says nothing is waiting while something is** (STOURIFY-161). The banner
+  at the top of that screen counted only queued spot and profile edits, so the first time a queued
+  post could appear it rendered *"You're offline · Nothing waiting to send"* directly above one that
+  plainly was. Queued posts are now counted. Queued photos still are not — that is the same bug, it
+  predates this change, and it is filed separately rather than fixed here without cover.
+
+- **Re-sending a post's photo can no longer attach it twice** (STOURIFY-161). Attaching a photo is a
+  request whose reply can be lost on the way back, which looks exactly like a request that never
+  arrived — so anything that retries has to be able to say *this is the same photo again*. Nothing
+  retried that path until the send-later queue existed, so nothing ever passed that name. It does
+  now, and a repeated attach collapses into one picture instead of two.
 
 - **Two files no longer carry a whole-file reformat that nobody asked for** (STOURIFY-162).
 

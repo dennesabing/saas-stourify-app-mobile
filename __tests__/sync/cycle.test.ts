@@ -15,6 +15,24 @@ jest.mock('@/shared/api/media', () => ({
   attachMedia: jest.fn(),
 }))
 
+/**
+ * The send-later post queue (STOURIFY-161) drains through the app's own
+ * Sanctum client, not the stand-in client this suite hands `runSyncCycle`. Left
+ * real it would attempt an actual HTTP request and time the test out — so it is
+ * stubbed here to answer the way a reachable server that refuses the post
+ * would. What these tests are about is WHETHER the phase runs, never what the
+ * server said.
+ */
+jest.mock('@/shared/api/posts', () => ({
+  createPost: jest.fn(async () => {
+    throw Object.assign(new Error('refused'), {
+      isAxiosError: true,
+      response: { status: 422, data: { message: 'The server refused this post.' } },
+    })
+  }),
+  publishPost: jest.fn(),
+}))
+
 jest.mock('expo-file-system', () => {
   class MockFile {
     uri: string
@@ -444,4 +462,68 @@ it('STOURIFY-29: the photo phase never changes what the cycle reports', async ()
   await expectPhotoWasAttempted(database, 'media-quiet')
   expect(useSyncStatusStore.getState().mediaFailures).toHaveLength(1)
   expect(useSyncStatusStore.getState().pendingMediaCount).toBe(0)
+})
+
+/**
+ * STOURIFY-161. The send-later queue for posts sits beside the photo queue, in
+ * the same `finally`, for the same reason: nothing above it may hold it back.
+ *
+ * The two tests below are the pair that matters. The first says a queued post
+ * is sent even when the pull failed outright; the second says the attempt can
+ * never change what the cycle reports, in either direction.
+ */
+describe('the send-later post queue runs whatever else the cycle did', () => {
+  async function seedQueuedPost(database: Database, caption: string): Promise<void> {
+    await database.write(async () =>
+      database.get('post_outbox').create((row: any) => {
+        row._raw.caption = caption
+        row._raw.visibility = 'public'
+        row._raw.media = '[]'
+        row._raw.post_uuid = null
+        row._raw.state = 'queued'
+        row._raw.attempts = 0
+        row._raw.created_at = Date.now()
+      }),
+    )
+  }
+
+  it('sends a queued post even when the pull failed outright', async () => {
+    const database = createTestDatabase()
+    await seedQueuedPost(database, 'queued while the delta endpoint was broken')
+
+    const get = jest.fn(async () => {
+      throw new Error('Request failed with status code 500')
+    })
+
+    const outcome = await runSyncCycle({
+      database,
+      client: { get, post: jest.fn() } as any,
+      trigger: 'connectivity',
+    })
+
+    expect(outcome.pulled).toBe(false)
+    // The post's own create call is the app's shared client, not this one, so
+    // it fails here too — what matters is that the entry was picked up at all.
+    // A drain that never ran would leave `attempts` at zero and `state` queued;
+    // a drain that ran against a broken server marks it failed.
+    const [row] = await database.get('post_outbox').query().fetch()
+    expect((row as any).state).toBe('failed')
+  })
+
+  it('never changes what the cycle reports', async () => {
+    const database = createTestDatabase()
+    await seedQueuedPost(database, 'queued while everything else was fine')
+
+    const get = jest.fn(async () => ({ data: { server_time: 'now' } }))
+    const outcome = await runSyncCycle({
+      database,
+      client: { get, post: jest.fn() } as any,
+      trigger: 'manual',
+    })
+
+    // The post could not be sent — there is no real server behind the shared
+    // client in this suite — and the cycle still reports a clean pull.
+    expect(outcome.pulled).toBe(true)
+    expect(outcome.error).toBeNull()
+  })
 })

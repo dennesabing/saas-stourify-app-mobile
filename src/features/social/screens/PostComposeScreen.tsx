@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
+  Alert,
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Image, ScrollView, ActivityIndicator, KeyboardAvoidingView,
 } from 'react-native'
+import axios from 'axios'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useDatabase } from '@nozbe/watermelondb/react'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
@@ -19,12 +21,30 @@ import {
   saveDraft,
   type DraftContent,
 } from '@/features/social/api/postDrafts'
+import { queuePost } from '@/features/social/api/postOutbox'
 
 type Props = NativeStackScreenProps<CreateStackParamList, 'PostCompose'>
 type Visibility = 'public' | 'followers' | 'private'
 
 /** How long after the last keystroke the draft is written down. */
 const DRAFT_SAVE_DELAY_MS = 800
+
+/**
+ * Did the request reach a server at all? (STOURIFY-161)
+ *
+ * A response-less axios error is axios's own definition of "this never
+ * arrived" — a timeout, a DNS failure, a dropped radio — and it is the same
+ * test `sync/mediaDrain.ts` and `sync/postOutboxDrain.ts` use.
+ *
+ * The app also keeps an online/offline flag, and this deliberately does not ask
+ * it: STOURIFY-134 is an open bug where that flag can stay stuck at offline
+ * after a real reconnect, which would queue a post somebody could have sent.
+ * One doomed request in a tunnel is a cheap price for deciding on what actually
+ * happened.
+ */
+function isDroppedRequest(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response === undefined
+}
 
 const VISIBILITY_OPTIONS: { label: string; value: Visibility }[] = [
   { label: '🌍 Public', value: 'public' },
@@ -114,6 +134,15 @@ export default function PostComposeScreen({ route, navigation }: Props) {
 
   /** Everything the unmount save needs, kept current without re-subscribing. */
   const stateRef = useRef({ content, draftId, published: false })
+
+  /**
+   * The uuid the server handed back, if it got as far as answering.
+   *
+   * Publishing is three steps and the signal can die between any two of them.
+   * If the post was already created before it died, the queue entry has to
+   * carry that id or the next attempt makes a second post.
+   */
+  const createdUuidRef = useRef<string | null>(null)
   stateRef.current.content = content
   stateRef.current.draftId = draftId
 
@@ -160,6 +189,10 @@ export default function PostComposeScreen({ route, navigation }: Props) {
      * finishing it later is safe.
      */
     mutationFn: async () => {
+      // Cleared per attempt: a retry that gets further than the last one must
+      // not inherit a uuid from a post the server never made.
+      createdUuidRef.current = null
+
       const payload: CreatePostInput = { visibility, publish: false }
       if (caption) payload.caption = caption
       // `spot_uuid` is the only spot field `PostStoreRequest` accepts. This
@@ -170,6 +203,7 @@ export default function PostComposeScreen({ route, navigation }: Props) {
       if (taggedSpot) payload.spot_uuid = taggedSpot.uuid
 
       const post = await createPost(payload)
+      createdUuidRef.current = post.uuid
       await uploadPostMedia(post.uuid, mediaAssets)
 
       return publishPost(post.uuid)
@@ -190,7 +224,44 @@ export default function PostComposeScreen({ route, navigation }: Props) {
       qc.invalidateQueries({ queryKey: ['feed', 'following'] })
       navigation.popToTop()
     },
-    onError: (err) => setError(extractApiError(err)),
+    /**
+     * Two failures that look alike and are not (STOURIFY-161).
+     *
+     * **The request never reached a server** — a tunnel, a lift, aeroplane
+     * mode. Nothing is wrong with the post, so it goes in the send-later queue
+     * and the author is told it will go out by itself. This is where the draft
+     * stops being a draft: one post lives in one place, or it gets shared
+     * twice.
+     *
+     * **The server answered and refused it** — too long, not allowed, a fault.
+     * Queueing would only repeat the refusal later and out of sight, so this
+     * behaves exactly as it did before this card: show what the server said and
+     * leave the draft where it is.
+     */
+    onError: (err) => {
+      if (!isDroppedRequest(err)) {
+        setError(extractApiError(err))
+        return
+      }
+
+      void (async () => {
+        const { content: current, draftId: id } = stateRef.current
+        // Set BEFORE the queue write, so the unmount save cannot race it and
+        // write the draft back after the queue has taken it over.
+        stateRef.current.published = true
+
+        await queuePost(database, current, {
+          draftId: id,
+          postUuid: createdUuidRef.current,
+        })
+
+        Alert.alert(
+          'No signal — this will send itself',
+          'Your post is saved on this device and goes out on its own as soon as you are back online. You can see it waiting under Offline & sync.',
+        )
+        navigation.popToTop()
+      })()
+    },
   })
 
   // STOURIFY-100: edge-to-edge means Android no longer shrinks the window when the

@@ -4,6 +4,7 @@ import type PendingMedia from '@/db/models/PendingMedia'
 import { createStourifySyncEngine } from './engine'
 import { syncHttpClient } from './httpClient'
 import { drainPendingMedia } from './mediaDrain'
+import { drainPostOutbox } from './postOutboxDrain'
 import { countPending, drainOutbox, listSyncFailures, type DrainOutcome } from './pushService'
 import { useSyncStatusStore } from './status'
 
@@ -92,6 +93,31 @@ async function runMediaPhase(database: Database): Promise<void> {
     await publishMediaState(database)
   } catch {
     // Same again: the counters are a display convenience, never a gate.
+  }
+}
+
+/**
+ * Phase 3 of a cycle: send every post somebody pressed Share on with no signal
+ * (STOURIFY-161).
+ *
+ * It sits here rather than anywhere earlier for the same two reasons the photo
+ * phase does, and they point in opposite directions. Nothing above it may wait
+ * on a post going out — so it is last. And no early return above it may jump
+ * over it — so it is called from the `finally`, which the language guarantees
+ * runs.
+ *
+ * It swallows everything, for the reason spelled out on `runMediaPhase`: an
+ * exception thrown from a `finally` REPLACES whatever exception was already in
+ * flight, so without this catch a local database fault here would surface as
+ * the cycle's error and send the next reader to debug the wrong layer. Trouble
+ * with a queued post shows up on the Sync status screen, never as this cycle's
+ * outcome.
+ */
+async function runPostOutboxPhase(database: Database): Promise<void> {
+  try {
+    await drainPostOutbox(database)
+  } catch {
+    // Not this cycle's business to report.
   }
 }
 
@@ -194,6 +220,7 @@ export async function runSyncCycle(options: {
     // An ordinary statement placed anywhere else would fix today's four exits
     // and none of tomorrow's. `finally` is what makes it structural.
     await runMediaPhase(options.database)
+    await runPostOutboxPhase(options.database)
 
     // Idempotent, and covers every exit path — including an uncaught
     // exception from `drainOutbox`/`publishQueueState` (e.g. a local DB read

@@ -157,3 +157,25 @@ export async function deleteDraft(database: Database, draftId: string): Promise<
 
   await deleteDraftPhotos(media)
 }
+
+/**
+ * Deletes the draft row and **keeps** its photo copies.
+ *
+ * The one caller is `queuePost`, when a post the author pressed Share on with
+ * no signal moves from the Drafts page into the send-later queue. The queue
+ * entry points at the very same files, so deleting them here would leave a
+ * post on its way with no picture.
+ *
+ * It is deliberately a second function rather than a flag on `deleteDraft`.
+ * Which of the two you want is a fact about why the draft is going away, and a
+ * boolean argument at the call site says nothing about that to whoever reads
+ * it next.
+ */
+export async function deleteDraftRow(database: Database, draftId: string): Promise<void> {
+  const draft = await findDraft(database, draftId)
+  if (draft === null) return
+
+  await database.write(async () => {
+    await draft.destroyPermanently()
+  })
+}
