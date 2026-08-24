@@ -1,8 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react-native'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { QueryClient } from '@tanstack/react-query'
 import ReviewsScreen from '@/features/reviews/screens/ReviewsScreen'
 import { createLocalReview } from '@/features/reviews/api/createLocalReview'
 import { createTestDatabase } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
+import { trackQueryClient } from '../support/queryClients'
 
 jest.mock('@/shared/api/reviews', () => ({
   getSpotReviews: jest.fn(),
@@ -95,5 +97,130 @@ it('shows an empty state when there are no reviews at all', async () => {
 
   await waitFor(() => {
     expect(screen.getByText('No reviews yet')).toBeTruthy()
+  })
+})
+
+/**
+ * The three situations this screen used to answer with one sentence
+ * (STOURIFY-85).
+ *
+ * "We are still asking", "we could not ask" and "we asked and there is
+ * nothing" are different facts with different remedies, and only the middle
+ * one has an action worth offering. Before this card a failed request fell
+ * into the empty branch and told the reader the spot had no reviews — a claim
+ * about the spot, made on the strength of a timeout.
+ *
+ * Each case asserts the presence of its own copy AND the absence of the
+ * others'. Presence alone would pass against a screen that stacked all three,
+ * which is not a screen that tells them apart.
+ */
+describe('a failed review request is not an unreviewed spot', () => {
+  it('says the request failed, and offers a retry that re-runs the query', async () => {
+    ;(getSpotReviews as jest.Mock).mockRejectedValue(new Error('timeout of 15000ms exceeded'))
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText("Couldn't load the reviews")).toBeTruthy())
+    expect(screen.queryByText('No reviews yet')).toBeNull()
+    expect(screen.queryAllByLabelText('Loading')).toHaveLength(0)
+
+    expect(getSpotReviews).toHaveBeenCalledTimes(1)
+
+    fireEvent.press(screen.getByText('Try again'))
+
+    await waitFor(() => expect(getSpotReviews).toHaveBeenCalledTimes(2))
+  })
+
+  it('still says there are no reviews when the request succeeds with none', async () => {
+    ;(getSpotReviews as jest.Mock).mockResolvedValue({
+      data: [],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 0 },
+    })
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('No reviews yet')).toBeTruthy())
+    expect(screen.getByText('Be the first to write one.')).toBeTruthy()
+    expect(screen.queryByText("Couldn't load the reviews")).toBeNull()
+    expect(screen.queryByText('Try again')).toBeNull()
+    expect(screen.queryAllByLabelText('Loading')).toHaveLength(0)
+  })
+
+  it('claims neither while the request is still in flight', async () => {
+    // Never settles, so the screen stays in its first-load state.
+    ;(getSpotReviews as jest.Mock).mockReturnValue(new Promise(() => {}))
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getAllByLabelText('Loading')).toHaveLength(3))
+    expect(screen.queryByText('No reviews yet')).toBeNull()
+    expect(screen.queryByText("Couldn't load the reviews")).toBeNull()
+    expect(screen.queryByText('Try again')).toBeNull()
+  })
+
+  /**
+   * The one thing that makes this screen different from its siblings.
+   *
+   * `useSpotReviews` merges rows out of the local WatermelonDB collection with
+   * the server list, so somebody who has just written a review offline has
+   * something to look at even when the server fetch fails. The error branch
+   * lives inside `ListEmptyComponent`, which never renders while there are
+   * rows — so it must not cover their own review with a network message.
+   */
+  it('keeps showing a queued local review when the server fetch fails', async () => {
+    const database = createTestDatabase()
+
+    ;(getSpotReviews as jest.Mock).mockRejectedValue(new Error('offline'))
+
+    await createLocalReview(database, {
+      spotId: null,
+      spotUuid: 'spot-1',
+      rating: 4,
+      body: 'Written on the train, still queued.',
+    })
+
+    renderScreen(database)
+
+    await waitFor(() =>
+      expect(screen.getByText('Written on the train, still queued.')).toBeTruthy(),
+    )
+    await waitFor(() => expect(getSpotReviews).toHaveBeenCalled())
+
+    expect(screen.getByText('Queued ↑')).toBeTruthy()
+    expect(screen.queryByText("Couldn't load the reviews")).toBeNull()
+    expect(screen.queryByText('No reviews yet')).toBeNull()
+  })
+
+  /**
+   * The same protection from the other direction: rows React Query already
+   * holds. Keep it as a regression guard, but know what it does NOT prove —
+   * `isLoading` goes false as soon as anything is cached, so a hoisted branch
+   * is never reached here and this test passes either way (STOURIFY-87's
+   * finding). The cold-load assertion above is what discriminates.
+   */
+  it('keeps showing cached server reviews when a later fetch fails', async () => {
+    ;(getSpotReviews as jest.Mock).mockRejectedValue(new Error('offline'))
+
+    const seeded = trackQueryClient(
+      new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+    )
+    seeded.setQueryData(['spot-reviews', 'spot-1'], {
+      data: [makeServerReview({ body: 'Cached from earlier.' })],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 1 },
+    })
+
+    render(
+      <TestProviders database={createTestDatabase()} queryClient={seeded}>
+        <ReviewsScreen navigation={navigation} route={{ params: { spotId: 'spot-1' } } as any} />
+      </TestProviders>,
+    )
+
+    await waitFor(() => expect(getSpotReviews).toHaveBeenCalled())
+
+    expect(screen.getByText('Cached from earlier.')).toBeTruthy()
+    expect(screen.queryByText("Couldn't load the reviews")).toBeNull()
+    expect(screen.queryByText('No reviews yet')).toBeNull()
   })
 })
