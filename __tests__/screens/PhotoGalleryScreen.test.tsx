@@ -22,7 +22,7 @@ function makeSpot(overrides: Partial<any> = {}) {
     slug: 'blue-cove',
     latitude: 6.1,
     longitude: 125.2,
-    status: 'active',
+    status: 'published',
     media: [
       { uuid: 'm1', url: 'https://cdn.test/photo1.jpg', thumb_url: null },
       { uuid: 'm2', url: 'https://cdn.test/photo2.jpg', thumb_url: null },

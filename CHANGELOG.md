@@ -35,6 +35,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The "✓ Verified" tag appears on a verified spot — for the first time in the app's life**
+  (STOURIFY-72).
+
+  The spot detail screen has always carried a small "✓ Verified" tag next to a spot's title, and
+  it has never once been drawn. It was switched on `status === 'active'`, and `active` is not a
+  value the server can send: a spot's status is one of `draft`, `published`, `under_review` or
+  `removed`. The tag was wired to a light switch in a different building.
+
+  Two things had to be wrong at once for that to survive. The `Spot` type declared
+  `status: 'active' | 'pending'` — those are a *follow* request's two states, copied onto a field
+  that shares nothing with it but a name — so TypeScript saw a comparison against a value its own
+  type called legal and said nothing. And the field the tag was always meant to read, `is_verified`,
+  which the server sends on every single spot, was not in the type at all, so no screen could have
+  used it even if somebody had noticed.
+
+  The type now names the four statuses the server actually has, declares `is_verified`, and the tag
+  asks that instead. Nine test fixtures that were writing an impossible status now write a real one.
+  One of them mattered more than the rest: the test asserting the tag rendered **passed**, against a
+  fixture inventing the same impossible value — a green test proving a badge works on a wire shape
+  that does not exist. It is now two tests that ask the honest question, one for each answer.
+
+  **What this does not do**: make the tag appear on production. Only a moderator can verify a spot,
+  and the endpoint that would let one do it has not been built — the permission is modelled, the
+  route is not. On a seeded environment the tag shows up immediately; everywhere else it waits for
+  that separate piece of work.
+
 - **The `Spot` type no longer declares two fields the server has never sent** (STOURIFY-27).
 
   `Spot.id` was declared as a **required** field and `Spot.category` as an optional one, and

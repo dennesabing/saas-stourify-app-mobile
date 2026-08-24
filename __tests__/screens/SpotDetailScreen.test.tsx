@@ -37,7 +37,12 @@ function makeSpot(overrides: Partial<any> = {}) {
     latitude: 6.1,
     longitude: 125.2,
     address: 'Coastal Road',
-    status: 'active',
+    status: 'published',
+    // Deliberately false by default. A moderator has to vouch for a spot before
+    // it is verified, so an ordinary spot is not — and a fixture that defaults
+    // to true would let any test in this file pass on a badge it never asked
+    // for. The two tests that are about the badge set it explicitly.
+    is_verified: false,
     categories: ['Nature', 'Viewpoint'],
     media: [
       { uuid: 'm1', url: 'https://cdn.test/photo1.jpg', thumb_url: null },
@@ -113,7 +118,6 @@ it('renders a real hero image, the rating and the review count', async () => {
     expect(screen.getByText('Blue Cove')).toBeTruthy()
     expect(screen.getByText('4.5')).toBeTruthy()
     expect(screen.getByText('See all reviews')).toBeTruthy()
-    expect(screen.getByText('✓ Verified')).toBeTruthy()
   })
 
   // The loading placeholder must go once the answer is in. A skeleton left
@@ -122,6 +126,48 @@ it('renders a real hero image, the rating and the review count', async () => {
   expect(screen.queryByTestId('spot-hero-loading')).toBeNull()
   expect(screen.queryByText('No photos yet')).toBeNull()
   expect(screen.queryByTestId('spot-hero-error')).toBeNull()
+})
+
+// A "Verified" badge is a shop's health-inspection certificate in the window:
+// it means somebody with authority came and checked. Only a moderator can put
+// it there — `is_verified` cannot be set by the spot's own author, on the API
+// or through the offline push — so the two states below are the only two a
+// reader can ever see, and the badge has to tell them apart.
+//
+// It did not. Until STOURIFY-72 the screen asked `status === 'active'`, and
+// `active` is not one of the four values the server's SpotStatus enum can send,
+// so the badge never appeared on any spot on any device. The test that was
+// here asserted it DID appear and passed — against a fixture writing the same
+// impossible value. A green test proving a badge works, on a wire shape that
+// does not exist. These two ask the field the server actually sends.
+it('shows the verified badge on a spot a moderator has verified', async () => {
+  ;(getSpot as jest.Mock).mockResolvedValue(makeSpot({ is_verified: true }))
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('✓ Verified')).toBeTruthy())
+})
+
+it('shows no verified badge on a spot nobody has verified', async () => {
+  ;(getSpot as jest.Mock).mockResolvedValue(makeSpot({ is_verified: false }))
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
+
+  renderScreen()
+
+  // Wait for the spot itself to arrive first. Asserting the badge's absence on
+  // an empty screen would pass before the request had even resolved, which is
+  // the same as asserting nothing at all.
+  await waitFor(() => expect(screen.getByText('Blue Cove')).toBeTruthy())
+  expect(screen.queryByText('✓ Verified')).toBeNull()
 })
 
 it('shows a loading hero, and says nothing about photos, while the spot request is still in flight', async () => {

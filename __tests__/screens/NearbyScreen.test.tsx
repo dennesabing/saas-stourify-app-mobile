@@ -74,7 +74,7 @@ function gensanSpot(uuid: string, title: string, latitude: number, distanceKm: n
     slug: uuid,
     latitude,
     longitude: GENSAN.longitude,
-    status: 'active' as const,
+    status: 'published' as const,
     distance_km: distanceKm,
   }
 }
