@@ -35,6 +35,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The `Spot` type no longer declares two fields the server has never sent** (STOURIFY-27).
+
+  `Spot.id` was declared as a **required** field and `Spot.category` as an optional one, and
+  `SpotResource::toArray()` has never put either on the wire. Think of the interface as a customs
+  declaration for parcels arriving from the server: two of its lines described goods nobody had ever
+  shipped. Both are gone, along with the `as Spot` casts in five test fixtures that only existed to
+  satisfy them.
+
+  Nothing read either field, so nothing changes at run time — the app ships the same JavaScript.
+  What changes is that the fixtures are now *checked* against the type instead of exempted from it.
+  A cast is a blanket silencer: `as Spot` suppresses every complaint about an expression, not just
+  the one it was aimed at, which is precisely how `Spot.name` survived unnoticed until STOURIFY-11.
+  Each cast is now a plain type annotation, so a future mismatch has somewhere to surface.
+
+  The missing `id` is not an oversight to fix on the server. The offline sync delta is a second wire
+  format for the same table and it *does* carry the integer, which the phone's database keeps in
+  `server_id` — so the project had already settled which channel exposes internal keys. The public
+  resource joins on `uuid`.
+
+  `Spot.status` is a third instance of the same defect and is deliberately untouched here; it has a
+  real reader and is carried by STOURIFY-72.
+
 - **A photo waiting to upload now counts towards the Offline & sync banner** (STOURIFY-165).
 
   With a photo queued and nothing else, the banner said *"You're offline · Nothing waiting to

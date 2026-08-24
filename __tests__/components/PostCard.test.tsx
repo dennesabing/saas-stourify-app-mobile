@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native'
 import PostCard from '@/shared/components/ui/PostCard'
 import { ThemeProvider } from '@/theme/ThemeProvider'
 import { palette } from '@/theme/tokens'
-import type { Post, Spot } from '@/shared/api/types'
+import type { Post } from '@/shared/api/types'
 
 function renderThemed(ui: React.ReactElement) {
   return render(<ThemeProvider scheme="light">{ui}</ThemeProvider>)
@@ -147,7 +147,7 @@ test('labels the spot chip from the spot title', () => {
       latitude: 14.8386,
       longitude: 120.2842,
       status: 'active',
-    } as Spot,
+    },
   }
   renderThemed(<PostCard post={post} onPress={() => {}} />)
   expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy()

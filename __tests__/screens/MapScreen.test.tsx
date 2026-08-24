@@ -57,7 +57,6 @@ const CEBU = { latitude: 10.3157, longitude: 123.8854 }
 
 function makeSpot(overrides: Partial<Spot> = {}): Spot {
   return {
-    id: '1',
     uuid: 'spot-1',
     title: 'Kalaklan Lighthouse',
     slug: 'kalaklan-lighthouse',
@@ -75,7 +74,7 @@ function makeSpot(overrides: Partial<Spot> = {}): Spot {
     rating_average: 4.5,
     reviews_count: 12,
     ...overrides,
-  } as Spot
+  }
 }
 
 function page(spots: Spot[]) {
@@ -108,7 +107,7 @@ beforeEach(() => {
 
 it('draws a pin for every spot in the shared explore query', async () => {
   ;(getSpots as jest.Mock).mockResolvedValue(
-    page([makeSpot(), makeSpot({ id: '2', uuid: 'spot-2', title: 'Sarangani Bay' })]),
+    page([makeSpot(), makeSpot({ uuid: 'spot-2', title: 'Sarangani Bay' })]),
   )
 
   renderScreen()
