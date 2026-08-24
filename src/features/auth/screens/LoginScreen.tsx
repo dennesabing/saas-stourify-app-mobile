@@ -7,7 +7,7 @@ import { useAuthStore } from '@/shared/store/auth'
 import * as authApi from '@/shared/api/auth'
 import { extractApiError, extractValidationErrors } from '@/shared/api/client'
 import { onLogin } from '@/sync/session'
-import { Button, Input, KeyboardAwareScreen, Text } from '@/shared/components/ui'
+import { BuildIdentity, Button, Input, KeyboardAwareScreen, Text } from '@/shared/components/ui'
 import { useTheme } from '@/theme/ThemeProvider'
 
 type FormData = { email: string; password: string }
@@ -113,6 +113,8 @@ export default function LoginScreen({ navigation }: Props) {
           variant="ghost"
           onPress={() => navigation.navigate('Register')}
         />
+
+        <BuildIdentity />
       </View>
     </KeyboardAwareScreen>
   )
