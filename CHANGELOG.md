@@ -35,6 +35,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Onboarding's people search no longer says "No one found" when the search never got through**
+  (STOURIFY-88).
+
+  The last step of signing up asks you to find people to follow. On a dropped request it used to
+  say "No one found — Try a different name or handle", which is a claim about Stourify made by a
+  screen that never found out — said to somebody three minutes into their first session, on the one
+  step built to prove the app is not empty. They do not retry; they skip, and arrive believing
+  nobody is here.
+
+  There are now four sentences instead of one. Before two characters are typed, a prompt asks for a
+  name rather than leaving a blank rectangle. While the request is in flight it says "Searching…". A
+  failed search says "Couldn't search for people" and offers a **Try again** that re-runs it. A
+  search that genuinely matched nobody keeps today's copy, word for word.
+
+  The gate is asked first and on purpose: React Query reports a query it was never allowed to send
+  as *settled*, so any other ordering makes the screen report an outcome for a search it never ran.
+
 - **A spot's reviews no longer claim the spot has none when the request failed** (STOURIFY-85).
 
   A shop with the lights off looks exactly like a shop with empty shelves. The Reviews screen had

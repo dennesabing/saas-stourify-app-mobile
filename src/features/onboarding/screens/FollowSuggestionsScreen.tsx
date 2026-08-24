@@ -34,10 +34,12 @@ export default function FollowSuggestionsScreen({ navigation: _navigation }: Pro
   const complete = useOnboardingStore((state) => state.complete)
   const [followedUuids, setFollowedUuids] = useState<string[]>([])
 
-  const { data, isFetching } = useQuery({
+  const isSearchable = debouncedQuery.trim().length >= 2
+
+  const { data, isFetching, isError, refetch } = useQuery({
     queryKey: ['discover-people', debouncedQuery],
     queryFn: () => searchPeople(debouncedQuery),
-    enabled: debouncedQuery.trim().length >= 2,
+    enabled: isSearchable,
   })
 
   const people = data?.data ?? []
@@ -76,6 +78,67 @@ export default function FollowSuggestionsScreen({ navigation: _navigation }: Pro
     [followMutation, followedUuids, theme],
   )
 
+  /**
+   * Only reached with no rows to show, and the four cases are genuinely
+   * different situations with different remedies — so they get different words:
+   * "we have not been asked yet", "we are still asking", "we could not ask",
+   * and "we asked and there is nobody".
+   *
+   * Before STOURIFY-88 there were two branches and a failed request fell into
+   * the one that says "No one found" — a claim about Stourify, made by a screen
+   * that never found out, to somebody three minutes into their first session on
+   * the one step built to prove the opposite. A reader told nobody matched
+   * searches for a different name; a reader told the request failed tries the
+   * same search again, which is the one move that helps.
+   *
+   * Three orderings here are load-bearing, and they are `SearchScreen`'s
+   * (`SearchScreen.tsx:223-281`), which this screen's gated shape copies:
+   *
+   * **This lives inside `ListEmptyComponent`**, which renders only when the list
+   * has no rows at all — so content always wins over an error. React Query keeps
+   * serving the people it already holds while a later fetch fails, and the
+   * reader keeps following them. Hoisting an `isError` check above the
+   * `FlatList` would delete that, and never once show it had, because the branch
+   * is unreachable while online. `FeedScreen`, `DiscoverScreen`, `NearbyScreen`
+   * and `SearchScreen` carry the same warning.
+   *
+   * **`isSearchable` is asked first, and explicitly.** The query is switched off
+   * below the server's two-character minimum, and with `enabled: false` React
+   * Query v5 reports `isPending: true` and `isFetching: false` — so a query that
+   * was never sent looks *settled*. Ask anything before the gate and this screen
+   * reports an outcome for a search it never ran. "Nothing typed" and "one
+   * character typed" share the prompt on purpose: the remedy is the same
+   * sentence for both.
+   *
+   * **`isFetching` is asked before `isError`**, which differs from `FeedScreen`
+   * and from the sibling `ReviewsScreen` (STOURIFY-85) and is deliberate. Those
+   * ask `isLoading`, which is false during a retry, so their failure copy stays
+   * up while it runs. Here a pressed **Try again** shows "Searching…" instead —
+   * the acknowledgement of a button the reader just pressed, on a screen where
+   * every keystroke past two characters starts another request. Either way the
+   * property that matters holds: "No one found" never appears during a failed
+   * search or its retry.
+   */
+  const empty = !isSearchable ? (
+    <EmptyState
+      icon="🔍"
+      title="Search for people"
+      subtitle="Type at least two characters to find someone to follow."
+    />
+  ) : isFetching ? (
+    <EmptyState icon="⏳" title="Searching…" subtitle={`Looking for "${debouncedQuery}"`} />
+  ) : isError ? (
+    <EmptyState
+      icon="📡"
+      title="Couldn't search for people"
+      subtitle="We couldn't reach Stourify just now. Check your connection and try the same search again."
+      actionLabel="Try again"
+      onAction={() => void refetch()}
+    />
+  ) : (
+    <EmptyState icon="🔍" title="No one found" subtitle="Try a different name or handle" />
+  )
+
   return (
     <SafeAreaView
       style={{ flex: 1, backgroundColor: theme.colors.surface }}
@@ -96,17 +159,7 @@ export default function FollowSuggestionsScreen({ navigation: _navigation }: Pro
             : { paddingHorizontal: theme.gutter, gap: theme.spacing[3] }
         }
         ItemSeparatorComponent={() => <View style={{ height: theme.spacing[3] }} />}
-        ListEmptyComponent={
-          !isFetching && debouncedQuery.trim().length >= 2
-            ? () => (
-                <EmptyState
-                  icon="🔍"
-                  title="No one found"
-                  subtitle="Try a different name or handle"
-                />
-              )
-            : null
-        }
+        ListEmptyComponent={empty}
       />
 
       <View style={{ padding: theme.gutter }}>
