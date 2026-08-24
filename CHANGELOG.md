@@ -162,6 +162,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   `Spot.status` is a third instance of the same defect and is deliberately untouched here; it has a
   real reader and is carried by STOURIFY-72.
+- **Queued work sends itself after a real reconnect, instead of waiting for you to reopen the app**
+  (STOURIFY-134).
+
+  Create a spot with no signal, walk back into coverage, put the phone in your pocket — and the spot
+  is now sent, with no tap. Before this, it could sit there indefinitely.
+
+  The app was behaving like a shop that only knows the street is closed because somebody shouted it
+  through the door: nobody shouts again when the street reopens, so it stays shut all day. The
+  connectivity flag in `src/sync/seams/connectivity.ts` was written **only** when the phone's network
+  library volunteered an event. On a real handset the reachability check can go out mid-transition,
+  come back "no", and never be run again — and that one wrong `false` then lasted for the life of the
+  app. Everything the send-later queue does hangs off that flag, so the queue stopped.
+
+  Now, whenever the app believes it is offline, it asks again every 15 seconds using NetInfo's own
+  `refresh()`, which re-runs the reachability check rather than repeating the cached answer. When it
+  believes it is online there is no timer at all, so a healthy connection costs nothing. Measured on
+  the Samsung SM-S908E the bug was reported on.
+
+  Two candidate fixes were rejected and the reasons are on the card. The cheapest-looking one —
+  ignoring the reachability signal entirely — does not actually fix it: it closes only one of the two
+  routes to a stuck `false`, and gives up the captive-portal distinction for nothing.
 
 - **A photo waiting to upload now counts towards the Offline & sync banner** (STOURIFY-165).
 
