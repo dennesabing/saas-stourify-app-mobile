@@ -51,7 +51,8 @@ const SPOT: Spot = {
   slug: 'hidden-cove',
   latitude: 6.1164,
   longitude: 125.1716,
-  status: 'active',
+  status: 'published',
+  is_verified: false,
 }
 
 /**

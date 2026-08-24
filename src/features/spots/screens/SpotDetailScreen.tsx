@@ -240,7 +240,7 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               <Text variant="h1" style={{ flex: 1 }} numberOfLines={2}>
                 {title}
               </Text>
-              {spot?.status === 'active' && <Tag label="✓ Verified" />}
+              {spot?.is_verified && <Tag label="✓ Verified" />}
             </View>
 
             {categories.length > 0 && (

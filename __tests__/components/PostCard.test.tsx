@@ -146,7 +146,8 @@ test('labels the spot chip from the spot title', () => {
       slug: 'kalaklan-lighthouse',
       latitude: 14.8386,
       longitude: 120.2842,
-      status: 'active',
+      status: 'published',
+      is_verified: false,
     },
   }
   renderThemed(<PostCard post={post} onPress={() => {}} />)

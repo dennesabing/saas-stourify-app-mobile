@@ -21,7 +21,8 @@ const SPOT: Spot = {
   address: 'Olongapo',
   latitude: 14.8386,
   longitude: 120.2842,
-  status: 'active',
+  status: 'published',
+  is_verified: false,
 }
 
 beforeEach(() => {

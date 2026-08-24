@@ -23,7 +23,8 @@ function makeSpot(overrides: Partial<Spot> = {}): Spot {
     slug: 'kalaklan-lighthouse',
     latitude: 14.8,
     longitude: 120.28,
-    status: 'active',
+    status: 'published',
+    is_verified: false,
     categories: ['Heritage'],
     media: [
       {

@@ -39,7 +39,7 @@ function makePost(overrides: Partial<any> = {}) {
       slug: 'blue-cove',
       latitude: 1,
       longitude: 1,
-      status: 'active',
+      status: 'published',
     },
     ...overrides,
   }

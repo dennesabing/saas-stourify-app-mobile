@@ -26,6 +26,25 @@ export interface User {
  * finished yet. That is a *not ready* answer, never a *use the original*
  * answer — see `thumbFor()` in `src/features/discover/api/exploreSpots.ts`.
  */
+/**
+ * Where a spot sits in its life, from written-but-hidden to taken down.
+ *
+ * These four names are `Modules\Stourify\Enums\SpotStatus`, and the model casts
+ * the column to that enum, so a spot can never hold anything else. All four
+ * genuinely reach a phone: `/spots` hands an author their own spots in whatever
+ * state — the offline flow writes a `draft` locally and publishes it on
+ * reconnect — and a moderator sees everything, `under_review` and `removed`
+ * included. Only `published` is discoverable to everyone else.
+ *
+ * This used to read `'active' | 'pending'`, which is `Follow.status` further
+ * down this file, copied onto a field that shares nothing with it but a name
+ * (STOURIFY-72). The server has never sent either value, so the detail screen's
+ * `status === 'active'` check could not be true and its "✓ Verified" tag never
+ * rendered on any spot on any device. Do not restore those two from an old
+ * branch; `Follow.status` is where they belong and it is correct there.
+ */
+export type SpotStatus = 'draft' | 'published' | 'under_review' | 'removed'
+
 export interface SpotMedia {
   uuid: string
   url: string
@@ -67,7 +86,20 @@ export interface Spot {
   latitude: number
   longitude: number
   address?: string
-  status: 'active' | 'pending'
+  status: SpotStatus
+  /**
+   * Whether a moderator has vouched for this spot — the "✓ Verified" tag on
+   * the detail screen, and nothing else reads it.
+   *
+   * Required, because the server always sends it: `SpotResource::toArray()`
+   * writes the key unconditionally and the column is `NOT NULL DEFAULT false`,
+   * so there is no response in which a `Spot` arrives without one. Nobody using
+   * the app can set it — `SpotUpdateRequest` leaves it out on purpose, and the
+   * offline push (`SyncController::pushSpot()`) validates against those same
+   * rules, so it is dropped there too. Today only a moderator's own action or
+   * the demo seeder turns it on.
+   */
+  is_verified: boolean
   /**
    * `SpotResource::toArray()`'s real field — a flat array of category names.
    *
