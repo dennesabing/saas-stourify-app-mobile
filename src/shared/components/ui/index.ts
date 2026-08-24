@@ -6,6 +6,7 @@
  * (`docs/mobile-delivery/technical-spec.md` §10).
  */
 export { default as Avatar } from './Avatar'
+export { default as BuildIdentity } from './BuildIdentity'
 export { default as Button } from './Button'
 export { default as Card } from './Card'
 export { default as Chip } from './Chip'

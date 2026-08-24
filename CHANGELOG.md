@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The app now says which build it is, at the bottom of every screen you can reach before signing
+  in** (STOURIFY-73).
+
+  One quiet line — `Stourify 0.3.0 · a1b2c3d` — on Welcome, on Login, and on Settings.
+
+  It exists for whoever is about to trust what a test run on a phone or emulator showed them. Think
+  of a rule that says to read the label printed on the tin rather than the writing on the crate it
+  arrived in: sensible, because crates get reused — and useless in a factory that has never printed
+  a label. The project's testing rules have said for months to read the version *the app renders*
+  rather than the version the installed Android package carries, and the app rendered none, so the
+  only number available was the one the rule warns you off.
+
+  **The value travels in the JavaScript bundle, and that is the entire point.** The Android package
+  and the JavaScript running inside it are two separate things that come apart: a debug build pulls
+  its JavaScript from a bundler over the network, and a release build carries a copy inside. Either
+  can be stale, and on this machine one has arrived from a *different project* — a React Native app
+  remembers the last bundler address it was pointed at, and several projects run bundlers here at
+  once. Reading `expo-constants` or the Android `versionName` instead would report the fresh package
+  while the old JavaScript ran, which is exactly the false pass the check exists to catch.
+
+  The version comes from `app.json` itself, imported rather than copied, so the two can never
+  disagree. The short commit is stamped in by `metro.config.js` as the bundle is built — a file in
+  git cannot contain the id of the commit that contains it — and reads `local` when nothing stamped
+  it, which is a true statement about a bundle built from a working tree rather than a blank that
+  looks like a bug.
+
+  New: `src/shared/config/buildIdentity.ts`, `src/shared/components/ui/BuildIdentity.tsx`.
+
 - **Hashtags are links, and tapping one opens that tag's page** (STOURIFY-173).
 
   Write `great noodles #StreetFood` and the word now reads as a link rather than as ordinary grey

@@ -17,6 +17,7 @@ import * as authApi from '@/shared/api/auth'
 import { deleteAccount, deletionOutcomeIsUnknown } from '@/shared/api/account'
 import { signOut } from '@/sync/session'
 import { PRIVACY_POLICY_URL, TERMS_URL, ACCOUNT_DELETION_URL } from '@/shared/config/legal'
+import BuildIdentity from '@/shared/components/ui/BuildIdentity'
 import Input from '@/shared/components/ui/Input'
 
 type Props = NativeStackScreenProps<ProfileStackParamList, 'Settings'>
@@ -259,6 +260,10 @@ export default function SettingsScreen({ navigation }: Props) {
         <Text style={styles.rowIcon}>🗑</Text>
         <Text style={[styles.rowLabel, { color: '#ff6b6b' }]}>Delete account</Text>
       </TouchableOpacity>
+
+      {/* Same line the signed-out screens carry, so the build-identity check in
+          `.claude/docs/testing.md` also works on a device already signed in. */}
+      <BuildIdentity color="#8496a6" />
 
       <Modal
         visible={confirmingDelete}

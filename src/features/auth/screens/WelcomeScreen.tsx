@@ -1,7 +1,7 @@
 import { View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Button, Text } from '@/shared/components/ui'
+import { BuildIdentity, Button, Text } from '@/shared/components/ui'
 import type { RootStackParamList } from '@/shared/navigation/types'
 import { useTheme } from '@/theme/ThemeProvider'
 
@@ -37,6 +37,8 @@ export default function WelcomeScreen({ navigation }: Props) {
           />
         </View>
       </View>
+
+      <BuildIdentity />
     </SafeAreaView>
   )
 }
