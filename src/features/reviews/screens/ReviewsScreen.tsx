@@ -5,7 +5,16 @@ import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
 import { getSpotReviews } from '@/shared/api/reviews'
-import { Avatar, Card, Divider, EmptyState, Rating, Tag, Text } from '@/shared/components/ui'
+import {
+  Avatar,
+  Card,
+  Divider,
+  EmptyState,
+  Rating,
+  Skeleton,
+  Tag,
+  Text,
+} from '@/shared/components/ui'
 import { useSpotReviews } from '@/features/reviews/hooks/useSpotReviews'
 import { useAuthStore } from '@/shared/store/auth'
 import { useTheme } from '@/theme/ThemeProvider'
@@ -39,7 +48,12 @@ export default function ReviewsScreen({ route, navigation }: Props) {
 
   const localReviews = useSpotReviews(spotId)
 
-  const { data: serverData } = useQuery({
+  const {
+    data: serverData,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['spot-reviews', spotId],
     queryFn: () => getSpotReviews(spotId),
   })
@@ -81,6 +95,52 @@ export default function ReviewsScreen({ route, navigation }: Props) {
     return Array.from(byId.values()).sort((a, b) => b.createdAt - a.createdAt)
   }, [serverData, localReviews, currentUser])
 
+  /**
+   * Only reached with no rows to show — and "we are still asking", "we could
+   * not ask" and "we asked and there is nothing" are three different facts
+   * with three different remedies, so they get three different sentences
+   * (STOURIFY-85). Until this card there was one sentence for all three, and
+   * a failed request said the spot had no reviews: a claim about the spot,
+   * made on the strength of a timeout.
+   *
+   * Two orderings here are load-bearing:
+   *
+   * **This lives inside `ListEmptyComponent`**, which only renders when the
+   * list has no rows at all, so content always wins over an error. That
+   * matters more here than on any sibling screen: `rows` merges the local
+   * `sto_reviews` collection with the server list, so somebody who wrote a
+   * review offline has their own words on screen while the server fetch is
+   * failing. Hoisting an `isError` check above the `FlatList` would cover them
+   * with a network message, and would never once show that it had, because the
+   * branch is unreachable while online. `FeedScreen.tsx:106-132` documents this
+   * at length.
+   *
+   * **`isLoading` is asked before `isError`.** `isLoading` is true only for a
+   * first fetch with nothing cached, so a slow first load shows skeletons
+   * rather than claiming a failure. `isError` then stays true through a retry
+   * until one succeeds, which holds the failure message up while the retry is
+   * in flight instead of flickering to the empty message and back. `isFetching`
+   * was the alternative and loses for exactly that reason — a pressed "Try
+   * again" would swap the message for skeletons and back.
+   */
+  const empty = isLoading ? (
+    <View style={{ padding: theme.gutter, gap: theme.spacing[4] }}>
+      <Skeleton height={120} />
+      <Skeleton height={120} />
+      <Skeleton height={120} />
+    </View>
+  ) : isError ? (
+    <EmptyState
+      icon="📡"
+      title="Couldn't load the reviews"
+      subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+      actionLabel="Try again"
+      onAction={() => void refetch()}
+    />
+  ) : (
+    <EmptyState icon="⭐" title="No reviews yet" subtitle="Be the first to write one." />
+  )
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
       <View
@@ -108,9 +168,7 @@ export default function ReviewsScreen({ route, navigation }: Props) {
         data={rows}
         keyExtractor={(row) => row.id}
         contentContainerStyle={{ padding: theme.gutter, gap: theme.spacing[3] }}
-        ListEmptyComponent={
-          <EmptyState icon="⭐" title="No reviews yet" subtitle="Be the first to write one." />
-        }
+        ListEmptyComponent={empty}
         renderItem={({ item }) => (
           <Card>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2] }}>

@@ -35,6 +35,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A spot's reviews no longer claim the spot has none when the request failed** (STOURIFY-85).
+
+  A shop with the lights off looks exactly like a shop with empty shelves. The Reviews screen had
+  one sign in the window — "No reviews yet — Be the first to write one." — and it hung that sign up
+  whether the request was still on its way, had never got through, or had genuinely come back with
+  nothing. The middle case is the damaging one, because the sentence is a claim about *the spot*
+  rather than about the network: a reader who believes it may write a duplicate review, or walk away
+  from a well-reviewed place thinking nobody has been.
+
+  There are now three sentences. A first load with nothing cached shows placeholder cards. A failed
+  request says "Couldn't load the reviews" and offers a **Try again** that re-runs it. A request
+  that came back with nothing keeps today's copy, word for word.
+
+  **The branch lives inside `ListEmptyComponent`**, which only renders when the list has no rows at
+  all, so anything the reader can already read wins over the error message. That matters more on
+  this screen than on any of its siblings: the list merges the local `sto_reviews` collection with
+  the server's, so somebody who wrote a review offline is looking at their own words while the
+  server fetch is failing, and a network message must not cover them. A test pins that.
+
 - **The "✓ Verified" tag appears on a verified spot — for the first time in the app's life**
   (STOURIFY-72).
 
