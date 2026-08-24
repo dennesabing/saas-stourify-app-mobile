@@ -8,7 +8,12 @@ import { drainPostOutbox } from './postOutboxDrain'
 import { countPending, drainOutbox, listSyncFailures, type DrainOutcome } from './pushService'
 import { useSyncStatusStore } from './status'
 
-export type SyncTrigger = 'connectivity' | 'foreground' | 'login' | 'manual'
+/**
+ * Why a cycle ran. Carried through to `SyncCycleOutcome` as a label — nothing
+ * branches on it. `'screen-open'` is the Sync status screen being opened
+ * (STOURIFY-179), which is a request to try again in its own right.
+ */
+export type SyncTrigger = 'connectivity' | 'foreground' | 'login' | 'manual' | 'screen-open'
 
 export interface SyncCycleOutcome {
   trigger: SyncTrigger

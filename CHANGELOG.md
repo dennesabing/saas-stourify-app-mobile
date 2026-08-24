@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Opening the Sync status screen now tries to send the queue, with no tap** (STOURIFY-179).
+
+  Somebody who opens that screen is doing what a driver does when they walk out to look at the van:
+  they already suspect the parcels have not gone. Until now the screen only reported — it would show
+  a stalled queue for as long as anyone stared at it, and nothing on it made the queue move.
+
+  Opening it starts one sync cycle. Going back and straight in again starts nothing: a ten-second
+  cooling-off window in `src/sync/openTrigger.ts` turns the second open away, so tapping in and out
+  cannot become a burst of requests. That window is a separate guard from the one already in
+  `runSyncCycle`, which only covers cycles that *overlap*; a cycle that finished in a fraction of a
+  second leaves the next tap free to start another, and that is the case this catches.
+
+  It fires on mount rather than on navigation focus. This screen is a leaf — it opens nothing on top
+  of itself, so backing out of it unmounts it and the two events are the same event today. There is
+  no visible "Sync now" button; that is a separate design question.
+
 - **The app now says which build it is, at the bottom of every screen you can reach before signing
   in** (STOURIFY-73).
 

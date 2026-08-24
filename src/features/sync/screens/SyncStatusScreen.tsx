@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Alert, Pressable, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useDatabase } from '@nozbe/watermelondb/react'
@@ -11,6 +12,7 @@ import {
   retryMediaRow,
   retryRecord,
 } from '@/sync/queue'
+import { syncOnScreenOpen } from '@/sync/openTrigger'
 import { syncNow } from '@/sync/scheduler'
 import { useSyncQueue } from '@/sync/useSyncQueue'
 import { useSyncStatusStore } from '@/sync/status'
@@ -45,6 +47,23 @@ export default function SyncStatusScreen({ navigation }: Props) {
   const database = useDatabase()
   const { pending, failed, mediaPending, mediaFailed, postPending, postFailed } = useSyncQueue()
   const phase = useSyncStatusStore((state) => state.phase)
+
+  /*
+    Opening this screen is itself a request to try again (STOURIFY-179).
+
+    Somebody who comes here is doing what a driver does when they walk out to
+    check the van: they already suspect something has not gone. Before this, the
+    screen only reported — it would show a stalled queue for as long as anyone
+    stared at it.
+
+    Mount rather than navigation focus, deliberately: this screen is a leaf that
+    opens nothing on top of itself, so a pop unmounts it and "mounted" and
+    "opened" are the same event here. `syncOnScreenOpen` owns the cooling-off
+    window that stops a flick back and forth becoming a burst of requests.
+  */
+  useEffect(() => {
+    void syncOnScreenOpen(database)
+  }, [database])
 
   const isBusy = phase !== 'idle'
   const hasQueue =

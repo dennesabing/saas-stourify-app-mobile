@@ -7,6 +7,7 @@ import SyncStatusScreen from '@/features/sync/screens/SyncStatusScreen'
 import { upsertSyncFailure } from '@/sync/pushService'
 import { resetSyncStatus, useSyncStatusStore } from '@/sync/status'
 import { syncNow } from '@/sync/scheduler'
+import { resetSyncOnOpen } from '@/sync/openTrigger'
 import { createTestDatabase, seedSpot } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
 
@@ -76,6 +77,10 @@ const route = {} as any
 beforeEach(() => {
   jest.clearAllMocks()
   resetSyncStatus()
+  // The open-on-mount cooling-off window is module-level state, so without
+  // this every test after the first would render inside the previous test's
+  // window and see no cycle at all.
+  resetSyncOnOpen()
   mockFileRegistry.clear()
   fsDeletes.length = 0
 })
@@ -146,7 +151,7 @@ it('retrying a row clears its failure and runs a cycle', async () => {
 
   await waitFor(() => {
     expect(screen.queryByText('Needs your attention')).toBeNull()
-    expect(syncNow).toHaveBeenCalled()
+    expect(syncNow).toHaveBeenCalledWith(database, 'manual')
   })
 })
 
@@ -205,7 +210,7 @@ it('retry all clears every failure and runs a cycle', async () => {
 
   await waitFor(() => {
     expect(screen.queryByText('Needs your attention')).toBeNull()
-    expect(syncNow).toHaveBeenCalled()
+    expect(syncNow).toHaveBeenCalledWith(database, 'manual')
   })
 })
 
@@ -307,7 +312,7 @@ it('retrying a failed photo resets it to pending and runs a cycle', async () => 
     const row = await database.get<PendingMedia>('pending_media').find('media-1')
     expect(row.state).toBe('pending')
   })
-  expect(syncNow).toHaveBeenCalled()
+  expect(syncNow).toHaveBeenCalledWith(database, 'manual')
 })
 
 /**
@@ -420,7 +425,7 @@ it('retrying a refused post puts it back in the queue and runs a cycle', async (
     const row: any = await database.get('post_outbox').find('outbox-1')
     expect(row.state).toBe('queued')
   })
-  expect(syncNow).toHaveBeenCalled()
+  expect(syncNow).toHaveBeenCalledWith(database, 'manual')
 })
 
 it('discarding a queued post deletes its photo copies as well as the row', async () => {
@@ -594,4 +599,53 @@ it('counts a failed photo among the failures', async () => {
   await waitFor(() => {
     expect(screen.getByText('1 change needs your attention')).toBeTruthy()
   })
+})
+
+/*
+  Opening the screen is itself a request to try again (STOURIFY-179).
+
+  These two exercise the REAL cooling-off window in `@/sync/openTrigger`, which
+  is deliberately not mocked here — only `@/sync/scheduler` underneath it is. If
+  the window were mocked away with everything else, the second test would pass
+  just as happily against an implementation that had no window at all.
+*/
+
+it('starts a sync cycle when the screen is opened, with no press', async () => {
+  const database = createTestDatabase()
+  await seedSpot(database, { uuid: 'spot-1', title: 'Hidden Cove' })
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() => {
+    expect(syncNow).toHaveBeenCalledWith(database, 'screen-open')
+  })
+  expect(syncNow).toHaveBeenCalledTimes(1)
+})
+
+it('does not start a second cycle when the screen is re-opened straight away', async () => {
+  const database = createTestDatabase()
+  await seedSpot(database, { uuid: 'spot-1', title: 'Hidden Cove' })
+
+  const first = render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+  await waitFor(() => expect(syncNow).toHaveBeenCalledTimes(1))
+
+  // Going back pops the screen off the native stack, which unmounts it.
+  first.unmount()
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+  await waitFor(() => expect(screen.getByText('Sync status')).toBeTruthy())
+
+  expect(syncNow).toHaveBeenCalledTimes(1)
 })
