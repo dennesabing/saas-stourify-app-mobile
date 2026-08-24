@@ -52,7 +52,7 @@ const SPOT: Spot = {
   latitude: 6.1164,
   longitude: 125.1716,
   status: 'active',
-} as Spot
+}
 
 /**
  * Two error shapes, and telling them apart is the whole of STOURIFY-161.

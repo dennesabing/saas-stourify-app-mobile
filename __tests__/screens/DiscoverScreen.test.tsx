@@ -18,7 +18,6 @@ const route = {} as any
 
 function makeSpot(overrides: Partial<Spot> = {}): Spot {
   return {
-    id: '1',
     uuid: 'spot-1',
     title: 'Kalaklan Lighthouse',
     slug: 'kalaklan-lighthouse',
@@ -36,7 +35,7 @@ function makeSpot(overrides: Partial<Spot> = {}): Spot {
     rating_average: 4.5,
     reviews_count: 12,
     ...overrides,
-  } as Spot
+  }
 }
 
 function page(spots: Spot[]) {

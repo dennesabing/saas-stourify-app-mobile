@@ -32,8 +32,23 @@ export interface SpotMedia {
   thumb_url: string | null
 }
 
+/**
+ * Mirrors the subset of `SpotResource::toArray()` that the app actually reads.
+ *
+ * **No numeric id, ever — join on `uuid`.** `SpotResource` sends `uuid` and no
+ * `id`, and that is a decision rather than an oversight: the offline sync delta
+ * (`SyncSerializer::COLUMNS['sto_spots']`) is a second wire format for the same
+ * table and it *does* send the integer, which the local database keeps in its
+ * `server_id` column. So the public surface exposes the uuid and the private
+ * delta exposes both.
+ *
+ * A required `id: string` used to sit at the top of this interface anyway
+ * (STOURIFY-27). Nothing read it, so it cost nothing at run time — it cost
+ * fixture honesty, because every `Spot` fixture had to invent a value or reach
+ * for an `as Spot` cast, and a cast silences every future complaint as well as
+ * the one it was aimed at. That is exactly how `name` survived to STOURIFY-11.
+ */
 export interface Spot {
-  id: string
   uuid: string
   /**
    * A spot's name. `SpotResource::toArray()` sends this and only this — there
@@ -45,8 +60,6 @@ export interface Spot {
    * `SpotPickerScreen` all rendered blanks with a clean typecheck. Removed
    * rather than deprecated (STOURIFY-11) — an optional `name` would keep the
    * same reads compiling.
-   *
-   * No numeric id, ever — join on `uuid`.
    */
   title: string
   slug: string
@@ -55,9 +68,13 @@ export interface Spot {
   longitude: number
   address?: string
   status: 'active' | 'pending'
-  /** Legacy alias — the server has never actually sent a singular `category` object. */
-  category?: { id: string; name: string; slug: string }
-  /** `SpotResource::toArray()`'s real field — a flat array of category names. */
+  /**
+   * `SpotResource::toArray()`'s real field — a flat array of category names.
+   *
+   * There is no singular `category` object to go with it. One was declared here
+   * as a "legacy alias" and the server never sent it in any shape (STOURIFY-27);
+   * do not re-add it from an old screenshot or an old branch.
+   */
   categories?: string[]
   /** Always an array, never null — an unattached spot still returns `[]`. */
   media?: SpotMedia[]

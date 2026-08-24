@@ -14,7 +14,7 @@ import { getSpots } from '@/shared/api/spots'
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 
 /** The server's exact shape — `SpotResource::toArray()` sends `title`, never `name`. */
-const SPOT = {
+const SPOT: Spot = {
   uuid: 'spot-uuid-1',
   title: 'Kalaklan Lighthouse',
   slug: 'kalaklan-lighthouse',
@@ -22,7 +22,7 @@ const SPOT = {
   latitude: 14.8386,
   longitude: 120.2842,
   status: 'active',
-} as Spot
+}
 
 beforeEach(() => {
   jest.clearAllMocks()
