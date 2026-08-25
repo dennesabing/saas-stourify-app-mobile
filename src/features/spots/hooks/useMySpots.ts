@@ -9,6 +9,8 @@ export interface MySpotRow {
   title: string
   /** The spot's photo, or `null` — see `Spot.coverPhotoUrl`. */
   coverPhotoUrl: string | null
+  /** `published`, `draft`, `under_review` or `removed`. */
+  status: string
   ratingAverage: number | null
   reviewsCount: number
   isQueued: boolean
@@ -47,6 +49,7 @@ export function useMySpots(): MySpotRow[] {
             id: row.id,
             title: row.title,
             coverPhotoUrl: row.coverPhotoUrl,
+            status: row.status,
             ratingAverage: row.ratingAverage,
             reviewsCount: row.reviewsCount,
             isQueued: row.isQueued,

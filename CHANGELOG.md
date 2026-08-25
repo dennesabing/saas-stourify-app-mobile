@@ -26,6 +26,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Spots you add are now actually published** (STOURIFY-202).
+
+  This is the big one. Every spot ever created in the app was saved as an unfinished draft and
+  never published — so nobody could find it. Not by searching, not on Discover, not on the map,
+  not in the nearby list. **Not even the person who made it.** The app accepted the spot, uploaded
+  the photos, showed it in "My spots", and reported no problem at any point.
+
+  Finishing the create flow now publishes the spot, which is what pressing that button always
+  looked like it did.
+
+  **"My spots" now also says when a spot is not visible to anyone.** That list is where this should
+  have been obvious and was not: a draft looked exactly like a live spot, so the app's own list
+  gave no hint that nothing had gone out.
+
+  If you added spots on an earlier version, they are still drafts and still invisible. They are not
+  lost — say the word and they can be published.
+
 - **Your spots now show their photos in "My spots"** (STOURIFY-192).
 
   Every row in that list drew a grey rectangle where the picture should be, which looks like a
