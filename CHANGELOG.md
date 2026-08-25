@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-25
+
 ### Added
 
 - **Opening the Sync status screen now tries to send the queue, with no tap** (STOURIFY-179).
