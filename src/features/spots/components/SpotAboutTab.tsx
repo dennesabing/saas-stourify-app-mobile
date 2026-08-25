@@ -48,7 +48,11 @@ interface Props {
    * and the jest harness mounts components without a navigation container, so
    * a hook here would throw in every test that renders the tab.
    */
-  onOpenThread: (spotAboutUuid: string) => void
+  /**
+   * The whole note is handed over, not just its id, so the thread screen can
+   * say what it is a thread ABOUT without fetching anything (STOURIFY-198).
+   */
+  onOpenThread: (about: SpotAbout) => void
 }
 
 export default function SpotAboutTab({ spotUuid, onOpenThread }: Props) {
@@ -282,7 +286,7 @@ export default function SpotAboutTab({ spotUuid, onOpenThread }: Props) {
                       testID={`spot-about-comments-${about.uuid}`}
                       accessibilityRole="button"
                       accessibilityLabel="View replies"
-                      onPress={() => onOpenThread(about.uuid)}
+                      onPress={() => onOpenThread(about)}
                       style={{
                         flexDirection: 'row',
                         alignItems: 'center',

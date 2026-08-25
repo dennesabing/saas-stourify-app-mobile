@@ -611,3 +611,77 @@ it('puts a new reply at the TOP of an About entry’s thread too', async () => {
   expect(order[0]).not.toBe('comment-row-c1')
   expect(order.slice(1)).toEqual(['comment-row-c1', 'comment-row-c2'])
 })
+
+/**
+ * STOURIFY-198 — a thread has to say what it is a thread about.
+ *
+ * Opening replies used to land on a bare "Comments" heading: the spot and the
+ * note you had been reading a second earlier were both gone, and nothing on
+ * screen named either. These pin the context that replaced it, and pin that a
+ * post thread — which has no such context to pass — is left exactly as it was.
+ */
+describe('thread context', () => {
+  function renderWithContext(params: Record<string, unknown>) {
+    return render(
+      <TestProviders database={createTestDatabase()}>
+        <CommentsScreen navigation={navigation} route={{ params } as any} />
+      </TestProviders>,
+    )
+  }
+
+  it('names the spot a note thread belongs to', async () => {
+    renderWithContext({
+      spotAboutId: 'about-1',
+      spotTitle: 'Blue Cove',
+      noteBody: 'Go at sunrise, the light is worth it.',
+      noteAuthor: 'Mila Reyes',
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('comments-context-spot')).toBeTruthy()
+    })
+
+    expect(screen.getByText('on Blue Cove')).toBeTruthy()
+  })
+
+  it('quotes the note being replied to, and says who wrote it', async () => {
+    renderWithContext({
+      spotAboutId: 'about-1',
+      spotTitle: 'Blue Cove',
+      noteBody: 'Go at sunrise, the light is worth it.',
+      noteAuthor: 'Mila Reyes',
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('comments-context-note')).toBeTruthy()
+    })
+
+    expect(screen.getByText('Go at sunrise, the light is worth it.')).toBeTruthy()
+    expect(screen.getByText('Mila Reyes')).toBeTruthy()
+  })
+
+  // The degrade path, and the reason both fields are optional. A caller that
+  // does not know the spot must still get a working thread rather than an
+  // empty labelled box.
+  it('renders the plain heading when no context was passed', async () => {
+    renderWithContext({ spotAboutId: 'about-1' })
+
+    await waitFor(() => {
+      expect(screen.getByText('Comments')).toBeTruthy()
+    })
+
+    expect(screen.queryByTestId('comments-context-spot')).toBeNull()
+    expect(screen.queryByTestId('comments-context-note')).toBeNull()
+  })
+
+  it('leaves a post thread untouched — it has no spot and no note', async () => {
+    renderScreen('post-1')
+
+    await waitFor(() => {
+      expect(screen.getByText('Comments')).toBeTruthy()
+    })
+
+    expect(screen.queryByTestId('comments-context-spot')).toBeNull()
+    expect(screen.queryByTestId('comments-context-note')).toBeNull()
+  })
+})

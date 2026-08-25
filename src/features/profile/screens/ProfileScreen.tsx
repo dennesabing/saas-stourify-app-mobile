@@ -375,6 +375,7 @@ export default function ProfileScreen({ route, navigation }: Props) {
             onEdit={() => navigation.navigate('EditProfile')}
             onSettings={() => navigation.navigate('Settings')}
             onDrafts={() => navigation.navigate('Drafts')}
+            onSaved={() => navigation.navigate('Wishlist')}
             onFollowers={() =>
               navigation.navigate('FollowList', { userId: targetId, type: 'followers' })
             }
@@ -474,6 +475,7 @@ interface HeaderProps {
   onEdit: () => void
   onSettings: () => void
   onDrafts: () => void
+  onSaved: () => void
   onFollowers: () => void
   onFollowing: () => void
   onFollowToggle: () => void
@@ -509,6 +511,7 @@ function ProfileHeader({
   onEdit,
   onSettings,
   onDrafts,
+  onSaved,
   onFollowers,
   onFollowing,
   onFollowToggle,
@@ -613,6 +616,7 @@ function ProfileHeader({
         onEdit={onEdit}
         onSettings={onSettings}
         onDrafts={onDrafts}
+        onSaved={onSaved}
         onFollowToggle={onFollowToggle}
         followPending={followPending}
         onMore={onMore}
@@ -630,6 +634,7 @@ interface ActionsProps {
   onEdit: () => void
   onSettings: () => void
   onDrafts: () => void
+  onSaved: () => void
   onFollowToggle: () => void
   followPending: boolean
   onMore: () => void
@@ -646,6 +651,7 @@ function ProfileActions({
   onEdit,
   onSettings,
   onDrafts,
+  onSaved,
   onFollowToggle,
   followPending,
   onMore,
@@ -654,18 +660,34 @@ function ProfileActions({
 
   if (isOwn) {
     return (
-      <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
-        {canOpen('EditProfile') ? (
-          <Button label="Edit Profile" variant="secondary" onPress={onEdit} style={{ flex: 1 }} />
-        ) : null}
-        {canOpen('Settings') ? (
-          <Button label="Settings" variant="secondary" onPress={onSettings} style={{ flex: 1 }} />
-        ) : null}
-        {/* Posts you started and did not share (STOURIFY-159). Guarded like its
-            neighbours: this renders inside four different stacks, and navigating
-            to a route a stack has not registered throws. */}
-        {canOpen('Drafts') ? (
-          <Button label="Drafts" variant="secondary" onPress={onDrafts} style={{ flex: 1 }} />
+      <View style={{ gap: theme.spacing[2] }}>
+        <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
+          {canOpen('EditProfile') ? (
+            <Button label="Edit Profile" variant="secondary" onPress={onEdit} style={{ flex: 1 }} />
+          ) : null}
+          {canOpen('Settings') ? (
+            <Button label="Settings" variant="secondary" onPress={onSettings} style={{ flex: 1 }} />
+          ) : null}
+          {/* Posts you started and did not share (STOURIFY-159). Guarded like its
+              neighbours: this renders inside four different stacks, and navigating
+              to a route a stack has not registered throws. */}
+          {canOpen('Drafts') ? (
+            <Button label="Drafts" variant="secondary" onPress={onDrafts} style={{ flex: 1 }} />
+          ) : null}
+        </View>
+
+        {/*
+          The way to your saved spots, and until STOURIFY-195 there wasn't one:
+          the heart on a spot saved it correctly and the app had nowhere to show
+          you the result.
+
+          It gets a row of its own rather than becoming a fourth button beside
+          the three above. Four labels of this length on a 360dp screen wrap to
+          two lines each and the row stops looking like a row — the same reason
+          `DiscoverScreen` puts "Explore on a map" on its own line.
+        */}
+        {canOpen('Wishlist') ? (
+          <Button label="Saved spots" variant="secondary" fullWidth onPress={onSaved} />
         ) : null}
       </View>
     )

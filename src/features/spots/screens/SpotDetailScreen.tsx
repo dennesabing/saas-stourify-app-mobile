@@ -1,5 +1,12 @@
 import { useCallback, useState } from 'react'
-import { Dimensions, FlatList, Pressable, ScrollView, View } from 'react-native'
+import {
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Pressable,
+  ScrollView,
+  View,
+} from 'react-native'
 import { Image } from 'expo-image'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery } from '@tanstack/react-query'
@@ -109,31 +116,51 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
-      <ScrollView contentContainerStyle={{ paddingBottom: theme.spacing[7] }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          onPress={() => navigation.goBack()}
-          style={{
-            position: 'absolute',
-            top: theme.spacing[3],
-            left: theme.spacing[3],
-            zIndex: 10,
-            minWidth: theme.minTouchTarget,
-            minHeight: theme.minTouchTarget,
-            borderRadius: theme.radius.chip,
-            backgroundColor: theme.colors.card,
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingHorizontal: theme.spacing[3],
-          }}
-        >
-          <Text variant="body" color="ink">
-            ← Back
-          </Text>
-        </Pressable>
+      {/*
+        The Note composer at the bottom of the About tab is the reason this is
+        here. Under edge-to-edge Android no longer shrinks the window when the
+        keyboard opens, so the keyboard is simply drawn on top of whatever was
+        at the bottom of the screen — and the thing at the bottom of this screen
+        is the box you are typing into (STOURIFY-196).
 
-        {/*
+        `KeyboardAvoidingView` measures the overlap and lifts its contents clear
+        of it, which is what lets the ScrollView scroll the composer into view.
+        `CommentsScreen` and `PostComposeScreen` solve the identical problem the
+        identical way; if you change one, look at all three.
+      */}
+      <KeyboardAvoidingView
+        testID="spot-detail-keyboard-avoider"
+        style={{ flex: 1 }}
+        behavior="padding"
+      >
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: theme.spacing[7] }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            onPress={() => navigation.goBack()}
+            style={{
+              position: 'absolute',
+              top: theme.spacing[3],
+              left: theme.spacing[3],
+              zIndex: 10,
+              minWidth: theme.minTouchTarget,
+              minHeight: theme.minTouchTarget,
+              borderRadius: theme.radius.chip,
+              backgroundColor: theme.colors.card,
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingHorizontal: theme.spacing[3],
+            }}
+          >
+            <Text variant="body" color="ink">
+              ← Back
+            </Text>
+          </Pressable>
+
+          {/*
           A request that came back broken gets words and a button, not a shape
           that pulses forever. Before STOURIFY-64 a failed fetch left the hero
           and the rating as grey placeholders with no message and no way out —
@@ -144,28 +171,28 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
           another touch target is an arrangement that works until a platform
           decides otherwise. There is nothing to open in this state anyway.
         */}
-        {hasFailed ? (
-          <View
-            testID="spot-hero-error"
-            style={{ minHeight: HERO_HEIGHT, backgroundColor: theme.colors.surfaceAlt }}
-          >
-            <EmptyState
-              icon="📡"
-              title="Couldn't load this spot"
-              subtitle="We couldn't reach Stourify just now. Check your connection and try again."
-              actionLabel="Try again"
-              onAction={() => void refetch()}
-            />
-          </View>
-        ) : (
-          <Pressable
-            testID="spot-hero"
-            accessibilityRole="button"
-            accessibilityLabel="View photos"
-            onPress={() => navigation.navigate('PhotoGallery', { spotId })}
-            disabled={media.length === 0}
-          >
-            {/*
+          {hasFailed ? (
+            <View
+              testID="spot-hero-error"
+              style={{ minHeight: HERO_HEIGHT, backgroundColor: theme.colors.surfaceAlt }}
+            >
+              <EmptyState
+                icon="📡"
+                title="Couldn't load this spot"
+                subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+                actionLabel="Try again"
+                onAction={() => void refetch()}
+              />
+            </View>
+          ) : (
+            <Pressable
+              testID="spot-hero"
+              accessibilityRole="button"
+              accessibilityLabel="View photos"
+              onPress={() => navigation.navigate('PhotoGallery', { spotId })}
+              disabled={media.length === 0}
+            >
+              {/*
               Three states, and the ORDER is the fix. `media` is `spot?.media ?? []`,
               so it is empty both for a spot with no photos and for a spot nobody has
               heard back about yet. Asking "are there photos?" first answered the
@@ -177,45 +204,45 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               a second opinion: two elements fed by one query must not disagree about
               whether that query has come back.
             */}
-            {isWaiting ? (
-              <View testID="spot-hero-loading">
-                <Skeleton height={HERO_HEIGHT} radius={0} />
-              </View>
-            ) : media.length > 0 ? (
-              <Image
-                testID="spot-hero-image"
-                source={{ uri: media[0].url }}
-                style={{
-                  width: '100%',
-                  height: HERO_HEIGHT,
-                  backgroundColor: theme.colors.surfaceAlt,
-                }}
-                contentFit="cover"
-                transition={theme.motion.fast}
-              />
-            ) : (
-              <View
-                style={{
-                  width: '100%',
-                  height: HERO_HEIGHT,
-                  backgroundColor: theme.colors.surfaceAlt,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: theme.spacing[1],
-                }}
-              >
-                <Text variant="h2" color="muted">
-                  🖼
-                </Text>
-                <Text variant="body" color="muted">
-                  No photos yet
-                </Text>
-              </View>
-            )}
-          </Pressable>
-        )}
+              {isWaiting ? (
+                <View testID="spot-hero-loading">
+                  <Skeleton height={HERO_HEIGHT} radius={0} />
+                </View>
+              ) : media.length > 0 ? (
+                <Image
+                  testID="spot-hero-image"
+                  source={{ uri: media[0].url }}
+                  style={{
+                    width: '100%',
+                    height: HERO_HEIGHT,
+                    backgroundColor: theme.colors.surfaceAlt,
+                  }}
+                  contentFit="cover"
+                  transition={theme.motion.fast}
+                />
+              ) : (
+                <View
+                  style={{
+                    width: '100%',
+                    height: HERO_HEIGHT,
+                    backgroundColor: theme.colors.surfaceAlt,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: theme.spacing[1],
+                  }}
+                >
+                  <Text variant="h2" color="muted">
+                    🖼
+                  </Text>
+                  <Text variant="body" color="muted">
+                    No photos yet
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+          )}
 
-        {/*
+          {/*
           Nothing in this block survives a failed request, and that is one
           decision rather than five. Every child of it either states a fact
           about the spot — its name, its Verified tag, its categories, its
@@ -234,24 +261,24 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
           not, is the same mistake as covering a cached spot — STOURIFY-64
           rejected exactly that, and this card does not reopen it.
         */}
-        {hasFailed ? null : (
-          <View style={{ padding: theme.gutter, gap: theme.spacing[2] }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2] }}>
-              <Text variant="h1" style={{ flex: 1 }} numberOfLines={2}>
-                {title}
-              </Text>
-              {spot?.is_verified && <Tag label="✓ Verified" />}
-            </View>
-
-            {categories.length > 0 && (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing[1] }}>
-                {categories.map((category) => (
-                  <Tag key={category} label={category} />
-                ))}
+          {hasFailed ? null : (
+            <View style={{ padding: theme.gutter, gap: theme.spacing[2] }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2] }}>
+                <Text variant="h1" style={{ flex: 1 }} numberOfLines={2}>
+                  {title}
+                </Text>
+                {spot?.is_verified && <Tag label="✓ Verified" />}
               </View>
-            )}
 
-            {/*
+              {categories.length > 0 && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing[1] }}>
+                  {categories.map((category) => (
+                    <Tag key={category} label={category} />
+                  ))}
+                </View>
+              )}
+
+              {/*
               Nothing at all in the failed state, rather than a second failure
               message six lines under the first. One request went wrong; two
               notices about it read as two separate faults. What matters is that
@@ -259,7 +286,7 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               skeleton nobody can resolve keeps announcing a request that
               finished — badly — minutes ago.
             */}
-            {/*
+              {/*
               The rating and Save share one line, the way a shelf edge carries
               both a price and the button you press to take the item
               (STOURIFY-102). Save used to be a full-width row of its own below
@@ -270,30 +297,30 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               in for the rating, so Save does not appear late and shift
               everything under it downwards once the request lands.
             */}
-            <View
-              testID="spot-rating-row"
-              style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[3] }}
-            >
-              <View style={{ flex: 1 }}>
-                {isWaiting ? (
-                  <Skeleton height={20} width="40%" />
-                ) : (
-                  <Rating
-                    value={spot?.rating_average ?? 0}
-                    reviewCount={spot?.reviews_count ?? 0}
-                  />
-                )}
+              <View
+                testID="spot-rating-row"
+                style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[3] }}
+              >
+                <View style={{ flex: 1 }}>
+                  {isWaiting ? (
+                    <Skeleton height={20} width="40%" />
+                  ) : (
+                    <Rating
+                      value={spot?.rating_average ?? 0}
+                      reviewCount={spot?.reviews_count ?? 0}
+                    />
+                  )}
+                </View>
+                <Button
+                  icon="🔖"
+                  label={isSaved ? (isQueued ? 'Saved ↑' : 'Saved') : 'Save'}
+                  variant={isSaved ? 'secondary' : 'accent'}
+                  disabled={isSaved}
+                  onPress={onSave}
+                />
               </View>
-              <Button
-                icon="🔖"
-                label={isSaved ? (isQueued ? 'Saved ↑' : 'Saved') : 'Save'}
-                variant={isSaved ? 'secondary' : 'accent'}
-                disabled={isSaved}
-                onPress={onSave}
-              />
-            </View>
 
-            {/*
+              {/*
               The count is gone from this label on purpose. At half the row's
               width there is room for about fifteen characters, and
               "See all 12 reviews" is eighteen — so it either wrapped onto a
@@ -301,77 +328,77 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               ellipsis. The number is already one line above, in the rating row's
               "· 12 reviews", so nothing is lost by saying it once.
             */}
-            <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
-              <Button
-                label="See all reviews"
-                variant="secondary"
-                onPress={() => navigation.navigate('Reviews', { spotId })}
-                style={{ flex: 1 }}
-              />
-              <Button
-                label="Write a review"
-                variant="secondary"
-                onPress={() => navigation.navigate('WriteReview', { spotId })}
-                style={{ flex: 1 }}
-              />
+              <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
+                <Button
+                  label="See all reviews"
+                  variant="secondary"
+                  onPress={() => navigation.navigate('Reviews', { spotId })}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  label="Write a review"
+                  variant="secondary"
+                  onPress={() => navigation.navigate('WriteReview', { spotId })}
+                  style={{ flex: 1 }}
+                />
+              </View>
             </View>
+          )}
+
+          <View
+            style={{
+              flexDirection: 'row',
+              borderBottomWidth: 1,
+              borderBottomColor: theme.colors.hairline,
+            }}
+          >
+            {(['Posts', 'About'] as const).map((t) => (
+              <Pressable
+                key={t}
+                accessibilityRole="button"
+                accessibilityState={{ selected: tab === t }}
+                onPress={() => setTab(t)}
+                style={{
+                  flex: 1,
+                  minHeight: theme.minTouchTarget,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderBottomWidth: tab === t ? 2 : 0,
+                  borderBottomColor: theme.colors.primary,
+                }}
+              >
+                <Text variant="body" color={tab === t ? 'primary' : 'muted'}>
+                  {t}
+                </Text>
+              </Pressable>
+            ))}
           </View>
-        )}
 
-        <View
-          style={{
-            flexDirection: 'row',
-            borderBottomWidth: 1,
-            borderBottomColor: theme.colors.hairline,
-          }}
-        >
-          {(['Posts', 'About'] as const).map((t) => (
-            <Pressable
-              key={t}
-              accessibilityRole="button"
-              accessibilityState={{ selected: tab === t }}
-              onPress={() => setTab(t)}
-              style={{
-                flex: 1,
-                minHeight: theme.minTouchTarget,
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderBottomWidth: tab === t ? 2 : 0,
-                borderBottomColor: theme.colors.primary,
-              }}
-            >
-              <Text variant="body" color={tab === t ? 'primary' : 'muted'}>
-                {t}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        {tab === 'Posts' ? (
-          <FlatList
-            data={posts}
-            numColumns={3}
-            keyExtractor={(p) => p.uuid}
-            renderItem={renderThumb}
-            contentContainerStyle={{ gap: 2 }}
-            columnWrapperStyle={{ gap: 2 }}
-            scrollEnabled={false}
-          />
-        ) : (
-          <View style={{ padding: theme.gutter, gap: theme.spacing[2] }}>
-            {spot?.description ? (
-              <HashtagText
-                variant="body"
-                text={spot.description}
-                onPressHashtag={(slug) => navigation.navigate('Tag', { slug })}
-              />
-            ) : null}
-            {spot?.address ? (
-              <Text variant="caption" color="muted">
-                📍 {spot.address}
-              </Text>
-            ) : null}
-            {/*
+          {tab === 'Posts' ? (
+            <FlatList
+              data={posts}
+              numColumns={3}
+              keyExtractor={(p) => p.uuid}
+              renderItem={renderThumb}
+              contentContainerStyle={{ gap: 2 }}
+              columnWrapperStyle={{ gap: 2 }}
+              scrollEnabled={false}
+            />
+          ) : (
+            <View style={{ padding: theme.gutter, gap: theme.spacing[2] }}>
+              {spot?.description ? (
+                <HashtagText
+                  variant="body"
+                  text={spot.description}
+                  onPressHashtag={(slug) => navigation.navigate('Tag', { slug })}
+                />
+              ) : null}
+              {spot?.address ? (
+                <Text variant="caption" color="muted">
+                  📍 {spot.address}
+                </Text>
+              ) : null}
+              {/*
               Only draw a coordinate when there is one. `spot?.latitude?.toFixed(4)`
               cannot throw on an absent number, but it cannot suppress the rest
               of the line either: React drops the `undefined` and renders the
@@ -384,13 +411,13 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               real coordinates, and a `spot?.latitude && …` guard would hide
               them as though they were missing.
             */}
-            {typeof spot?.latitude === 'number' && typeof spot?.longitude === 'number' ? (
-              <Text testID="spot-coordinates" variant="caption" color="muted">
-                {spot.latitude.toFixed(4)}, {spot.longitude.toFixed(4)}
-              </Text>
-            ) : null}
+              {typeof spot?.latitude === 'number' && typeof spot?.longitude === 'number' ? (
+                <Text testID="spot-coordinates" variant="caption" color="muted">
+                  {spot.latitude.toFixed(4)}, {spot.longitude.toFixed(4)}
+                </Text>
+              ) : null}
 
-            {/*
+              {/*
               The corkboard, hung beside the plaque above rather than over it
               (STOURIFY-147). The three lines above are the spot's own facts,
               written once by whoever added it; below are the notes other
@@ -402,15 +429,24 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               well, and hiding them would repeat the mistake STOURIFY-64 fixed
               for the posts grid.
             */}
-            <SpotAboutTab
-              spotUuid={spotId}
-              onOpenThread={(spotAboutUuid) =>
-                navigation.navigate('Comments', { spotAboutId: spotAboutUuid })
-              }
-            />
-          </View>
-        )}
-      </ScrollView>
+              <SpotAboutTab
+                spotUuid={spotId}
+                onOpenThread={(about) =>
+                  navigation.navigate('Comments', {
+                    spotAboutId: about.uuid,
+                    // Everything the thread screen needs to say what it is showing.
+                    // It is all already on this screen, so passing it costs a
+                    // request and a failure mode less than re-fetching it there.
+                    spotTitle: spot?.title,
+                    noteBody: about.body,
+                    noteAuthor: about.author?.name,
+                  })
+                }
+              />
+            </View>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   )
 }

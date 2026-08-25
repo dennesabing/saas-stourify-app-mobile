@@ -944,7 +944,16 @@ it('opens a note’s replies when the reply count is pressed', async () => {
 
   fireEvent.press(screen.getByLabelText('View replies'))
 
-  expect(navigation.navigate).toHaveBeenCalledWith('Comments', { spotAboutId: 'about-7' })
+  // The spot and the note travel WITH the id (STOURIFY-198). Asserting them
+  // here rather than only the id is the point: the thread screen has no other
+  // source for these words, so a caller that quietly stopped passing them would
+  // leave the reader on an unlabelled thread and break nothing a test could see.
+  expect(navigation.navigate).toHaveBeenCalledWith('Comments', {
+    spotAboutId: 'about-7',
+    spotTitle: 'Blue Cove',
+    noteBody: 'Go at sunrise, the light is worth it.',
+    noteAuthor: 'Mila Reyes',
+  })
 })
 
 /**
@@ -975,4 +984,27 @@ it('prints no reply count at all when the server did not send one', async () => 
   // No count means no door either — there is nothing to say how many replies
   // are behind it, so the row offers none.
   expect(screen.queryByLabelText('View replies')).toBeNull()
+})
+
+/**
+ * STOURIFY-196 — the Note box has to be reachable while you are typing in it.
+ *
+ * Under edge-to-edge, Android stopped shrinking the window when the keyboard
+ * opens, so the keyboard is simply drawn over whatever sits at the bottom of
+ * the screen. On this screen that is the Note composer at the end of the About
+ * section: you tapped it, the keyboard covered it, and you were typing into a
+ * box you could not see.
+ *
+ * **This assertion is weaker than the bug.** It checks the mechanism is present,
+ * not that the box ends up above the keyboard — no unit test can see that,
+ * because there is no keyboard and no window to shrink. It is here to stop the
+ * wrapper being removed silently during a refactor; confirming the fix itself
+ * takes a device, and the card's review steps say so.
+ */
+it('keeps the Note composer clear of the keyboard', async () => {
+  renderScreen()
+
+  await waitFor(() => {
+    expect(screen.getByTestId('spot-detail-keyboard-avoider')).toBeTruthy()
+  })
 })

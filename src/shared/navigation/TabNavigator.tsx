@@ -17,6 +17,7 @@ import FollowListScreen from '@/features/profile/screens/FollowListScreen'
 import ProfileScreen from '@/features/profile/screens/ProfileScreen'
 import SettingsScreen from '@/features/profile/screens/SettingsScreen'
 import BlockedAccountsScreen from '@/features/profile/screens/BlockedAccountsScreen'
+import SavedSpotsScreen from '@/features/spots/screens/SavedSpotsScreen'
 import ReviewsScreen from '@/features/reviews/screens/ReviewsScreen'
 import WriteReviewScreen from '@/features/reviews/screens/WriteReviewScreen'
 import SearchScreen from '@/features/search/screens/SearchScreen'
@@ -125,6 +126,7 @@ function ProfileStackNav() {
       <ProfileStack.Screen name="Profile" component={ProfileScreen} />
       <ProfileStack.Screen name="FollowList" component={FollowListScreen} />
       <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />
+      <ProfileStack.Screen name="Wishlist" component={SavedSpotsScreen} />
       <ProfileStack.Screen name="Settings" component={SettingsScreen} />
       <ProfileStack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
       <ProfileStack.Screen name="Drafts" component={DraftsScreen} />
