@@ -76,6 +76,18 @@ export default class Spot extends Model {
     return this._getRaw('status') as string
   }
 
+  /**
+   * The photo that stands for this spot in a list, or `null`.
+   *
+   * `null` is an ordinary answer and not an error: a spot may genuinely have no
+   * photos, and a spot created on this device has none HERE until its own
+   * photos have drained and come back down in a delta. Until then its pictures
+   * are local files in `pending_media`, which is a different thing entirely.
+   */
+  get coverPhotoUrl(): string | null {
+    return this._getRaw('cover_photo_url') as string | null
+  }
+
   get ratingAverage(): number | null {
     return this._getRaw('rating_average') as number | null
   }

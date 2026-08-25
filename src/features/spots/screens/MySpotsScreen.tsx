@@ -38,6 +38,11 @@ export default function MySpotsScreen({ navigation }: Props) {
           <SpotCard
             title={item.title}
             layout="wide"
+            /* This line is the whole of STOURIFY-192. The card has always been
+               able to draw a photo; this screen simply never handed it one, so
+               every row showed the grey placeholder and looked like a broken
+               image. */
+            imageUri={item.coverPhotoUrl}
             rating={item.ratingAverage}
             reviewCount={item.reviewsCount}
             isQueued={item.isQueued}

@@ -7,6 +7,8 @@ import type Spot from '@/db/models/Spot'
 export interface MySpotRow {
   id: string
   title: string
+  /** The spot's photo, or `null` — see `Spot.coverPhotoUrl`. */
+  coverPhotoUrl: string | null
   ratingAverage: number | null
   reviewsCount: number
   isQueued: boolean
@@ -44,6 +46,7 @@ export function useMySpots(): MySpotRow[] {
           rows.map((row) => ({
             id: row.id,
             title: row.title,
+            coverPhotoUrl: row.coverPhotoUrl,
             ratingAverage: row.ratingAverage,
             reviewsCount: row.reviewsCount,
             isQueued: row.isQueued,

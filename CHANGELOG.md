@@ -26,6 +26,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Your spots now show their photos in "My spots"** (STOURIFY-192).
+
+  Every row in that list drew a grey rectangle where the picture should be, which looks like a
+  broken image rather than a missing one. Two separate things were missing: the phone was never
+  sent the photo in the first place, and the list never asked for one. Both are fixed, so a spot
+  that has a photo now shows it.
+
+  A spot you have just created offline still shows no picture until it has been through the server.
+  Its photos are on your phone waiting to upload, which is a different thing from a photo the app
+  can display, and pretending otherwise would show you a picture that vanished later.
+
 - **The keyboard no longer covers the Note box on a spot** (STOURIFY-196).
 
   Tapping the box to add a note about a place opened the keyboard directly over it, so you were

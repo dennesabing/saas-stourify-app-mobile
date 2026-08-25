@@ -23,6 +23,9 @@ const SERVER_COLUMNS: Record<string, string[]> = {
     'rating_average',
     'reviews_count',
     'saves_count',
+    // An accessor on the server model rather than a stored column, but it is on
+    // the wire exactly like the rest, so it belongs in this list (STOURIFY-192).
+    'cover_photo_url',
     'created_at',
     'updated_at',
     'deleted_at',
@@ -159,8 +162,12 @@ describe('the local schema against the server allowlist', () => {
     )
   })
 
-  it('is at schema version 4, carrying the pending_media, post_drafts and post_outbox migrations', () => {
-    expect(stourifySchema.version).toBe(4)
+  it('is at schema version 5, carrying every migration listed in migrations.ts', () => {
+    // Pinned rather than derived. The adapter refuses to open a schema at
+    // version N without migrations covering up to N, so a bump made without a
+    // matching migration fails at app start on every existing install and
+    // nowhere else. This line is the cheap place to find that out.
+    expect(stourifySchema.version).toBe(5)
   })
 
   it('declares the local-only post_outbox table, which is not synced', () => {

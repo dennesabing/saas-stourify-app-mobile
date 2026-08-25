@@ -40,7 +40,7 @@ export type SyncedTable = (typeof SYNCED_TABLES)[number]
  *    clobbers them.
  */
 export const stourifySchema: AppSchema = appSchema({
-  version: 4,
+  version: 5,
   tables: [
     tableSchema({
       name: 'sto_spots',
@@ -65,6 +65,15 @@ export const stourifySchema: AppSchema = appSchema({
         { name: 'rating_average', type: 'number', isOptional: true },
         { name: 'reviews_count', type: 'number' },
         { name: 'saves_count', type: 'number' },
+        // The one photo that stands for this spot in a list. Optional, and it
+        // has to be: a spot with no photos is ordinary, and most rows written
+        // locally have none until they have been through the server.
+        //
+        // It is a URL and not a file. The delta carries what the server hosts;
+        // photos taken on this device live in `pending_media` until they drain.
+        // A brand-new offline spot therefore has no cover here, which is correct
+        // rather than a gap to paper over (STOURIFY-192).
+        { name: 'cover_photo_url', type: 'string', isOptional: true },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
         { name: 'deleted_at', type: 'number', isOptional: true },
