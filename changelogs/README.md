@@ -3,7 +3,7 @@
 One file per published build: `<version>.changelog.md` (e.g. `0.3.0.changelog.md`). These are the
 **user-facing release notes shipped with the APK** — `files:upload --type=apk --changelog=…`
 uploads the file next to the binary, and the public
-[download page](https://stourify.zivsluck.com/download-app) renders it from `manifest.json`.
+[download page](https://api.stourify.com/download-app) renders it from `manifest.json`.
 
 ## Not to be confused with `../CHANGELOG.md`
 

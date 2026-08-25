@@ -17,14 +17,14 @@
       "channel": "preview",
       "android": { "buildType": "apk" },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://stourify.zivsluck.com/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://api.stourify.com/api/v1"
       }
     },
     "production": {
       "channel": "production",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://stourify.zivsluck.com/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://api.stourify.com/api/v1"
       }
     }
   },

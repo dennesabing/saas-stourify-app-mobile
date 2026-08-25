@@ -7,7 +7,7 @@ import { useAuthStore } from '@/shared/store/auth'
 // for the full note. `eas.json` sets this explicitly on every build profile.
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
-  (__DEV__ ? 'http://10.0.2.2:8000/api/v1' : 'https://stourify.zivsluck.com/api/v1')
+  (__DEV__ ? 'http://10.0.2.2:8000/api/v1' : 'https://api.stourify.com/api/v1')
 
 export const client = axios.create({
   baseURL: API_URL,
