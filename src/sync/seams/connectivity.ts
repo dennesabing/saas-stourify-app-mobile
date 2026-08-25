@@ -14,100 +14,32 @@ import type { ConnectivityMonitor } from '@soxerp/offline-sync-core'
  */
 let online = true
 
-/**
- * How often the seam re-asks when it believes it is offline (STOURIFY-134).
- *
- * Short enough that somebody who walks back into coverage and pockets their
- * phone gets their work sent while they are still standing there; long enough
- * that a handset genuinely in airplane mode pays four cheap local queries a
- * minute and nothing more. There is deliberately no backoff — it would make the
- * slowest case the long outage followed by a recovery, which is the exact case
- * this exists for.
- */
-export const RECOVERY_PROBE_INTERVAL_MS = 15_000
-
-/** Every caller currently listening, so one reading notifies all of them once. */
-const listeners = new Set<(online: boolean) => void>()
-
-let recoveryTimer: ReturnType<typeof setInterval> | null = null
-
 function toOnline(state: NetInfoState): boolean {
   if (state.isConnected === false) return false
   return state.isInternetReachable !== false
 }
 
-/**
- * Takes one reading — from an event or from a probe, they are the same thing —
- * and makes it the truth.
- *
- * Subscribers hear about it only when the value actually changed. NetInfo emits
- * on every connection-type/signal change, not only on a real online/offline
- * transition, so a flaky radio can fire several "still connected" events in a
- * row; collapsing them here is what turns that run into a single edge for
- * callers like the scheduler, which fires a full sync cycle on regain.
- */
-function apply(next: boolean): void {
-  const changed = next !== online
-  online = next
-  syncRecoveryProbe()
-
-  if (!changed) return
-  for (const listener of [...listeners]) listener(next)
-}
-
-/**
- * Runs the probe while we believe we are offline, and not otherwise.
- *
- * The bug this repairs is not a wrong reading, it is a missing one: NetInfo can
- * answer "no network" during a real radio transition and then never speak
- * again, and the app has no other way to find out the street reopened. So while
- * the flag says offline we ask NetInfo ourselves. `refresh()` is the right call
- * rather than `fetch()` — it re-runs the internet-reachability test instead of
- * handing back the cached answer that is the thing we distrust.
- *
- * The timer exists only while offline, which on an ordinary day is never, so a
- * healthy app pays nothing for it.
- */
-function syncRecoveryProbe(): void {
-  if (online || listeners.size === 0) {
-    stopRecoveryProbe()
-    return
-  }
-  if (recoveryTimer) return
-
-  recoveryTimer = setInterval(() => {
-    // A probe that fails tells us nothing we did not already believe, so it
-    // must not be allowed to reject and take the timer's callback with it.
-    void NetInfo.refresh()
-      .then((state) => apply(toOnline(state)))
-      .catch(() => {})
-  }, RECOVERY_PROBE_INTERVAL_MS)
-}
-
-function stopRecoveryProbe(): void {
-  if (!recoveryTimer) return
-  clearInterval(recoveryTimer)
-  recoveryTimer = null
-}
-
 export const netInfoConnectivity: ConnectivityMonitor = {
   isOnline: () => online,
   subscribe: (cb) => {
-    listeners.add(cb)
+    // NetInfo emits on every connection-type/signal change, not only on a
+    // real online/offline transition — a flaky radio can fire several
+    // "still connected" events in a row. `online` is updated on every event
+    // (so `isOnline()` always reflects the latest reading, and a genuinely
+    // stale subscriber's own `previous` cannot desync from it), but `cb` is
+    // only invoked when the value actually changes. That is what turns a run
+    // of identical events into a single edge for callers like the scheduler,
+    // which fires a full sync cycle on regain — without this, a flaky
+    // connection would fire one sequential cycle per event.
+    let previous = online
 
-    // Each subscription keeps its own NetInfo registration, but every reading
-    // is funnelled through `apply`, which owns the single shared flag. With two
-    // subscribers a real event arrives down two paths and `apply` sees the
-    // second one as no change, so it still reads as one transition.
-    const unsubscribeNetInfo = NetInfo.addEventListener((state) => apply(toOnline(state)))
-
-    syncRecoveryProbe()
-
-    return () => {
-      listeners.delete(cb)
-      unsubscribeNetInfo()
-      if (listeners.size === 0) stopRecoveryProbe()
-    }
+    return NetInfo.addEventListener((state) => {
+      const next = toOnline(state)
+      online = next
+      if (next === previous) return
+      previous = next
+      cb(next)
+    })
   },
 }
 
