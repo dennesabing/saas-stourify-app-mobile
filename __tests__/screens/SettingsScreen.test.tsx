@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, fireEvent, waitFor } from '@testing-library/react-native'
+import { render, fireEvent, waitFor, within } from '@testing-library/react-native'
+import { StyleSheet } from 'react-native'
 import SettingsScreen from '@/features/profile/screens/SettingsScreen'
 
 jest.mock('@/shared/api/auth', () => ({
@@ -198,5 +199,43 @@ describe('the Private account row', () => {
     await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
     expect(queryByText('Account Visibility')).toBeNull()
     expect(queryByText('Follow Mode')).toBeNull()
+  })
+  /**
+   * STOURIFY-181. Settings used to hang everything off a plain `View`, which
+   * clips rather than scrolls, so on a 720x1280 phone the list stopped at Terms
+   * of Service and Logout and Delete account could not be reached by any
+   * gesture.
+   *
+   * These three cases are honest about what they are: PROXIES. A unit test
+   * renders into no viewport at all, so it finds every row whether or not a real
+   * screen could show them -- which is exactly why this bug shipped past a suite
+   * that already asserted both rows exist. What they pin is the STRUCTURE that
+   * makes scrolling possible, and they fail against the pre-fix file. The
+   * evidence that the bug is gone is the emulator run on the short device.
+   */
+  describe('the settings list can be scrolled (STOURIFY-181)', () => {
+    it('puts its content in a scrollable container', async () => {
+      const { getByTestId } = renderSettings()
+
+      await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
+      expect(getByTestId('settings-scroll')).toBeTruthy()
+    })
+
+    it('keeps Logout and Delete account inside that container, not outside it', async () => {
+      const { getByTestId } = renderSettings()
+
+      await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
+      const scroll = within(getByTestId('settings-scroll'))
+      expect(scroll.getByText('Logout')).toBeTruthy()
+      expect(scroll.getByText('Delete account')).toBeTruthy()
+    })
+
+    it('pads the bottom of the content, so the last row clears the tab bar', async () => {
+      const { getByTestId } = renderSettings()
+
+      await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
+      const style = StyleSheet.flatten(getByTestId('settings-scroll').props.contentContainerStyle)
+      expect(style?.paddingBottom).toBeGreaterThan(0)
+    })
   })
 })

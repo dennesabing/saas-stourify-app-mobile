@@ -8,6 +8,7 @@ import {
   Linking,
   KeyboardAvoidingView,
   Switch,
+  ScrollView,
 } from 'react-native'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
@@ -171,17 +172,32 @@ export default function SettingsScreen({ navigation }: Props) {
         </TouchableOpacity>
         <Text style={styles.title}>Settings</Text>
       </View>
-
       {/*
+        STOURIFY-181: the content scrolls, the header does not. Everything below
+        used to hang off the container `View`, which CLIPS rather than scrolls —
+        so on a 720x1280 phone the list stopped at Terms of Service and Logout
+        and Delete account could not be reached by any gesture. They rendered
+        perfectly and were untouchable, which is also why the unit suite never
+        saw it: rendering has no viewport.
+
+        The back button stays put deliberately. Scrolling the way out of a
+        settings screen off the top is a smaller version of the same bug.
+      */}
+      <ScrollView
+        testID="settings-scroll"
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/*
         Blocked accounts is the only place a block can be lifted from. The
         obvious home — a toggle on the blocked person's profile — is unreachable
         once the block stands, because the server refuses that profile to the
         blocker as well, so the difference in responses cannot announce the block
         (STOURIFY-36, STOURIFY-37).
       */}
-      <Text style={styles.section}>PRIVACY</Text>
+        <Text style={styles.section}>PRIVACY</Text>
 
-      {/*
+        {/*
         The ONE privacy setting the server actually enforces. A private account
         turns a follow into a request you have to accept, and hides your
         follower and following lists from anyone who is not already following
@@ -192,36 +208,36 @@ export default function SettingsScreen({ navigation }: Props) {
         that has never existed (STOURIFY-156, specced as STOURIFY-57). They
         showed `–` forever and every tap 404'd in silence.
       */}
-      <View style={styles.row}>
-        <Text style={styles.rowIcon}>🔐</Text>
-        <Text style={styles.rowLabel}>Private account</Text>
-        <Switch
-          accessibilityLabel="Private account"
-          value={isPrivate}
-          disabled={!hasProfile || privacyMutation.isPending}
-          onValueChange={(next) => privacyMutation.mutate(next)}
-        />
-      </View>
+        <View style={styles.row}>
+          <Text style={styles.rowIcon}>🔐</Text>
+          <Text style={styles.rowLabel}>Private account</Text>
+          <Switch
+            accessibilityLabel="Private account"
+            value={isPrivate}
+            disabled={!hasProfile || privacyMutation.isPending}
+            onValueChange={(next) => privacyMutation.mutate(next)}
+          />
+        </View>
 
-      {!hasProfile && <Text style={styles.rowHint}>Set up your profile first to use this.</Text>}
+        {!hasProfile && <Text style={styles.rowHint}>Set up your profile first to use this.</Text>}
 
-      {privacyError !== null && <Text style={styles.rowError}>{privacyError}</Text>}
+        {privacyError !== null && <Text style={styles.rowError}>{privacyError}</Text>}
 
-      <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('BlockedAccounts')}>
-        <Text style={styles.rowIcon}>🚫</Text>
-        <Text style={styles.rowLabel}>Blocked accounts</Text>
-        <Text style={styles.rowValue}>›</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('BlockedAccounts')}>
+          <Text style={styles.rowIcon}>🚫</Text>
+          <Text style={styles.rowLabel}>Blocked accounts</Text>
+          <Text style={styles.rowValue}>›</Text>
+        </TouchableOpacity>
 
-      <Text style={styles.section}>OFFLINE</Text>
+        <Text style={styles.section}>OFFLINE</Text>
 
-      <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('SyncStatus')}>
-        <Text style={styles.rowIcon}>🔄</Text>
-        <Text style={styles.rowLabel}>Offline & sync</Text>
-        <Text style={styles.rowValue}>›</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('SyncStatus')}>
+          <Text style={styles.rowIcon}>🔄</Text>
+          <Text style={styles.rowLabel}>Offline & sync</Text>
+          <Text style={styles.rowValue}>›</Text>
+        </TouchableOpacity>
 
-      {/*
+        {/*
         Play requires the privacy policy and terms to be reachable from inside the
         app, not only from the store listing, and requires a web-reachable
         account-deletion page in addition to the in-app path below. These sit
@@ -229,41 +245,42 @@ export default function SettingsScreen({ navigation }: Props) {
         the only irreversible action on this screen should be the one in the red
         section.
       */}
-      <Text style={styles.section}>LEGAL</Text>
+        <Text style={styles.section}>LEGAL</Text>
 
-      <TouchableOpacity style={styles.row} onPress={() => openLegalPage(PRIVACY_POLICY_URL)}>
-        <Text style={styles.rowIcon}>🔒</Text>
-        <Text style={styles.rowLabel}>Privacy Policy</Text>
-        <Text style={styles.rowValue}>↗</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.row} onPress={() => openLegalPage(PRIVACY_POLICY_URL)}>
+          <Text style={styles.rowIcon}>🔒</Text>
+          <Text style={styles.rowLabel}>Privacy Policy</Text>
+          <Text style={styles.rowValue}>↗</Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity style={styles.row} onPress={() => openLegalPage(TERMS_URL)}>
-        <Text style={styles.rowIcon}>📄</Text>
-        <Text style={styles.rowLabel}>Terms of Service</Text>
-        <Text style={styles.rowValue}>↗</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.row} onPress={() => openLegalPage(TERMS_URL)}>
+          <Text style={styles.rowIcon}>📄</Text>
+          <Text style={styles.rowLabel}>Terms of Service</Text>
+          <Text style={styles.rowValue}>↗</Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity style={styles.row} onPress={() => openLegalPage(ACCOUNT_DELETION_URL)}>
-        <Text style={styles.rowIcon}>❓</Text>
-        <Text style={styles.rowLabel}>Request account deletion</Text>
-        <Text style={styles.rowValue}>↗</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.row} onPress={() => openLegalPage(ACCOUNT_DELETION_URL)}>
+          <Text style={styles.rowIcon}>❓</Text>
+          <Text style={styles.rowLabel}>Request account deletion</Text>
+          <Text style={styles.rowValue}>↗</Text>
+        </TouchableOpacity>
 
-      <Text style={styles.section}>DANGER ZONE</Text>
+        <Text style={styles.section}>DANGER ZONE</Text>
 
-      <TouchableOpacity style={styles.row} onPress={handleLogout}>
-        <Text style={styles.rowIcon}>🚪</Text>
-        <Text style={[styles.rowLabel, { color: '#ff6b6b' }]}>Logout</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.row} onPress={handleLogout}>
+          <Text style={styles.rowIcon}>🚪</Text>
+          <Text style={[styles.rowLabel, { color: '#ff6b6b' }]}>Logout</Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity style={styles.row} onPress={() => setConfirmingDelete(true)}>
-        <Text style={styles.rowIcon}>🗑</Text>
-        <Text style={[styles.rowLabel, { color: '#ff6b6b' }]}>Delete account</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.row} onPress={() => setConfirmingDelete(true)}>
+          <Text style={styles.rowIcon}>🗑</Text>
+          <Text style={[styles.rowLabel, { color: '#ff6b6b' }]}>Delete account</Text>
+        </TouchableOpacity>
 
-      {/* Same line the signed-out screens carry, so the build-identity check in
+        {/* Same line the signed-out screens carry, so the build-identity check in
           `.claude/docs/testing.md` also works on a device already signed in. */}
-      <BuildIdentity color="#8496a6" />
+        <BuildIdentity color="#8496a6" />
+      </ScrollView>
 
       <Modal
         visible={confirmingDelete}
@@ -349,6 +366,10 @@ export default function SettingsScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f1923', paddingTop: 48 },
+  scroll: { flex: 1 },
+  // Clears the tab bar sitting over the bottom of this stack: reaching the
+  // last row is not the same as being able to read it.
+  scrollContent: { paddingBottom: 48 },
   header: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
   back: { color: '#00b4d8' },
   title: { color: '#fff', fontWeight: '700', fontSize: 20 },
