@@ -17,7 +17,7 @@ import { splitApiUrl } from '@/sync/httpClient'
  */
 const RAW_API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
-  (__DEV__ ? 'http://10.0.2.2:8000/api/v1' : 'https://stourify.zivsluck.com/api/v1')
+  (__DEV__ ? 'http://10.0.2.2:8000/api/v1' : 'https://api.stourify.com/api/v1')
 
 /** Origin of the web app — the API URL with its `/api/v1` suffix removed. */
 export const WEB_BASE_URL = splitApiUrl(RAW_API_URL).baseUrl

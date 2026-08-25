@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-25
+
+### Changed
+
+- **The app now talks to `api.stourify.com`** (STOURIFY-188).
+
+  Production moved to a new hostname and the previous one was retired. Every place the app names the
+  backend follows it: the API client, the offline sync client, and the privacy, terms and
+  account-deletion links.
+
+  **If you are running 0.4.0 or earlier, it cannot work.** That build has the old hostname compiled
+  into it, and the old hostname no longer answers — so every request fails, including signing in. The
+  app has no way to update itself, so the only fix is to install this build from the download page.
+  Anything you saved offline is still on your phone and will send once you are signed in again.
+
+
 ### Fixed
 
 - **Settings scrolls, so Logout and Delete account can be reached on a small phone** (STOURIFY-181).
