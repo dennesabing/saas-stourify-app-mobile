@@ -12,26 +12,8 @@ import { MAX_DRAFT_PHOTOS, observeDraftMedia } from '@/features/media/api/draftM
 import { publishSpot } from '@/features/create/api/publishSpot'
 import LocationPicker from '@/features/create/components/LocationPicker'
 import { MAX_SPOT_CATEGORIES, validateSpotForm } from '@/features/create/api/spotForm'
+import { SPOT_CATEGORIES } from '@/shared/config/spotCategories'
 import { useTheme } from '@/theme/ThemeProvider'
-
-/**
- * The categories on offer.
- *
- * The server takes free strings — `SpotStoreRequest` has no list to check
- * against — so this is the app's own shortlist, deliberately the same labels the
- * Discover filter rail uses, so what somebody tags here is what somebody else
- * can filter by there.
- */
-const SPOT_CATEGORIES = [
-  'Nature',
-  'Foodie',
-  'Coast',
-  'Heritage',
-  'Viewpoint',
-  'Adventure',
-  'Nightlife',
-  'Shopping',
-] as const
 
 type Props = NativeStackScreenProps<CreateStackParamList, 'CreateSpot'>
 

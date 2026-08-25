@@ -10,16 +10,22 @@ import type { Spot } from '@/shared/api/types'
  * page it saved yesterday, and the offline behaviour looks like it was never
  * built. `mobile/src/shared/queryClient.ts` persists every query result to
  * AsyncStorage for 24 hours, so a stable key is the whole of the offline story.
+ *
+ * It takes the category since STOURIFY-193, so each chip caches its own page.
+ * Leaving the category out of the key would have made every selection overwrite
+ * the last one under a single name — and then serve the wrong chip's spots from
+ * cache while the right ones were still loading.
  */
-export const EXPLORE_SPOTS_QUERY_KEY = ['spots', 'explore'] as const
+export const EXPLORE_SPOTS_QUERY_KEY = (category?: string) =>
+  ['spots', 'explore', category ?? 'all'] as const
 
 /**
  * The spot index, newest first — the server's default ordering, kept as
  * received. `SpotApiController::index` eager-loads `media`, so a page of spots
  * costs one query rather than one per row.
  */
-export async function fetchExploreSpots(): Promise<Spot[]> {
-  const page = await getSpots()
+export async function fetchExploreSpots(category?: string): Promise<Spot[]> {
+  const page = await getSpots(category ? { category } : undefined)
 
   return page.data
 }

@@ -37,6 +37,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Its photos are on your phone waiting to upload, which is a different thing from a photo the app
   can display, and pretending otherwise would show you a picture that vanished later.
 
+- **Discover's category buttons now work** (STOURIFY-193).
+
+  The row of buttons across the top of Discover — Nature, Foodie, Coast and the rest — did nothing
+  at all. Pressing one changed nothing, because there was no way to ask the server for one category
+  and a button that appeared to filter would have shown the same unfiltered list every time.
+
+  They filter now. Three other things changed with them:
+
+  - The buttons are the same categories offered when you add a spot, so what one person tags is what
+    another can find. They had drifted apart: Discover offered half the list, plus one that was
+    never a category at all.
+  - **Trending** is gone. Nothing was ever tagged with it and there is no trending list behind it.
+    **All** takes its place, which is what it actually did.
+  - Choosing a category with nothing in it now says so, instead of telling you the app is empty and
+    inviting you to add the very first spot.
+
 - **The keyboard no longer covers the Note box on a spot** (STOURIFY-196).
 
   Tapping the box to add a note about a place opened the keyboard directly over it, so you were
