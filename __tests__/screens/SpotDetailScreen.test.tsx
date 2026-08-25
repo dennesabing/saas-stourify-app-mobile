@@ -117,7 +117,9 @@ it('renders a real hero image, the rating and the review count', async () => {
     expect(screen.getByTestId('spot-hero-image')).toBeTruthy()
     expect(screen.getByText('Blue Cove')).toBeTruthy()
     expect(screen.getByText('4.5')).toBeTruthy()
-    expect(screen.getByText('See all reviews')).toBeTruthy()
+    // "See all reviews" is now the rating row's accessible name rather than a
+    // button label (STOURIFY-197) — it is a way through, not a second control.
+    expect(screen.getByLabelText('See all reviews')).toBeTruthy()
   })
 
   // The loading placeholder must go once the answer is in. A skeleton left
@@ -386,10 +388,11 @@ it('keeps showing a spot it already has while the refetch is failing', async () 
   expect(screen.queryByText("Couldn't load this spot")).toBeNull()
 
   // The whole details block stays too, not just the hero and the title. A
-  // failed-state rule that hid the reviews button here would be taking a real
+  // failed-state rule that hid the reviews link here would be taking a real
   // number off the screen because a background request went wrong.
-  expect(screen.getByText('See all reviews')).toBeTruthy()
-  expect(screen.getByText('Save')).toBeTruthy()
+  expect(screen.getByLabelText('See all reviews')).toBeTruthy()
+  expect(screen.getByText('Write a review')).toBeTruthy()
+  expect(screen.getByTestId('spot-save')).toBeTruthy()
 })
 
 it('renders a design-system placeholder hero when the spot has no photos, never a bare grey box', async () => {
@@ -456,8 +459,10 @@ it('navigates to the reviews list and to write review', async () => {
 
   renderScreen()
 
-  await waitFor(() => expect(screen.getByText('See all reviews')).toBeTruthy())
-  fireEvent.press(screen.getByText('See all reviews'))
+  // The rating row IS the way to the reviews now. Pressing the row rather than
+  // a button below it is the whole of direction A's saving here (STOURIFY-197).
+  await waitFor(() => expect(screen.getByLabelText('See all reviews')).toBeTruthy())
+  fireEvent.press(screen.getByLabelText('See all reviews'))
   expect(navigation.navigate).toHaveBeenCalledWith('Reviews', { spotId: 'spot-1' })
 
   fireEvent.press(screen.getByText('Write a review'))
@@ -465,13 +470,19 @@ it('navigates to the reviews list and to write review', async () => {
 })
 
 /**
- * Save used to sit on a row of its own below the reviews buttons, while the
- * rating line beside it was mostly empty space. Reading a spot is one glance —
- * "how good is it, and do I want to keep it?" — so the two belong on the same
- * line, the way a price and an add-to-basket button share a shelf edge
- * (STOURIFY-102).
+ * Save moved onto the photo (STOURIFY-197, direction A).
+ *
+ * It sat beside the rating before that, which was itself a fix — it used to
+ * have a full row of its own while the rating line beside it was mostly empty
+ * space (STOURIFY-102). Direction A takes the next step: the page had four
+ * controls stacked above any content, and the rating line is more useful as a
+ * way through to the reviews than as a shelf for a button.
+ *
+ * **It must not be nested inside the hero.** The hero is itself a button that
+ * opens the gallery, and a touch target inside another touch target is an
+ * arrangement that works until a platform decides otherwise.
  */
-it('puts Save on the same row as the rating, as an icon-and-text button', async () => {
+it('puts Save on the photo, outside the hero button, and not in the rating row', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
   ;(getSpotPosts as jest.Mock).mockResolvedValue({
     data: [],
@@ -481,14 +492,40 @@ it('puts Save on the same row as the rating, as an icon-and-text button', async 
 
   renderScreen()
 
-  await waitFor(() => expect(screen.getByTestId('spot-rating-row')).toBeTruthy())
+  await waitFor(() => expect(screen.getByTestId('spot-save')).toBeTruthy())
 
+  // Named for what it does, since the mark alone does not say it.
+  expect(screen.getByLabelText('Save this spot')).toBeTruthy()
+
+  // Not a child of the hero — the nesting rule above.
+  expect(within(screen.getByTestId('spot-hero')).queryByTestId('spot-save')).toBeNull()
+
+  // And the rating row is now purely the route to the reviews.
   const row = within(screen.getByTestId('spot-rating-row'))
-  // The score comes from the Rating component, the words from the button — both
-  // inside the one row is the whole claim.
   expect(row.getByText('4.5')).toBeTruthy()
-  expect(row.getByText('Save')).toBeTruthy()
-  expect(row.getByText('🔖')).toBeTruthy()
+  expect(row.queryByTestId('spot-save')).toBeNull()
+})
+
+/**
+ * Direction A's actual claim: fewer controls above the content, without losing
+ * any capability. Both destinations are still reachable — one is a button, the
+ * other is the rating row.
+ */
+it('shows one review button where there were two', async () => {
+  ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Write a review')).toBeTruthy())
+
+  // The old second button is gone as a LABEL. Asserting on the text rather than
+  // the accessible name is deliberate: the name still exists, on the rating row.
+  expect(screen.queryByText('See all reviews')).toBeNull()
 })
 
 it('saves to the wishlist as a local write, never touching the network', async () => {
@@ -505,8 +542,8 @@ it('saves to the wishlist as a local write, never touching the network', async (
 
   renderScreen(database)
 
-  await waitFor(() => expect(screen.getByText('Save')).toBeTruthy())
-  fireEvent.press(screen.getByText('Save'))
+  await waitFor(() => expect(screen.getByTestId('spot-save')).toBeTruthy())
+  fireEvent.press(screen.getByTestId('spot-save'))
 
   await waitFor(async () => {
     expect(await database.get<WishlistItem>('sto_wishlist_items').query().fetchCount()).toBe(1)
@@ -514,8 +551,10 @@ it('saves to the wishlist as a local write, never touching the network', async (
 
   expect(fetchSpy).not.toHaveBeenCalled()
 
+  // The queued state is readable on the mark itself, so a save made offline
+  // does not look identical to one that has already gone.
   await waitFor(() => {
-    expect(screen.getByText('Saved ↑')).toBeTruthy()
+    expect(screen.getByText('🔖 ↑')).toBeTruthy()
   })
 
   const [item] = await database.get<WishlistItem>('sto_wishlist_items').query().fetch()

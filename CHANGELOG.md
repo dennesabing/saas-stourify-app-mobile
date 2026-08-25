@@ -24,6 +24,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation was about without going back twice. The thread now names the spot and quotes the note
   it hangs from.
 
+- **The spot page is less crowded** (STOURIFY-197).
+
+  It stacked three buttons and two tabs above anything worth reading, so arriving at a spot meant
+  looking at a control panel and scrolling to reach the place itself.
+
+  - **Save** is now a mark on the photo, where people already look for it, rather than a button in
+    the column below.
+  - The **rating line** takes you to the reviews, so the separate "See all reviews" button is gone —
+    it repeated a link sitting directly on top of it. The review count was already on that line.
+  - Notes are separated from each other by a line, so a long note and the next one no longer run
+    together.
+
+  Two rows and two controls fewer, with nothing removed that you could do before. The text is the
+  same size on purpose: the page felt heavy because of how much was on it, not how big anything was,
+  and this is read outdoors on a phone.
+
 ### Fixed
 
 - **Spots you add are now actually published** (STOURIFY-202).

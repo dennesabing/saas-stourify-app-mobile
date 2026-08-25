@@ -161,6 +161,49 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
           </Pressable>
 
           {/*
+            Save, as a mark on the photo rather than a labelled button in the
+            column below (STOURIFY-197, direction A).
+
+            It is a SIBLING of the hero, not a child of it, and absolutely
+            positioned the same way Back is. The hero is itself a button that
+            opens the gallery, and a touch target inside another touch target is
+            an arrangement that works right up until a platform decides
+            otherwise — the note on the error panel a few lines down makes the
+            same point about the same hero.
+
+            The trade this makes: a mark is less self-explanatory than the word
+            "Save". It carries an accessibility label saying what it does, and it
+            fills in once saved so the state is readable at a glance.
+          */}
+          {hasFailed ? null : (
+            <Pressable
+              testID="spot-save"
+              accessibilityRole="button"
+              accessibilityLabel={isSaved ? 'Saved' : 'Save this spot'}
+              accessibilityState={{ selected: isSaved }}
+              disabled={isSaved}
+              onPress={onSave}
+              style={{
+                position: 'absolute',
+                top: theme.spacing[3],
+                right: theme.spacing[3],
+                zIndex: 10,
+                minWidth: theme.minTouchTarget,
+                minHeight: theme.minTouchTarget,
+                borderRadius: theme.radius.chip,
+                backgroundColor: theme.colors.card,
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingHorizontal: theme.spacing[3],
+              }}
+            >
+              <Text variant="body" color={isSaved ? 'primary' : 'ink'}>
+                {isSaved ? (isQueued ? '🔖 ↑' : '🔖') : '🔖'}
+              </Text>
+            </Pressable>
+          )}
+
+          {/*
           A request that came back broken gets words and a button, not a shape
           that pulses forever. Before STOURIFY-64 a failed fetch left the hero
           and the rating as grey placeholders with no message and no way out —
@@ -297,9 +340,18 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               in for the rating, so Save does not appear late and shift
               everything under it downwards once the request lands.
             */}
-              <View
+              <Pressable
                 testID="spot-rating-row"
-                style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[3] }}
+                accessibilityRole="button"
+                accessibilityLabel="See all reviews"
+                disabled={isWaiting}
+                onPress={() => navigation.navigate('Reviews', { spotId })}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: theme.spacing[3],
+                  minHeight: theme.minTouchTarget,
+                }}
               >
                 <View style={{ flex: 1 }}>
                   {isWaiting ? (
@@ -311,14 +363,21 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                     />
                   )}
                 </View>
-                <Button
-                  icon="🔖"
-                  label={isSaved ? (isQueued ? 'Saved ↑' : 'Saved') : 'Save'}
-                  variant={isSaved ? 'secondary' : 'accent'}
-                  disabled={isSaved}
-                  onPress={onSave}
-                />
-              </View>
+
+                {/*
+                  The chevron is not decoration — it is the only thing making
+                  this row look like a way through (STOURIFY-197). A rating that
+                  silently became tappable would be a rating nobody ever pressed,
+                  and "See all reviews" would have been deleted rather than
+                  moved. It is hidden while the request is in flight, because the
+                  row is not pressable then either.
+                */}
+                {isWaiting ? null : (
+                  <Text variant="body" color="muted">
+                    ›
+                  </Text>
+                )}
+              </Pressable>
 
               {/*
               The count is gone from this label on purpose. At half the row's
@@ -328,20 +387,18 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               ellipsis. The number is already one line above, in the rating row's
               "· 12 reviews", so nothing is lost by saying it once.
             */}
-              <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
-                <Button
-                  label="See all reviews"
-                  variant="secondary"
-                  onPress={() => navigation.navigate('Reviews', { spotId })}
-                  style={{ flex: 1 }}
-                />
-                <Button
-                  label="Write a review"
-                  variant="secondary"
-                  onPress={() => navigation.navigate('WriteReview', { spotId })}
-                  style={{ flex: 1 }}
-                />
-              </View>
+              {/*
+                One button where there were two. "See all reviews" moved into the
+                rating row above, which already carries the review count and now
+                leads to the same place — so the button was repeating a link that
+                was sitting right on top of it (STOURIFY-197).
+              */}
+              <Button
+                label="Write a review"
+                variant="secondary"
+                fullWidth
+                onPress={() => navigation.navigate('WriteReview', { spotId })}
+              />
             </View>
           )}
 
