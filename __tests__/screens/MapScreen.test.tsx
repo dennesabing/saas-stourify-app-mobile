@@ -230,7 +230,7 @@ it('draws pins from the cached explore page when the network refuses', async () 
   const queryClient = trackQueryClient(
     new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
   )
-  queryClient.setQueryData(EXPLORE_SPOTS_QUERY_KEY, [makeSpot({ uuid: 'cached-spot' })])
+  queryClient.setQueryData(EXPLORE_SPOTS_QUERY_KEY(), [makeSpot({ uuid: 'cached-spot' })])
   ;(getSpots as jest.Mock).mockRejectedValue(new Error('Network request failed'))
 
   renderScreen({ queryClient })

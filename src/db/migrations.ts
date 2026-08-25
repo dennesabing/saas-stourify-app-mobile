@@ -1,4 +1,4 @@
-import { createTable, schemaMigrations } from '@nozbe/watermelondb/Schema/migrations'
+import { addColumns, createTable, schemaMigrations } from '@nozbe/watermelondb/Schema/migrations'
 
 /**
  * v1 -> v2 adds `pending_media`, the local-only offline media outbox; v2 -> v3
@@ -14,6 +14,19 @@ import { createTable, schemaMigrations } from '@nozbe/watermelondb/Schema/migrat
  */
 export const stourifyMigrations = schemaMigrations({
   migrations: [
+    {
+      // v4 -> v5 gives a spot somewhere to keep the photo that represents it in
+      // a list. Additive and optional, so every existing row simply has none
+      // until the next delta fills it in -- no local write is at risk, which is
+      // the property that matters most in this file (STOURIFY-192).
+      toVersion: 5,
+      steps: [
+        addColumns({
+          table: 'sto_spots',
+          columns: [{ name: 'cover_photo_url', type: 'string', isOptional: true }],
+        }),
+      ],
+    },
     {
       toVersion: 4,
       steps: [

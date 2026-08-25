@@ -125,6 +125,15 @@ export default function CommentsScreen({ route }: Props) {
 
   const hostId = host.id
 
+  /**
+   * The words for the header above. Read straight off the route parameters —
+   * `'postId' in target` is the same discriminator the host uses, so a post
+   * thread resolves all three to `undefined` and renders none of them.
+   */
+  const spotTitle = 'postId' in target ? undefined : target.spotTitle
+  const noteBody = 'postId' in target ? undefined : target.noteBody
+  const noteAuthor = 'postId' in target ? undefined : target.noteAuthor
+
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: COMMENTS_QUERY_KEY(hostId),
     queryFn: () => host.list(),
@@ -234,9 +243,60 @@ export default function CommentsScreen({ route }: Props) {
       {/* STOURIFY-100: the composer is docked at the bottom, so under edge-to-edge —
           where Android no longer shrinks the window — the keyboard covers it outright. */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-        <View style={{ padding: theme.gutter }}>
+        {/*
+          What this thread is about, when the caller told us (STOURIFY-198).
+
+          A thread hanging under a bare "Comments" heading is a conversation
+          with the subject line torn off. You tap a note on a spot, the spot and
+          the note both vanish, and what is left is a list of replies to
+          something the screen refuses to name — worst when you come back to the
+          app a few minutes later and have to go back twice to remember.
+
+          It renders only what it was given. A post thread passes no context and
+          keeps the plain heading it always had, and a note thread opened from
+          somewhere that does not know the spot degrades to the same thing
+          rather than showing an empty box.
+        */}
+        <View style={{ padding: theme.gutter, gap: theme.spacing[1] }}>
           <Text variant="h1">Comments</Text>
+
+          {spotTitle ? (
+            <Text testID="comments-context-spot" variant="caption" color="muted">
+              on {spotTitle}
+            </Text>
+          ) : null}
         </View>
+
+        {noteBody ? (
+          /*
+            The note itself, quoted. Three lines at most: it is here to identify
+            the thread, not to be re-read in full, and a long note would push the
+            replies off the screen — which would trade one disorientation for
+            another.
+          */
+          <View
+            testID="comments-context-note"
+            style={{
+              marginHorizontal: theme.gutter,
+              marginBottom: theme.spacing[3],
+              padding: theme.spacing[3],
+              borderLeftWidth: 3,
+              borderLeftColor: theme.colors.primary,
+              backgroundColor: theme.colors.surfaceAlt,
+              borderRadius: theme.radius.button,
+              gap: theme.spacing[1],
+            }}
+          >
+            {noteAuthor ? (
+              <Text variant="caption" color="primary">
+                {noteAuthor}
+              </Text>
+            ) : null}
+            <Text variant="body" numberOfLines={3}>
+              {noteBody}
+            </Text>
+          </View>
+        ) : null}
 
         <FlatList
           data={rows}

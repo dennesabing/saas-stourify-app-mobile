@@ -82,8 +82,15 @@ export default function MapScreen({ navigation }: Props) {
   }, [database])
 
   const { data } = useQuery({
-    queryKey: EXPLORE_SPOTS_QUERY_KEY,
-    queryFn: fetchExploreSpots,
+    // The map shows everything, so it asks for the unfiltered page — the same
+    // one Discover's "All" chip uses, and deliberately the same cache entry.
+    //
+    // The arrow around the fetcher is not style. React Query calls a query
+    // function with its own context object as the first argument, so passing
+    // `fetchExploreSpots` bare would hand that object in as the category and
+    // send it to the server as a filter (STOURIFY-193).
+    queryKey: EXPLORE_SPOTS_QUERY_KEY(),
+    queryFn: () => fetchExploreSpots(),
   })
 
   const spots = useMemo(() => data ?? [], [data])

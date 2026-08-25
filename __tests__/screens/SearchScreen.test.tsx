@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { QueryClient } from '@tanstack/react-query'
 import SearchScreen from '@/features/search/screens/SearchScreen'
+import { EXPLORE_SPOTS_QUERY_KEY } from '@/features/discover/api/exploreSpots'
 import { createTestDatabase } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
 
@@ -268,4 +269,75 @@ it('keeps showing results already fetched when a later request fails', async () 
     unmount()
     client.clear()
   }
+})
+
+/**
+ * STOURIFY-194 — "nothing matched your word" and "there is nothing here to
+ * match" are different facts, and only one of them is the reader's to fix.
+ *
+ * The card was filed as "search is not working". Search worked; the catalogue
+ * was empty, and the copy blamed the search — sending someone off trying
+ * synonyms forever against a set that was never going to answer.
+ */
+describe('an empty catalogue versus an empty result', () => {
+  const EMPTY = { spots: [], cities: [], people: [] }
+
+  /**
+   * A client whose explore cache already holds an answer about the catalogue.
+   *
+   * `gcTime` is deliberately non-zero here, unlike everywhere else in this file.
+   * Nothing on this screen OBSERVES the explore query — it only reads what is
+   * already cached — and with `gcTime: 0` React Query collects an unobserved
+   * entry immediately, so the seeded value is gone before the screen looks.
+   */
+  function clientKnowing(catalogue: unknown[]) {
+    const client = trackQueryClient(
+      new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 60_000 } } }),
+    )
+    client.setQueryData(EXPLORE_SPOTS_QUERY_KEY(), catalogue)
+    return client
+  }
+
+  it('says the catalogue is empty when the explore list confirms it is', async () => {
+    ;(searchDiscover as jest.Mock).mockResolvedValue(EMPTY)
+
+    renderScreen(clientKnowing([]))
+    type('beach')
+
+    await waitFor(() => expect(screen.getByText('There is nothing to find yet')).toBeTruthy(), {
+      timeout: 3000,
+    })
+
+    expect(screen.queryByText(NOTHING_FOUND)).toBeNull()
+  })
+
+  /**
+   * The case that makes this worth doing carefully. An empty search result is
+   * NOT evidence of an empty catalogue — "no spot matched zzzzz" and "there are
+   * no spots" produce byte-identical responses. Here the catalogue demonstrably
+   * has spots in it, so blaming the search is the correct thing to do.
+   */
+  it('blames the search when the catalogue is known to have things in it', async () => {
+    ;(searchDiscover as jest.Mock).mockResolvedValue(EMPTY)
+
+    renderScreen(clientKnowing([{ uuid: 'spot-1', title: 'Somewhere' }]))
+    type('zzzzz')
+
+    await waitFor(() => expect(screen.getByText(NOTHING_FOUND)).toBeTruthy(), { timeout: 3000 })
+
+    expect(screen.queryByText('There is nothing to find yet')).toBeNull()
+  })
+
+  it('makes no claim about the catalogue when it has never been looked at', async () => {
+    ;(searchDiscover as jest.Mock).mockResolvedValue(EMPTY)
+
+    // No explore data cached at all. Saying "there is nothing to find" here
+    // would be a guess, and the whole point is not to guess.
+    renderScreen()
+    type('zzzzz')
+
+    await waitFor(() => expect(screen.getByText(NOTHING_FOUND)).toBeTruthy(), { timeout: 3000 })
+
+    expect(screen.queryByText('There is nothing to find yet')).toBeNull()
+  })
 })

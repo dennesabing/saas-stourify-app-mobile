@@ -26,7 +26,8 @@ export interface PublishSpotResult {
 }
 
 /**
- * Writes the spot and binds every captured photo to it, offline, in one write.
+ * Writes the spot, PUBLISHED, and binds every captured photo to it, offline, in
+ * one write.
  *
  * Three things about the shape of this function are load-bearing.
  *
@@ -87,7 +88,22 @@ export async function publishSpot(
         row._raw.latitude = input.latitude
         row._raw.longitude = input.longitude
         row._raw.categories = categories.length === 0 ? null : JSON.stringify(categories)
-        row._raw.status = 'draft'
+        // Published, not draft.
+        //
+        // This line read 'draft' until STOURIFY-202, and the word 'published'
+        // appeared nowhere else in the app -- so every spot anyone ever created
+        // was saved unfinished, pushed unfinished, and stayed unfinished
+        // forever. Drafts are deliberately excluded from every discovery
+        // surface, so the result was a catalogue nobody could browse or search,
+        // including the person who built it. The app's whole purpose did not
+        // work, and nothing anywhere reported a failure.
+        //
+        // The create flow has one finishing button and says nothing about
+        // drafts, so publishing is what a person believes they are doing when
+        // they press it. This makes the code agree with them. The operator
+        // confirmed on 2026-08-26 that there is no save-as-draft option for now;
+        // the draft state still exists on the server for when there is.
+        row._raw.status = 'published'
         row._raw.is_verified = false
         row._raw.reviews_count = 0
         row._raw.saves_count = 0

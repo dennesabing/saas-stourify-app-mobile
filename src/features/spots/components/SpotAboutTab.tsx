@@ -48,7 +48,11 @@ interface Props {
    * and the jest harness mounts components without a navigation container, so
    * a hook here would throw in every test that renders the tab.
    */
-  onOpenThread: (spotAboutUuid: string) => void
+  /**
+   * The whole note is handed over, not just its id, so the thread screen can
+   * say what it is a thread ABOUT without fetching anything (STOURIFY-198).
+   */
+  onOpenThread: (about: SpotAbout) => void
 }
 
 export default function SpotAboutTab({ spotUuid, onOpenThread }: Props) {
@@ -212,15 +216,35 @@ export default function SpotAboutTab({ spotUuid, onOpenThread }: Props) {
     }
 
     return (
-      <View style={{ gap: theme.spacing[4] }}>
-        {abouts.map((about) => {
+      /*
+        Notes are separated by a hairline, not only by a gap (STOURIFY-197).
+        16 points between two notes against 4 points inside one is a four-to-one
+        ratio and it still was not enough: a note runs to several lines of the
+        same text at the same size, so where one ends and the next begins is a
+        judgement the reader has to make from spacing alone. Widening the gap
+        further would have made the list longer without making it clearer, on a
+        page the same card is asking to make SHORTER.
+
+        A line does the separating instead, and the gap can stay where it is.
+      */
+      <View>
+        {abouts.map((about, index) => {
           const liked = about.is_liked === true
 
           return (
             <View
               key={about.uuid}
               testID="spot-about-row"
-              style={{ flexDirection: 'row', gap: theme.spacing[2] }}
+              style={{
+                flexDirection: 'row',
+                gap: theme.spacing[2],
+                paddingVertical: theme.spacing[4],
+                // Not on the first note. A rule above the top one reads as the
+                // bottom edge of whatever sits above the list, which is a
+                // different thing entirely.
+                borderTopWidth: index === 0 ? 0 : 1,
+                borderTopColor: theme.colors.hairline,
+              }}
             >
               <Avatar uri={about.author?.avatar_url} name={about.author?.name} size={32} />
 
@@ -282,7 +306,7 @@ export default function SpotAboutTab({ spotUuid, onOpenThread }: Props) {
                       testID={`spot-about-comments-${about.uuid}`}
                       accessibilityRole="button"
                       accessibilityLabel="View replies"
-                      onPress={() => onOpenThread(about.uuid)}
+                      onPress={() => onOpenThread(about)}
                       style={{
                         flexDirection: 'row',
                         alignItems: 'center',

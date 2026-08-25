@@ -20,7 +20,37 @@
  * `PostDetailScreen` already navigates with it and the post half of this route
  * is a contract several tests depend on (STOURIFY-148).
  */
-export type CommentThreadTarget = { postId: string } | { spotAboutId: string }
+/**
+ * What a comment thread is hanging off, plus enough words to say so on screen.
+ *
+ * The ids alone were the whole of this type until STOURIFY-198. That was enough
+ * to FETCH the right thread and not enough to TELL anyone what they were
+ * reading: the screen opened on a bare "Comments" heading, and a note you had
+ * been looking at a second earlier was gone, along with the spot it was about.
+ * Coming back to the app mid-thread, there was nothing on the screen that said
+ * which place any of it concerned.
+ *
+ * The context travels as route parameters rather than being fetched again,
+ * because the screen you tapped FROM already had every word of it on display.
+ * Re-requesting it would put a spinner, and a chance of failure, in front of
+ * something already known — and would leave the header empty exactly when the
+ * network is bad, which is when knowing where you are matters most.
+ *
+ * Both context fields are optional, and the screen renders without them. They
+ * are a courtesy from the caller, never a precondition: a future caller that
+ * genuinely does not know the spot still gets a working thread.
+ */
+export type CommentThreadTarget =
+  | { postId: string }
+  | {
+      spotAboutId: string
+      /** The spot the note is pinned to — "Zeddy's Minimart". */
+      spotTitle?: string
+      /** The note being replied to, as written. The screen trims it to fit. */
+      noteBody?: string
+      /** Who wrote the note. */
+      noteAuthor?: string
+    }
 
 export type RootStackParamList = {
   Welcome: undefined

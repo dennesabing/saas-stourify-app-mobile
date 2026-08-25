@@ -148,12 +148,53 @@ describe('v1 -> v2 migration (adds pending_media)', () => {
 
 /**
  * The v2 schema as it shipped: `pending_media` present, `post_drafts` absent.
- * Minimal, like `schemaV1` above — it stands in for an installed app, so it
- * only needs the tables this test actually writes to.
+ *
+ * `sto_spots` is declared here and in the v3 fixture below even though neither
+ * test writes a spot.
+ *
+ * These fixtures stand in for an installed app, and every installed app has had
+ * this table since v1 — leaving it out made them minimal rather than faithful,
+ * and the difference stayed invisible for as long as every migration only
+ * CREATED tables. The v5 migration adds a column to `sto_spots`, and a migration
+ * that alters a table the fixture never declared cannot run: the adapter fails
+ * to open at all, which surfaces as "driver is not set up" rather than anything
+ * naming the table (STOURIFY-192).
+ *
+ * The lesson worth keeping: a fixture that omits what the real thing has will
+ * pass until the day something touches the omitted part, and then fail in a way
+ * that does not point at the fixture.
  */
 const schemaV2 = appSchema({
   version: 2,
   tables: [
+    tableSchema({
+      name: 'sto_spots',
+      columns: [
+        { name: 'uuid', type: 'string', isIndexed: true },
+        { name: 'server_id', type: 'number', isOptional: true, isIndexed: true },
+        { name: 'organization_id', type: 'number', isOptional: true },
+        { name: 'user_id', type: 'number', isOptional: true },
+        { name: 'city_id', type: 'number', isOptional: true },
+        { name: 'city_uuid', type: 'string', isOptional: true },
+        { name: 'owner_user_id', type: 'number', isOptional: true },
+        { name: 'title', type: 'string' },
+        { name: 'slug', type: 'string', isOptional: true },
+        { name: 'description', type: 'string', isOptional: true },
+        { name: 'latitude', type: 'number' },
+        { name: 'longitude', type: 'number' },
+        { name: 'address', type: 'string', isOptional: true },
+        { name: 'categories', type: 'string', isOptional: true },
+        { name: 'hours', type: 'string', isOptional: true },
+        { name: 'status', type: 'string' },
+        { name: 'is_verified', type: 'boolean' },
+        { name: 'rating_average', type: 'number', isOptional: true },
+        { name: 'reviews_count', type: 'number' },
+        { name: 'saves_count', type: 'number' },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+        { name: 'deleted_at', type: 'number', isOptional: true },
+      ],
+    }),
     tableSchema({
       name: 'pending_media',
       columns: [
@@ -182,7 +223,7 @@ describe('v2 -> v3 migration (adds post_drafts)', () => {
     })
     const v2Database = new Database({
       adapter: v2Adapter,
-      modelClasses: [PendingMediaModel],
+      modelClasses: [SpotModel, PendingMediaModel],
     })
 
     // A photo waiting to be uploaded — the kind of row a destructive schema
@@ -232,11 +273,40 @@ describe('v2 -> v3 migration (adds post_drafts)', () => {
 
 /**
  * The v3 schema as it shipped: `pending_media` and `post_drafts` present,
- * `post_outbox` absent. Minimal for the same reason as the two above.
+ * `post_outbox` absent. Carries `sto_spots` for the reason given above the v2
+ * fixture.
  */
 const schemaV3 = appSchema({
   version: 3,
   tables: [
+    tableSchema({
+      name: 'sto_spots',
+      columns: [
+        { name: 'uuid', type: 'string', isIndexed: true },
+        { name: 'server_id', type: 'number', isOptional: true, isIndexed: true },
+        { name: 'organization_id', type: 'number', isOptional: true },
+        { name: 'user_id', type: 'number', isOptional: true },
+        { name: 'city_id', type: 'number', isOptional: true },
+        { name: 'city_uuid', type: 'string', isOptional: true },
+        { name: 'owner_user_id', type: 'number', isOptional: true },
+        { name: 'title', type: 'string' },
+        { name: 'slug', type: 'string', isOptional: true },
+        { name: 'description', type: 'string', isOptional: true },
+        { name: 'latitude', type: 'number' },
+        { name: 'longitude', type: 'number' },
+        { name: 'address', type: 'string', isOptional: true },
+        { name: 'categories', type: 'string', isOptional: true },
+        { name: 'hours', type: 'string', isOptional: true },
+        { name: 'status', type: 'string' },
+        { name: 'is_verified', type: 'boolean' },
+        { name: 'rating_average', type: 'number', isOptional: true },
+        { name: 'reviews_count', type: 'number' },
+        { name: 'saves_count', type: 'number' },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+        { name: 'deleted_at', type: 'number', isOptional: true },
+      ],
+    }),
     tableSchema({
       name: 'pending_media',
       columns: [
@@ -277,7 +347,7 @@ describe('v3 -> v4 migration (adds post_outbox)', () => {
     })
     const v3Database = new Database({
       adapter: v3Adapter,
-      modelClasses: [PendingMediaModel, PostDraftModel],
+      modelClasses: [SpotModel, PendingMediaModel, PostDraftModel],
     })
 
     // Both kinds of un-drained local work a destructive bump would destroy.
@@ -331,5 +401,105 @@ describe('v3 -> v4 migration (adds post_outbox)', () => {
     expect(queued.caption).toBe('Written in a tunnel')
     expect(queued.state).toBe('queued')
     expect(queued.postUuid).toBeNull()
+  })
+})
+
+/**
+ * The v4 schema as it shipped: everything present, `sto_spots.cover_photo_url`
+ * absent. The first migration in this file that ALTERS a table rather than
+ * creating one, which is why it gets its own case.
+ */
+const schemaV4 = appSchema({
+  version: 4,
+  tables: [
+    tableSchema({
+      name: 'sto_spots',
+      columns: [
+        { name: 'uuid', type: 'string', isIndexed: true },
+        { name: 'server_id', type: 'number', isOptional: true, isIndexed: true },
+        { name: 'organization_id', type: 'number', isOptional: true },
+        { name: 'user_id', type: 'number', isOptional: true },
+        { name: 'city_id', type: 'number', isOptional: true },
+        { name: 'city_uuid', type: 'string', isOptional: true },
+        { name: 'owner_user_id', type: 'number', isOptional: true },
+        { name: 'title', type: 'string' },
+        { name: 'slug', type: 'string', isOptional: true },
+        { name: 'description', type: 'string', isOptional: true },
+        { name: 'latitude', type: 'number' },
+        { name: 'longitude', type: 'number' },
+        { name: 'address', type: 'string', isOptional: true },
+        { name: 'categories', type: 'string', isOptional: true },
+        { name: 'hours', type: 'string', isOptional: true },
+        { name: 'status', type: 'string' },
+        { name: 'is_verified', type: 'boolean' },
+        { name: 'rating_average', type: 'number', isOptional: true },
+        { name: 'reviews_count', type: 'number' },
+        { name: 'saves_count', type: 'number' },
+        { name: 'created_at', type: 'number' },
+        { name: 'updated_at', type: 'number' },
+        { name: 'deleted_at', type: 'number', isOptional: true },
+      ],
+    }),
+  ],
+})
+
+describe('v4 -> v5 migration (adds sto_spots.cover_photo_url)', () => {
+  it('keeps existing spots and leaves their new column empty', async () => {
+    const v4Adapter = new LokiJSAdapter({
+      schema: schemaV4,
+      useWebWorker: false,
+      useIncrementalIndexedDB: false,
+      extraLokiOptions: { autosave: false },
+    })
+    const v4Database = new Database({
+      adapter: v4Adapter,
+      modelClasses: [SpotModel],
+    })
+
+    // A spot written before the update — quite possibly one this device has not
+    // yet pushed, which is what makes a destructive bump unacceptable here.
+    await v4Database.write(async () =>
+      v4Database.get<Spot>('sto_spots').create((row: any) => {
+        row._raw.id = 'spot-before-v5'
+        row._raw.uuid = 'spot-before-v5'
+        row._raw.title = 'Written before the update'
+        row._raw.latitude = 6.1164
+        row._raw.longitude = 125.1716
+        row._raw.status = 'draft'
+        row._raw.is_verified = false
+        row._raw.reviews_count = 0
+        row._raw.saves_count = 0
+        row._raw.created_at = 1_700_000_000_000
+        row._raw.updated_at = 1_700_000_000_000
+      }),
+    )
+
+    await new Promise<void>((resolve, reject) => {
+      const driver = (v4Adapter as any)._driver
+      driver.loki.saveDatabase((error: unknown) => (error ? reject(error) : resolve()))
+    })
+
+    const v5Adapter: any = await v4Adapter.testClone({
+      schema: stourifySchema,
+      migrations: stourifyMigrations,
+    })
+    const v5Database = createDatabase(v5Adapter)
+
+    const surviving = await v5Database.get<Spot>('sto_spots').query().fetch()
+    expect(surviving).toHaveLength(1)
+    expect(surviving[0].title).toBe('Written before the update')
+
+    // Empty, not broken. An existing row has no photo here until the next
+    // delta fills one in, and the app must read that as "no picture yet"
+    // rather than as a failure.
+    expect(surviving[0].coverPhotoUrl).toBeNull()
+
+    // And the column genuinely accepts a value once one arrives.
+    await v5Database.write(async () =>
+      surviving[0].update((row: any) => {
+        row._setRaw('cover_photo_url', 'https://cdn.example/thumb.jpg')
+      }),
+    )
+    expect(surviving[0].coverPhotoUrl).toBe('https://cdn.example/thumb.jpg')
   })
 })

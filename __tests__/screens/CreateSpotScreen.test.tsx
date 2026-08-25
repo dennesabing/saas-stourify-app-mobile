@@ -147,7 +147,14 @@ it('writes the spot straight to the local database and never to the network', as
   const [spot] = await database.get<Spot>('sto_spots').query().fetch()
   expect(spot.title).toBe('Hidden Cove')
   expect(spot.latitude).toBeCloseTo(6.1164)
-  expect(spot.status).toBe('draft')
+  // Published, not draft (STOURIFY-202).
+  //
+  // This assertion read 'draft' and passed for months, which is the part worth
+  // pausing on: it did not miss the bug, it PINNED it. Every spot the app made
+  // was invisible to everyone forever, and the test suite was quietly holding
+  // that in place as the expected result. A test can only defend the behaviour
+  // somebody decided was right, and nobody had ever decided this one.
+  expect(spot.status).toBe('published')
   expect(spot.isQueued).toBe(true)
   expect(spot.uuid).toBe(spot.id)
 })
@@ -421,5 +428,78 @@ it('My Spots shows an empty state before anything is created', async () => {
 
   await waitFor(() => {
     expect(screen.getByText('No spots yet')).toBeTruthy()
+  })
+})
+
+/**
+ * STOURIFY-202 — "My spots" has to say whether a spot is actually live.
+ *
+ * This list is where the bug should have been obvious and was not. Every spot
+ * the app created was silently saved as an unfinished draft that nobody,
+ * including its author, could find anywhere — and a draft looked exactly like a
+ * live spot here, so the app's own list gave no hint that nothing had gone out.
+ */
+async function makeSpot(database: Database, status: string, title: string) {
+  return database.write(async () =>
+    database.get<Spot>('sto_spots').create((row: any) => {
+      row._raw.id = `spot-${status}`
+      row._raw.uuid = `spot-${status}`
+      row._raw.title = title
+      row._raw.latitude = 1
+      row._raw.longitude = 1
+      row._raw.status = status
+      row._raw.is_verified = false
+      row._raw.reviews_count = 0
+      row._raw.saves_count = 0
+      row._raw.created_at = 1
+      row._raw.updated_at = 1
+    }),
+  )
+}
+
+function renderMySpots(database: Database) {
+  return render(
+    <TestProviders database={database}>
+      <MySpotsScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+}
+
+it('My Spots says when a spot is not visible to anyone', async () => {
+  const database = createTestDatabase()
+  renderMySpots(database)
+
+  await makeSpot(database, 'draft', 'Unfinished Spot')
+
+  await waitFor(() => {
+    expect(screen.getByText('Draft — not visible to anyone')).toBeTruthy()
+  })
+})
+
+it('My Spots says nothing extra about a spot that is live', async () => {
+  const database = createTestDatabase()
+  renderMySpots(database)
+
+  await makeSpot(database, 'published', 'Live Spot')
+
+  await waitFor(() => {
+    expect(screen.getByText('Live Spot')).toBeTruthy()
+  })
+
+  // Being live is the ordinary case, and a badge on everything is a badge on
+  // nothing. Only the exception is worth saying out loud.
+  expect(screen.queryByText('Draft — not visible to anyone')).toBeNull()
+})
+
+it('My Spots explains a spot that is being checked, rather than naming its state', async () => {
+  const database = createTestDatabase()
+  renderMySpots(database)
+
+  await makeSpot(database, 'under_review', 'Pending Spot')
+
+  await waitFor(() => {
+    // The reader's question is "can anyone see this?", not "what is this row's
+    // status column set to?" — so the answer is written in those terms.
+    expect(screen.getByText('Being checked — not visible yet')).toBeTruthy()
   })
 })

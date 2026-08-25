@@ -7,6 +7,109 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **You can now see the spots you have saved** (STOURIFY-195).
+
+  Tapping the heart on a spot has always worked — it saved the spot and sent it to the server
+  correctly. There was simply nowhere in the app to go and look at the result, so the heart was a
+  promise the app had no way of keeping. There is now a **Saved spots** button on your own profile,
+  and a screen behind it listing everything you have saved. Tap any of them to open the spot.
+
+- **A reply thread now says what it is a reply to** (STOURIFY-198).
+
+  Opening the replies on a note about a spot used to land you on a page headed only "Comments" — the
+  spot and the note you had been reading a second earlier were both gone, and nothing on the page
+  named either. Coming back to the app a few minutes later, there was no way to tell what the
+  conversation was about without going back twice. The thread now names the spot and quotes the note
+  it hangs from.
+
+- **The spot page is less crowded** (STOURIFY-197).
+
+  It stacked three buttons and two tabs above anything worth reading, so arriving at a spot meant
+  looking at a control panel and scrolling to reach the place itself.
+
+  - **Save** is now a mark on the photo, where people already look for it, rather than a button in
+    the column below.
+  - The **rating line** takes you to the reviews, so the separate "See all reviews" button is gone —
+    it repeated a link sitting directly on top of it. The review count was already on that line.
+  - Notes are separated from each other by a line, so a long note and the next one no longer run
+    together.
+
+  Two rows and two controls fewer, with nothing removed that you could do before. The text is the
+  same size on purpose: the page felt heavy because of how much was on it, not how big anything was,
+  and this is read outdoors on a phone.
+
+### Fixed
+
+- **Spots you add are now actually published** (STOURIFY-202).
+
+  This is the big one. Every spot ever created in the app was saved as an unfinished draft and
+  never published — so nobody could find it. Not by searching, not on Discover, not on the map,
+  not in the nearby list. **Not even the person who made it.** The app accepted the spot, uploaded
+  the photos, showed it in "My spots", and reported no problem at any point.
+
+  Finishing the create flow now publishes the spot, which is what pressing that button always
+  looked like it did.
+
+  **"My spots" now also says when a spot is not visible to anyone.** That list is where this should
+  have been obvious and was not: a draft looked exactly like a live spot, so the app's own list
+  gave no hint that nothing had gone out.
+
+  If you added spots on an earlier version, they are still drafts and still invisible. They are not
+  lost — say the word and they can be published.
+
+- **Search no longer blames you when there is simply nothing to find** (STOURIFY-194).
+
+  Searching an empty Stourify said *"No results — try a different word, or another filter"*, which
+  sends you hunting for better search terms against a catalogue that was never going to answer.
+
+  When the app can actually tell that nothing has been added yet, it now says so instead. It only
+  makes that claim when it has evidence — an empty search on its own does not prove an empty
+  catalogue, since "no spot matched your word" and "there are no spots" look identical. Search a
+  word nothing matches on a full Stourify and you still get the ordinary "No results".
+
+- **Your spots now show their photos in "My spots"** (STOURIFY-192).
+
+  Every row in that list drew a grey rectangle where the picture should be, which looks like a
+  broken image rather than a missing one. Two separate things were missing: the phone was never
+  sent the photo in the first place, and the list never asked for one. Both are fixed, so a spot
+  that has a photo now shows it.
+
+  A spot you have just created offline still shows no picture until it has been through the server.
+  Its photos are on your phone waiting to upload, which is a different thing from a photo the app
+  can display, and pretending otherwise would show you a picture that vanished later.
+
+- **Discover's category buttons now work** (STOURIFY-193).
+
+  The row of buttons across the top of Discover — Nature, Foodie, Coast and the rest — did nothing
+  at all. Pressing one changed nothing, because there was no way to ask the server for one category
+  and a button that appeared to filter would have shown the same unfiltered list every time.
+
+  They filter now. Three other things changed with them:
+
+  - The buttons are the same categories offered when you add a spot, so what one person tags is what
+    another can find. They had drifted apart: Discover offered half the list, plus one that was
+    never a category at all.
+  - **Trending** is gone. Nothing was ever tagged with it and there is no trending list behind it.
+    **All** takes its place, which is what it actually did.
+  - Choosing a category with nothing in it now says so, instead of telling you the app is empty and
+    inviting you to add the very first spot.
+
+- **The keyboard no longer covers the Note box on a spot** (STOURIFY-196).
+
+  Tapping the box to add a note about a place opened the keyboard directly over it, so you were
+  typing into something you could not see. The page now lifts the box clear of the keyboard, the same
+  way the comment box and the post composer already did.
+
+- **Terms, Privacy and account deletion now open the Stourify website** (STOURIFY-191).
+
+  Those three links pointed at `api.stourify.com` — the address of the machine the app fetches data
+  from, not the site people are meant to read. Being asked to read a legal document at an address
+  that announces itself as an API server is the wrong thing to show someone at exactly the moment
+  they are deciding whether to trust you. They now open `stourify.com`. The address is a setting, so
+  a development build with no separate website still gets working links.
+
 ## [0.5.0] - 2026-08-25
 
 ### Changed

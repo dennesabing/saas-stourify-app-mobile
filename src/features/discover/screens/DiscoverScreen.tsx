@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { FlatList, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery } from '@tanstack/react-query'
@@ -7,20 +7,33 @@ import { Button, Chip, EmptyState, SpotCard, Text } from '@/shared/components/ui
 import type { DiscoverStackParamList } from '@/shared/navigation/types'
 import type { Spot } from '@/shared/api/types'
 import { useTheme } from '@/theme/ThemeProvider'
+import { SPOT_CATEGORIES } from '@/shared/config/spotCategories'
 import { EXPLORE_SPOTS_QUERY_KEY, fetchExploreSpots, thumbFor } from '../api/exploreSpots'
 
 type Props = NativeStackScreenProps<DiscoverStackParamList, 'Discover'>
 
 /**
- * Decorative, and deliberately still decorative.
+ * The filter rail, and it now actually filters (STOURIFY-193).
  *
- * Making a chip filter needs a category rule on the server that
- * `SpotIndexRequest` does not have — Laravel drops query parameters it has not
- * validated without complaining, so a wired-up chip would look like it worked
- * and return the unfiltered list every time. See `src/shared/api/spots.ts`,
- * which documents the same trap for the search parameter.
+ * It was decorative for a real reason, recorded here before: making a chip
+ * filter needed a category rule on the server that `SpotIndexRequest` did not
+ * have, and Laravel drops a query parameter it has not validated without
+ * complaining — so a wired-up chip would have looked like it worked and
+ * returned the unfiltered list every single time. Leaving them inert was the
+ * right call over shipping something that lies.
+ *
+ * That rule exists now, so the wiring is honest.
+ *
+ * Two things changed besides the wiring. The labels come from the shared
+ * vocabulary rather than a list written out here, so the rail can only ever
+ * offer what the Create screen actually writes. And `Trending` is gone: it was
+ * never a category, nothing was ever tagged with it, and there is no
+ * trending signal on the server for it to mean. `All` took its place, which is
+ * what it was really doing — it was the selected chip and the list was
+ * unfiltered.
  */
-const FILTERS = ['Trending', 'Nature', 'Foodie', 'Coast', 'Heritage']
+const ALL_FILTER = 'All'
+const FILTERS = [ALL_FILTER, ...SPOT_CATEGORIES]
 
 /**
  * Discover's explore grid — the browse surface of the app.
@@ -41,9 +54,16 @@ const FILTERS = ['Trending', 'Nature', 'Foodie', 'Coast', 'Heritage']
 export default function DiscoverScreen({ navigation }: Props) {
   const theme = useTheme()
 
+  const [filter, setFilter] = useState<string>(ALL_FILTER)
+  const category = filter === ALL_FILTER ? undefined : filter
+
   const { data, isPending, isError, refetch } = useQuery({
-    queryKey: EXPLORE_SPOTS_QUERY_KEY,
-    queryFn: fetchExploreSpots,
+    // The category is part of the key, so each rail selection caches its own
+    // page rather than overwriting the last one. It is also what the on-disk
+    // cache files the answer under, which is what lets a chip you pressed
+    // yesterday still have something to show in a dead spot.
+    queryKey: EXPLORE_SPOTS_QUERY_KEY(category),
+    queryFn: () => fetchExploreSpots(category),
   })
 
   const spots = data ?? []
@@ -69,10 +89,20 @@ export default function DiscoverScreen({ navigation }: Props) {
     <View style={{ gap: theme.spacing[4], paddingBottom: theme.spacing[4] }}>
       <Text variant="display">Discover</Text>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      {/* `flexGrow: 0` is load-bearing. A horizontal ScrollView with no height
+          constraint stretches to fill whatever space is left below it, so the
+          chips render as full-height pills down the screen — obvious on a device
+          and invisible to every test, which asserts on text and not on layout.
+          `SearchScreen` carries the same note and the same fix. */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
         <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
-          {FILTERS.map((filter, index) => (
-            <Chip key={filter} label={filter} selected={index === 0} />
+          {FILTERS.map((label) => (
+            <Chip
+              key={label}
+              label={label}
+              selected={filter === label}
+              onPress={() => setFilter(label)}
+            />
           ))}
         </View>
       </ScrollView>
@@ -123,6 +153,16 @@ export default function DiscoverScreen({ navigation }: Props) {
       subtitle="No connection and nothing saved from last time. Try again once you have signal."
       actionLabel="Try again"
       onAction={() => void refetch()}
+    />
+  ) : category ? (
+    // Nothing in THIS category is a different fact from nothing at all, and
+    // telling somebody to go and add the first spot — when there are plenty,
+    // just none tagged Nightlife — sends them off to solve a problem they do
+    // not have.
+    <EmptyState
+      icon="🗺️"
+      title={`No ${category.toLowerCase()} spots yet`}
+      subtitle="Try another category, or be the first to add one here."
     />
   ) : (
     <EmptyState

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import { QueryClient } from '@tanstack/react-query'
 import DiscoverScreen from '@/features/discover/screens/DiscoverScreen'
 import { EXPLORE_SPOTS_QUERY_KEY } from '@/features/discover/api/exploreSpots'
+import { SPOT_CATEGORIES } from '@/shared/config/spotCategories'
 import type { Spot } from '@/shared/api/types'
 import { createTestDatabase } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
@@ -124,7 +125,7 @@ it('keeps showing cached spots when the network refuses', async () => {
   const queryClient = trackQueryClient(
     new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
   )
-  queryClient.setQueryData(EXPLORE_SPOTS_QUERY_KEY, [makeSpot({ title: 'Cached Cove' })])
+  queryClient.setQueryData(EXPLORE_SPOTS_QUERY_KEY(), [makeSpot({ title: 'Cached Cove' })])
   ;(getSpots as jest.Mock).mockRejectedValue(new Error('Network request failed'))
 
   renderScreen(queryClient)
@@ -226,4 +227,90 @@ it('opens the map from the grid', async () => {
 
   fireEvent.press(screen.getByText('Explore on a map'))
   expect(navigation.navigate).toHaveBeenCalledWith('Map')
+})
+
+/**
+ * STOURIFY-193 — the filter rail actually filters.
+ *
+ * These chips were inert on purpose. The server had no rule for a category
+ * parameter, and Laravel drops a parameter nothing has validated — so a
+ * wired-up chip would have sent the filter, been ignored, and returned the
+ * whole list looking exactly like a filter that worked.
+ *
+ * **That is why these assert on the REQUEST and not only on what is rendered.**
+ * A test that checks a spot appears after pressing "Nature" passes just as
+ * happily against the broken version, because the unfiltered list contains that
+ * spot too. Asserting what was asked for is the only assertion that can tell
+ * the two apart.
+ */
+describe('the category rail', () => {
+  it('asks the server for one category when a chip is pressed', async () => {
+    renderScreen()
+
+    await waitFor(() => expect(getSpots).toHaveBeenCalled())
+    fireEvent.press(screen.getByText('Nature'))
+
+    await waitFor(() => {
+      expect(getSpots).toHaveBeenCalledWith({ category: 'Nature' })
+    })
+  })
+
+  it('asks for everything, with no category at all, while All is selected', async () => {
+    renderScreen()
+
+    // Not `{ category: undefined }` and not `{ category: 'All' }`. "All" is
+    // this screen's word for "do not filter" — the server has never heard of
+    // it, and sending it would filter to a category nothing is tagged with.
+    await waitFor(() => {
+      expect(getSpots).toHaveBeenCalledWith(undefined)
+    })
+  })
+
+  it('goes back to everything when All is pressed again', async () => {
+    renderScreen()
+
+    await waitFor(() => expect(getSpots).toHaveBeenCalled())
+    fireEvent.press(screen.getByText('Coast'))
+    await waitFor(() => expect(getSpots).toHaveBeenCalledWith({ category: 'Coast' }))
+
+    fireEvent.press(screen.getByText('All'))
+    await waitFor(() => {
+      expect(getSpots).toHaveBeenLastCalledWith(undefined)
+    })
+  })
+
+  // The rail must offer what the Create screen writes. Anything else produces a
+  // chip that can never match a spot, which looks like a broken filter and is
+  // really a typo.
+  it('offers exactly the categories a spot can be created with', () => {
+    renderScreen()
+
+    for (const category of SPOT_CATEGORIES) {
+      expect(screen.getByText(category)).toBeTruthy()
+    }
+  })
+
+  it('does not offer Trending, which was never a category', () => {
+    renderScreen()
+
+    expect(screen.queryByText('Trending')).toBeNull()
+  })
+
+  /**
+   * "Nothing in this category" and "nothing at all" are different facts, and
+   * telling somebody to add the first spot when there are plenty — just none
+   * tagged Nightlife — sends them off to solve a problem they do not have.
+   */
+  it('says the category is empty rather than that the app is', async () => {
+    ;(getSpots as jest.Mock).mockResolvedValue(page([]))
+    renderScreen()
+
+    fireEvent.press(screen.getByText('Nightlife'))
+
+    await waitFor(() => {
+      expect(screen.getByText('No nightlife spots yet')).toBeTruthy()
+    })
+
+    expect(screen.queryByText('Nothing to explore yet')).toBeNull()
+  })
 })
