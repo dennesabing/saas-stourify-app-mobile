@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Settings scrolls, so Logout and Delete account can be reached on a small phone** (STOURIFY-181).
+
+  The screen was a menu printed on a card taller than the table it sat on. Every row existed and
+  worked; the ones past the bottom of the screen simply could not be brought into view, because the
+  content hung off a plain `View`, which clips rather than scrolls. On a 720x1280 phone the list
+  stopped at Terms of Service, and swiping did nothing.
+
+  The two rows stranded below the fold were the ones that matter most: **Logout** and **Delete
+  account**. A user on a small phone could neither sign out nor delete their account from inside the
+  app — and an in-app deletion route is a Google Play requirement, so a control that cannot be
+  touched is, from the store's point of view, not there.
+
+  The content now scrolls and the header stays put, with bottom padding so the last row clears the
+  tab bar. Verified on the 720x1280 emulator: both rows reachable, fully visible, and tappable —
+  Delete account opens its confirmation sheet, which still demands the account's email and password.
+
+  Worth knowing for the next screen like this: the existing tests asserted both rows were present
+  and passed for the entire life of the bug. A unit test renders into no viewport, so it finds every
+  row whether or not a person could reach one. Three new cases pin the structure that makes
+  scrolling possible; the device is what proves it.
+
+
 ## [0.4.0] - 2026-08-25
 
 ### Added
