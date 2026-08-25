@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Pressable, ScrollView, SectionList, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { DiscoverStackParamList } from '@/shared/navigation/types'
 import { searchDiscover, searchDiscoverType } from '@/shared/api/discover'
+import { EXPLORE_SPOTS_QUERY_KEY } from '@/features/discover/api/exploreSpots'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 import { Avatar, Chip, EmptyState, Input, Text } from '@/shared/components/ui'
 import type {
@@ -115,6 +116,32 @@ export default function SearchScreen({ navigation }: Props) {
         : groupOneType(await searchDiscoverType(debouncedQuery, filter), filter),
     enabled: isSearchable,
   })
+
+  /**
+   * Whether the catalogue itself is empty, rather than this search.
+   *
+   * **A search returning nothing is not evidence of this**, and that is the trap
+   * worth naming. "No spot matched `zzzzz`" and "there are no spots" produce an
+   * identical empty response, so deciding between them from the search result
+   * alone means guessing — and guessing wrong tells someone with a catalogue of
+   * five hundred spots that the app is empty.
+   *
+   * So it asks something that already knows: the explore list behind the
+   * Discover tab, which fetched every spot unfiltered and whose answer is in the
+   * cache. If that list is empty, there is genuinely nothing to find. If it was
+   * never fetched, `getQueryData` returns nothing and this stays `false` — no
+   * claim without evidence.
+   */
+  const queryClient = useQueryClient()
+  const exploreSpots = queryClient.getQueryData<Spot[]>(EXPLORE_SPOTS_QUERY_KEY())
+  const catalogueIsEmpty = exploreSpots !== undefined && exploreSpots.length === 0
+
+  const hasNothingToSearch =
+    catalogueIsEmpty &&
+    data !== undefined &&
+    data.spots.length === 0 &&
+    data.cities.length === 0 &&
+    data.people.length === 0
 
   const sections = useMemo<Section[]>(() => {
     if (!data) return []
@@ -279,6 +306,26 @@ export default function SearchScreen({ navigation }: Props) {
       subtitle="We couldn't reach Stourify just now. Check your connection and try the same search again."
       actionLabel="Try again"
       onAction={() => void refetch()}
+    />
+  ) : hasNothingToSearch ? (
+    /*
+      "Nothing matched your word" and "there is nothing here to match" are
+      different facts, and only one of them is the reader's problem to solve
+      (STOURIFY-194).
+
+      Both used to say "No results — try a different word", which blames the
+      search. On a catalogue with nothing discoverable in it, that sends someone
+      off trying synonyms forever against a set that was never going to answer.
+
+      Distinguishing them needs no extra request: a search that succeeded and
+      returned nothing across ALL THREE sections, on the unfiltered tab, is
+      already the evidence. One section being empty says nothing; three say the
+      catalogue is.
+    */
+    <EmptyState
+      icon="🌱"
+      title="There is nothing to find yet"
+      subtitle="No spots, cities or people have been added here yet. This is not your search — try again once there is something to look for."
     />
   ) : (
     <EmptyState icon="🔍" title="No results" subtitle="Try a different word, or another filter." />

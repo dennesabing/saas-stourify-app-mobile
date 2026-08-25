@@ -43,6 +43,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   If you added spots on an earlier version, they are still drafts and still invisible. They are not
   lost — say the word and they can be published.
 
+- **Search no longer blames you when there is simply nothing to find** (STOURIFY-194).
+
+  Searching an empty Stourify said *"No results — try a different word, or another filter"*, which
+  sends you hunting for better search terms against a catalogue that was never going to answer.
+
+  When the app can actually tell that nothing has been added yet, it now says so instead. It only
+  makes that claim when it has evidence — an empty search on its own does not prove an empty
+  catalogue, since "no spot matched your word" and "there are no spots" look identical. Search a
+  word nothing matches on a full Stourify and you still get the ordinary "No results".
+
 - **Your spots now show their photos in "My spots"** (STOURIFY-192).
 
   Every row in that list drew a grey rectangle where the picture should be, which looks like a
