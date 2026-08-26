@@ -3,7 +3,9 @@ import { Pressable, TextInput, View } from 'react-native'
 import { useDatabase } from '@nozbe/watermelondb/react'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
-import { Button, KeyboardAwareScreen, Text } from '@/shared/components/ui'
+import { useQueryClient } from '@tanstack/react-query'
+import type { Spot } from '@/shared/api/types'
+import { Button, KeyboardAwareScreen, ScreenHeader, Text } from '@/shared/components/ui'
 import { createLocalReview } from '@/features/reviews/api/createLocalReview'
 import { useTheme } from '@/theme/ThemeProvider'
 
@@ -19,6 +21,21 @@ const STAR_LABELS = [1, 2, 3, 4, 5] as const
  */
 export default function WriteReviewScreen({ route, navigation }: Props) {
   const { spotId } = route.params
+
+  /**
+   * Which spot this review is for (STOURIFY-209).
+   *
+   * Read from the cache, and **deliberately never fetched**. This screen exists
+   * to be usable with no signal — the review is written straight to the device
+   * and sent later — so adding a request to it, even one whose failure is
+   * harmless, is the wrong instinct on the one screen whose whole point is not
+   * needing the network.
+   *
+   * Arriving from a spot page means the answer is already there, which is every
+   * route into this screen today. Any other route simply gets no second line,
+   * and the form works exactly as before. A courtesy is not worth a request.
+   */
+  const spot = useQueryClient().getQueryData<Spot>(['spot', spotId])
   const theme = useTheme()
   const database = useDatabase()
 
@@ -46,19 +63,13 @@ export default function WriteReviewScreen({ route, navigation }: Props) {
 
   return (
     <KeyboardAwareScreen edges={['top']} contentContainerStyle={{ gap: theme.spacing[4] }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[3] }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          onPress={() => navigation.goBack()}
-          style={{ minHeight: theme.minTouchTarget, justifyContent: 'center' }}
-        >
-          <Text variant="body" color="primary">
-            ← Back
-          </Text>
-        </Pressable>
-        <Text variant="h1">Write a review</Text>
-      </View>
+      <ScreenHeader
+        testID="write-review-header"
+        onBack={() => navigation.goBack()}
+        title="Write a review"
+        subtitle={spot?.title}
+      />
+      <View></View>
 
       <Text variant="body" color="muted">
         Saved on this device straight away. It uploads itself when you are back online.
