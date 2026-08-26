@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-26
+
 ### Changed
 
 - **Where a spot is now sits under its name, and tapping it opens your map** (STOURIFY-210).
