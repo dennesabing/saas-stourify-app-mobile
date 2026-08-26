@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
 import { getSpotReviews } from '@/shared/api/reviews'
+import { getSpot } from '@/shared/api/spots'
 import {
   Avatar,
   Card,
@@ -12,6 +13,7 @@ import {
   EmptyState,
   Rating,
   Skeleton,
+  ScreenHeader,
   Tag,
   Text,
 } from '@/shared/components/ui'
@@ -47,6 +49,19 @@ export default function ReviewsScreen({ route, navigation }: Props) {
   const currentUser = useAuthStore((state) => state.user)
 
   const localReviews = useSpotReviews(spotId)
+
+  /**
+   * Whose reviews these are (STOURIFY-209).
+   *
+   * The SAME cache key the spot page and the photo gallery use, deliberately:
+   * arriving here from a spot means the answer is already in hand, so naming
+   * the spot costs nothing and cannot fail. Arriving some other way fetches it
+   * once, and the heading simply has no second line until it lands.
+   */
+  const { data: spot } = useQuery({
+    queryKey: ['spot', spotId],
+    queryFn: () => getSpot(spotId),
+  })
 
   const {
     data: serverData,
@@ -143,26 +158,12 @@ export default function ReviewsScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          padding: theme.gutter,
-          gap: theme.spacing[3],
-        }}
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          onPress={() => navigation.goBack()}
-          style={{ minHeight: theme.minTouchTarget, justifyContent: 'center' }}
-        >
-          <Text variant="body" color="primary">
-            ← Back
-          </Text>
-        </Pressable>
-        <Text variant="h1">Reviews</Text>
-      </View>
+      <ScreenHeader
+        testID="reviews-header"
+        onBack={() => navigation.goBack()}
+        title="Reviews"
+        subtitle={spot?.title}
+      />
 
       <FlatList
         data={rows}

@@ -10,6 +10,12 @@ jest.mock('@/shared/api/reviews', () => ({
   getSpotReviews: jest.fn(),
 }))
 
+// The header names the spot the reviews are about (STOURIFY-209), read from the
+// same cache key the spot page fills.
+jest.mock('@/shared/api/spots', () => ({
+  getSpot: jest.fn().mockResolvedValue({ uuid: 'spot-1', title: 'Blue Cove' }),
+}))
+
 import { getSpotReviews } from '@/shared/api/reviews'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
@@ -222,5 +228,30 @@ describe('a failed review request is not an unreviewed spot', () => {
     expect(screen.getByText('Cached from earlier.')).toBeTruthy()
     expect(screen.queryByText("Couldn't load the reviews")).toBeNull()
     expect(screen.queryByText('No reviews yet')).toBeNull()
+  })
+})
+
+/**
+ * STOURIFY-209 — "Reviews" does not say whose reviews.
+ *
+ * Arrive from a search result, or put the phone down and pick it up again, and
+ * the page could be about anywhere.
+ */
+describe('the reviews header', () => {
+  it('names the spot the reviews are about', async () => {
+    renderScreen()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('reviews-header-subtitle')).toBeTruthy()
+    })
+
+    expect(screen.getByText('Blue Cove')).toBeTruthy()
+  })
+
+  it('still shows the title and the way back', async () => {
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Reviews')).toBeTruthy())
+    expect(screen.getByLabelText('Back')).toBeTruthy()
   })
 })

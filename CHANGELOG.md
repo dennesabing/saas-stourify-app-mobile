@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The review pages now say which spot they are about** (STOURIFY-209).
+
+  Going from a spot to its reviews gave you a page headed **"Reviews"** and nothing else — it could
+  have been the reviews of anywhere. The same was true of the form for writing one.
+
+  Both now show the spot's name under the title, and both put **← Back** on its own line with the
+  title beneath it, rather than sharing a row.
+
+  The name costs nothing to show: the app already has it from the spot page you came from. The
+  **Write a review** form deliberately never asks for it over the network — that screen is built to
+  work with no signal, so it uses the name if it has one and shows nothing if it does not.
+
 ## [0.7.0] - 2026-08-26
 
 ### Added
