@@ -6,6 +6,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { DiscoverStackParamList } from '@/shared/navigation/types'
 import { getNearbySpots } from '@/shared/api/spots'
 import { EmptyState, SpotCard } from '@/shared/components/ui'
+import { useRefetchOnFocus } from '@/shared/hooks/useRefetchOnFocus'
 import { useTheme } from '@/theme/ThemeProvider'
 import { MapCanvas, type MapPin } from '@/shared/map'
 import type { Spot } from '@/shared/api/types'
@@ -140,6 +141,12 @@ export default function NearbyScreen({ navigation }: Props) {
     queryFn: () => getNearbySpots(location!.lat, location!.lng, radius),
     enabled: hasPosition,
   })
+
+  // Ask again when this screen comes back into view. React Navigation keeps
+  // it mounted, so returning to a nearby list you looked at earlier would
+  // otherwise show that earlier answer -- including "No spots nearby" for a
+  // spot you added in between (STOURIFY-200).
+  useRefetchOnFocus(navigation, refetch)
 
   const spots = data?.data ?? []
 

@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
 import { getSpot } from '@/shared/api/spots'
-import { EmptyState, Skeleton, Text } from '@/shared/components/ui'
+import { EmptyState, OverlayHeader, Skeleton, Text } from '@/shared/components/ui'
 import type { SpotMedia } from '@/shared/api/types'
 import { useTheme } from '@/theme/ThemeProvider'
 
@@ -90,28 +90,28 @@ export default function PhotoGalleryScreen({ route, navigation }: Props) {
       style={{ flex: 1, backgroundColor: theme.colors.surface }}
       edges={['top']}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-        onPress={() => navigation.goBack()}
-        style={{
-          position: 'absolute',
-          top: theme.spacing[3],
-          left: theme.spacing[3],
-          zIndex: 10,
-          minWidth: theme.minTouchTarget,
-          minHeight: theme.minTouchTarget,
-          borderRadius: theme.radius.chip,
-          backgroundColor: theme.colors.card,
-          alignItems: 'center',
-          justifyContent: 'center',
-          paddingHorizontal: theme.spacing[3],
-        }}
-      >
-        <Text variant="body" color="ink">
-          ← Back
-        </Text>
-      </Pressable>
+      {/*
+        Which spot these photos belong to, under the Back button (STOURIFY-199).
+
+        A full-bleed photo with a lone Back button says nothing about what you
+        are looking at. Arrive here from a search result, or come back to the
+        app a few minutes later, and there is no way to tell — the photo could
+        be of anywhere.
+
+        The name only appears once the spot has arrived. Rendering a plaque with
+        nothing on it, or with a placeholder, would be worse than rendering no
+        plaque: it would claim to answer the question and not answer it.
+
+        Back and the plaque are one shared component with the spot page, which
+        is the whole of "make it consistent with the spot page" — two copies of
+        the same layout drift the moment one is touched.
+      */}
+      <OverlayHeader
+        testID="gallery-header"
+        onBack={() => navigation.goBack()}
+        title={spot?.title}
+        subtitle={media.length > 0 ? `Photo ${index + 1} of ${media.length}` : null}
+      />
 
       {/*
         Four states, and the ORDER is the fix. Ask "did it come back broken?"
