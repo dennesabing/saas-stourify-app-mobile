@@ -9,6 +9,7 @@ interface Props {
   padded?: boolean
   style?: ViewStyle
   accessibilityLabel?: string
+  testID?: string
 }
 
 export default function Card({
@@ -18,6 +19,7 @@ export default function Card({
   padded = true,
   style,
   accessibilityLabel,
+  testID,
 }: Props) {
   const theme = useTheme()
 
@@ -30,12 +32,17 @@ export default function Card({
   }
 
   if (!onPress) {
-    return <View style={[base, style]}>{children}</View>
+    return (
+      <View style={[base, style]} testID={testID}>
+        {children}
+      </View>
+    )
   }
 
   return (
     <Pressable
       onPress={onPress}
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       style={({ pressed }) => [base, { opacity: pressed ? 0.92 : 1 }, style]}

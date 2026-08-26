@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A spot's description now sits in its own panel, so you can tell it is the spot's own words**
+  (STOURIFY-213).
+
+  On the **About** tab the description was plain text with nothing around it. Below it sit the notes
+  other visitors have pinned up, and nothing on screen separated the two — so the one paragraph
+  written by whoever added the spot read like a stray sentence.
+
+  It now sits on a bordered, filled panel, the same surface the app uses elsewhere, which works in
+  both the light and dark themes. A spot with no description shows no panel at all rather than an
+  empty box.
+
 ## [0.8.0] - 2026-08-26
 
 ### Changed
