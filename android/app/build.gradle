@@ -165,8 +165,8 @@ android {
         applicationId 'com.zivsluck.stourify'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 8
-        versionName "0.7.1"
+        versionCode 9
+        versionName "0.8.0"
 
         // Substituted into the `com.google.android.geo.API_KEY` meta-data that prebuild
         // writes as `${GOOGLE_MAPS_API_KEY}`. See resolveGoogleMapsApiKey above.
