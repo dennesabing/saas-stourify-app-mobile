@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native'
+import { Linking } from 'react-native'
 import { QueryClient } from '@tanstack/react-query'
 import SpotDetailScreen from '@/features/spots/screens/SpotDetailScreen'
 import type WishlistItem from '@/db/models/WishlistItem'
@@ -317,7 +318,15 @@ it('renders no coordinates line at all for a spot that has none', async () => {
   // comma. Optional chaining stops `.toFixed()` throwing on an absent number;
   // it does not stop the rest of the line being drawn.
   await waitFor(() => expect(screen.getByText('A quiet cove.')).toBeTruthy())
-  expect(screen.getByText('📍 Coastal Road')).toBeTruthy()
+
+  // The address survives without a coordinate -- a spot whose contributor hid
+  // its location is exactly this state (STOURIFY-185), and losing the address
+  // too would be a second, unasked-for withdrawal.
+  expect(screen.getByTestId('spot-location-static')).toBeTruthy()
+  expect(screen.getByText('Coastal Road')).toBeTruthy()
+
+  // And nothing pretends to be openable when there is nothing to open.
+  expect(screen.queryByTestId('spot-location')).toBeNull()
   expect(screen.queryByTestId('spot-coordinates')).toBeNull()
   expect(screen.queryByText(', ')).toBeNull()
 })
@@ -699,7 +708,11 @@ it('keeps the spot description, address and coordinates above the notes', async 
     expect(screen.getByText('Go at sunrise, the light is worth it.')).toBeTruthy(),
   )
   expect(screen.getByText('A quiet cove.')).toBeTruthy()
-  expect(screen.getByText('📍 Coastal Road')).toBeTruthy()
+
+  // The address and coordinate moved OUT of this tab and up under the title
+  // (STOURIFY-210), so they are on screen whichever tab is showing -- which is
+  // the whole point, since this is not the tab the screen opens on.
+  expect(screen.getByText('Coastal Road')).toBeTruthy()
   expect(screen.getByTestId('spot-coordinates')).toBeTruthy()
 })
 
@@ -1125,5 +1138,87 @@ describe('the hero pager', () => {
     fireEvent.press(screen.getByTestId('spot-hero'))
 
     expect(navigation.navigate).toHaveBeenCalledWith('PhotoGallery', { spotId: 'spot-1' })
+  })
+})
+
+/**
+ * STOURIFY-210 — where the spot is, under the title, and a way to go there.
+ *
+ * The address and coordinate used to live inside the About tab. That is not the
+ * tab this screen opens on, so the one fact everybody wants from a place was
+ * behind a tap — and on a spot with no description the tab looked empty enough
+ * to seem broken.
+ */
+describe('the location line', () => {
+  function mockSpot(overrides: Partial<any> = {}) {
+    ;(getSpot as jest.Mock).mockResolvedValue(makeSpot(overrides))
+    ;(getSpotPosts as jest.Mock).mockResolvedValue({
+      data: [],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 0 },
+    })
+  }
+
+  it('shows where the spot is without switching tabs', async () => {
+    mockSpot()
+    renderScreen()
+
+    // No tab press anywhere in this test — that is the assertion.
+    await waitFor(() => expect(screen.getByTestId('spot-location')).toBeTruthy())
+
+    expect(screen.getByText('Coastal Road')).toBeTruthy()
+    expect(screen.getByTestId('spot-coordinates')).toBeTruthy()
+  })
+
+  it('opens the map app when pressed', async () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined as any)
+    mockSpot()
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-location')).toBeTruthy())
+    fireEvent.press(screen.getByTestId('spot-location'))
+
+    await waitFor(() => expect(openURL).toHaveBeenCalled())
+
+    // The coordinate has to actually be in the link. A map opened at the wrong
+    // place is worse than one that does not open.
+    expect(openURL.mock.calls[0][0]).toContain('6.1')
+    expect(openURL.mock.calls[0][0]).toContain('125.2')
+  })
+
+  /**
+   * A spot whose contributor hid its location has an address and no coordinate
+   * (STOURIFY-185). It must still say roughly where it is, and must NOT look
+   * openable — a control identical to the one above that does nothing when
+   * pressed is worse than plain text.
+   */
+  it('shows a plain, unpressable address when the coordinate is withheld', async () => {
+    mockSpot({ latitude: null, longitude: null })
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-location-static')).toBeTruthy())
+
+    expect(screen.getByText('Coastal Road')).toBeTruthy()
+    expect(screen.queryByTestId('spot-location')).toBeNull()
+  })
+
+  it('shows nothing at all when there is neither an address nor a coordinate', async () => {
+    mockSpot({ address: null, latitude: null, longitude: null })
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Blue Cove')).toBeTruthy())
+
+    expect(screen.queryByTestId('spot-location')).toBeNull()
+    expect(screen.queryByTestId('spot-location-static')).toBeNull()
+  })
+
+  // Latitude 0 is the equator and longitude 0 is Greenwich. Both are real
+  // places that a truthiness guard would hide (STOURIFY-65).
+  it('treats 0, 0 as a real place', async () => {
+    mockSpot({ latitude: 0, longitude: 0 })
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-location')).toBeTruthy())
+    expect(screen.getByText('0.0000, 0.0000')).toBeTruthy()
   })
 })

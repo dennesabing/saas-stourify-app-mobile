@@ -27,6 +27,7 @@ import {
 } from '@/shared/components/ui'
 import type { Post } from '@/shared/api/types'
 import { createLocalWishlistItem } from '@/features/spots/api/createLocalWishlistItem'
+import { openInMaps } from '@/features/spots/api/openInMaps'
 import SpotAboutTab from '@/features/spots/components/SpotAboutTab'
 import { useIsSpotSaved } from '@/features/spots/hooks/useIsSpotSaved'
 import { useTheme } from '@/theme/ThemeProvider'
@@ -380,6 +381,86 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               )}
 
               {/*
+                Where this place is, and a way to go there (STOURIFY-210).
+
+                It sits under the title because that is the question a spot page
+                exists to answer, and it used to be inside a tab the screen does
+                not open on.
+
+                **Only rendered when there is a coordinate to open**, checked
+                with `typeof === 'number'` rather than truthiness: latitude 0 is
+                the equator and longitude 0 is Greenwich, and both are real
+                places that a `spot?.latitude &&` guard would hide (STOURIFY-65).
+
+                The address is shown when there is one and the coordinate reads
+                as the second line, because "Coastal Road" tells a person more
+                than six decimal places do. When there is no address the
+                coordinate carries the row alone rather than leaving it empty.
+              */}
+              {typeof spot?.latitude === 'number' && typeof spot?.longitude === 'number' ? (
+                <Pressable
+                  testID="spot-location"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${spot.title ?? 'this spot'} in maps`}
+                  accessibilityHint="Opens your map app at this location"
+                  onPress={() => void openInMaps(spot.latitude, spot.longitude, spot.title)}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: theme.spacing[2],
+                    minHeight: theme.minTouchTarget,
+                  }}
+                >
+                  <Text variant="body">📍</Text>
+
+                  <View style={{ flex: 1 }}>
+                    {spot.address ? (
+                      <Text variant="body" color="primary" numberOfLines={2}>
+                        {spot.address}
+                      </Text>
+                    ) : null}
+                    <Text
+                      testID="spot-coordinates"
+                      variant="caption"
+                      color={spot.address ? 'muted' : 'primary'}
+                    >
+                      {spot.latitude.toFixed(4)}, {spot.longitude.toFixed(4)}
+                    </Text>
+                  </View>
+
+                  {/*
+                    The same chevron the rating row uses. Without it this is a
+                    line of grey text that happens to be tappable, which is the
+                    same as not being tappable at all.
+                  */}
+                  <Text variant="body" color="muted">
+                    ›
+                  </Text>
+                </Pressable>
+              ) : spot?.address ? (
+                /*
+                  An address but no coordinate, which is a state this app
+                  deliberately produces: a contributor can hide where their spot
+                  is, and then the coordinates are withheld from everyone else
+                  (STOURIFY-185).
+
+                  It still says roughly where the place is, and it is NOT
+                  tappable — there is nothing to open. A control that looks
+                  identical to the one above and does nothing when pressed is
+                  worse than plain text.
+                */
+                <View
+                  testID="spot-location-static"
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2] }}
+                >
+                  <Text variant="body">📍</Text>
+                  <Text variant="body" color="muted" numberOfLines={2} style={{ flex: 1 }}>
+                    {spot.address}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/*
               Nothing at all in the failed state, rather than a second failure
               message six lines under the first. One request went wrong; two
               notices about it read as two separate faults. What matters is that
@@ -508,29 +589,13 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                   onPressHashtag={(slug) => navigation.navigate('Tag', { slug })}
                 />
               ) : null}
-              {spot?.address ? (
-                <Text variant="caption" color="muted">
-                  📍 {spot.address}
-                </Text>
-              ) : null}
               {/*
-              Only draw a coordinate when there is one. `spot?.latitude?.toFixed(4)`
-              cannot throw on an absent number, but it cannot suppress the rest
-              of the line either: React drops the `undefined` and renders the
-              comma that was sitting between the two of them, so a spot that
-              failed to load — and a spot that simply has no coordinates —
-              showed a lone ", " under the address (STOURIFY-65).
-
-              `typeof … === 'number'` rather than a truthiness check, because
-              latitude 0 is the equator and longitude 0 is Greenwich. Both are
-              real coordinates, and a `spot?.latitude && …` guard would hide
-              them as though they were missing.
+              Where the spot is used to be here, under the description. It has
+              moved up beneath the title (STOURIFY-210): the About tab is not
+              the tab this screen opens on, so the one fact everybody wants from
+              a place — where it is — was behind a tap, and on a spot with no
+              description this tab looked empty enough to seem broken.
             */}
-              {typeof spot?.latitude === 'number' && typeof spot?.longitude === 'number' ? (
-                <Text testID="spot-coordinates" variant="caption" color="muted">
-                  {spot.latitude.toFixed(4)}, {spot.longitude.toFixed(4)}
-                </Text>
-              ) : null}
 
               {/*
               The corkboard, hung beside the plaque above rather than over it

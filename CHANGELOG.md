@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Where a spot is now sits under its name, and tapping it opens your map** (STOURIFY-210).
+
+  The address and coordinates lived inside the **About** tab — and a spot opens on **Posts**. So the
+  one thing everybody wants from a place, *where is it*, was behind a tap nothing invited you to
+  make. On a spot with no description that tab looked bare enough to seem broken.
+
+  It is now under the spot's name, on screen whichever tab you are on. Tap it and your map app opens
+  at that point, so you can get directions.
+
+  A spot whose owner has hidden its location still shows roughly where it is, and is deliberately
+  **not** tappable — there would be nothing to open.
+
 ## [0.7.1] - 2026-08-26
 
 ### Fixed
