@@ -17,6 +17,7 @@ import type { HomeStackParamList } from '@/shared/navigation/types'
 import { getSpot, getSpotPosts } from '@/shared/api/spots'
 import {
   Button,
+  Card,
   EmptyState,
   HashtagText,
   OverlayHeader,
@@ -582,12 +583,31 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
             />
           ) : (
             <View style={{ padding: theme.gutter, gap: theme.spacing[2] }}>
+              {/*
+              The description is the only text on this tab written by whoever
+              added the spot; everything below it was pinned up by other
+              visitors since. Drawn bare it read as neither -- the museum label
+              without its brass plate (STOURIFY-213) -- so it gets the app's own
+              flat surface to sit on.
+
+              `raised={false}` rather than the default: a raised card carries a
+              shadow and reads as something you can tap, and this is not
+              tappable. A hairline border says "a distinct thing" without
+              promising an action that does not exist.
+
+              Note the Card is INSIDE the truthy branch, not around the ternary.
+              Around it, every spot without a description would render an empty
+              bordered rectangle -- a label with nothing on it, which is worse
+              than the problem being fixed.
+            */}
               {spot?.description ? (
-                <HashtagText
-                  variant="body"
-                  text={spot.description}
-                  onPressHashtag={(slug) => navigation.navigate('Tag', { slug })}
-                />
+                <Card raised={false} testID="spot-description">
+                  <HashtagText
+                    variant="body"
+                    text={spot.description}
+                    onPressHashtag={(slug) => navigation.navigate('Tag', { slug })}
+                  />
+                </Card>
               ) : null}
               {/*
               Where the spot is used to be here, under the description. It has

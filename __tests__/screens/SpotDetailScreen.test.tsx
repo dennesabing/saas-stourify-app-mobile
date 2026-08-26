@@ -606,6 +606,63 @@ it('preserves the Posts and About tabs', async () => {
 })
 
 /* ------------------------------------------------------------------------
+ * The About tab — the spot's own description (STOURIFY-213)
+ * ---------------------------------------------------------------------- */
+
+/**
+ * The description is the one piece of text on this tab written by whoever added
+ * the spot; everything below it was pinned up by other visitors. It was drawn as
+ * bare text with nothing around it, so a reader had no way to tell those two
+ * things apart -- the museum label without its brass plate.
+ *
+ * These two cases are deliberately a pair. The first proves the box is there
+ * when there is something to put in it; the second proves it is NOT there when
+ * there is not, because wrapping the ternary rather than its result gives every
+ * description-less spot an empty bordered rectangle -- a label with nothing on
+ * it, which is worse than the bug being fixed.
+ */
+it('wraps the description in its own surface so it reads as the words of whoever added the spot', async () => {
+  ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Blue Cove')).toBeTruthy())
+  fireEvent.press(screen.getByText('About'))
+
+  await waitFor(() => expect(screen.getByTestId('spot-description')).toBeTruthy())
+
+  // The text still renders, and it renders INSIDE the surface rather than
+  // beside it. A box that does not contain the description would satisfy a
+  // bare getByTestId and fix nothing.
+  expect(within(screen.getByTestId('spot-description')).getByText('A quiet cove.')).toBeTruthy()
+})
+
+it('renders no surface at all for a spot that has no description', async () => {
+  ;(getSpot as jest.Mock).mockResolvedValue(makeSpot({ description: null }))
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Blue Cove')).toBeTruthy())
+  fireEvent.press(screen.getByText('About'))
+
+  // The tab itself still works -- this asserts an absence, and an absence is
+  // also what a screen that failed to render would show. The address proves
+  // the tab is genuinely mounted.
+  await waitFor(() => expect(screen.getByText('Coastal Road')).toBeTruthy())
+  expect(screen.queryByTestId('spot-description')).toBeNull()
+})
+
+/* ------------------------------------------------------------------------
  * The About tab — the corkboard (STOURIFY-147)
  * ---------------------------------------------------------------------- */
 
