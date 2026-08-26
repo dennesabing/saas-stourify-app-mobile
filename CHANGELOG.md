@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A spot's photos can be swiped through on the spot page** (STOURIFY-201).
+
+  It showed the first photo and nothing else, so a spot with five looked exactly like a spot with
+  one. The only way to find out otherwise was to tap through to the full-screen gallery — something
+  you do when you already believe there is more to see. Swipe the picture now, with a dot per photo
+  underneath. Tapping still opens the full-screen view.
+
+- **The photo gallery says which spot you are looking at** (STOURIFY-199).
+
+  A full-bleed photo with nothing but a Back button on it could be of anywhere — especially if you
+  arrived from a search result, or came back to the app a few minutes later. The spot's name now sits
+  under the Back button, with "Photo 2 of 5" beneath it. The Back button is the same one the spot
+  page uses, so the two screens can no longer drift apart.
+
+### Fixed
+
+- **Lists now refresh when you come back to them** (STOURIFY-200).
+
+  Add a spot, then open "Spots near me" — a screen you had looked at earlier — and it said **"No
+  spots nearby"**, while a pin for that very spot sat on the map above it.
+
+  Nothing was broken and no request failed. The app keeps a screen you navigate away from, so coming
+  back showed you the answer from the last time you opened it. Discover, Spots near me and Saved
+  spots now ask again when you return to them.
+
 ## [0.6.0] - 2026-08-26
 
 ### Added

@@ -6,6 +6,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Button, Chip, EmptyState, SpotCard, Text } from '@/shared/components/ui'
 import type { DiscoverStackParamList } from '@/shared/navigation/types'
 import type { Spot } from '@/shared/api/types'
+import { useRefetchOnFocus } from '@/shared/hooks/useRefetchOnFocus'
 import { useTheme } from '@/theme/ThemeProvider'
 import { SPOT_CATEGORIES } from '@/shared/config/spotCategories'
 import { EXPLORE_SPOTS_QUERY_KEY, fetchExploreSpots, thumbFor } from '../api/exploreSpots'
@@ -65,6 +66,11 @@ export default function DiscoverScreen({ navigation }: Props) {
     queryKey: EXPLORE_SPOTS_QUERY_KEY(category),
     queryFn: () => fetchExploreSpots(category),
   })
+
+  // Same reason as NearbyScreen: this screen stays mounted, so a spot added
+  // since you last looked would not appear until something else forced a
+  // fetch (STOURIFY-200).
+  useRefetchOnFocus(navigation, refetch)
 
   const spots = data ?? []
 

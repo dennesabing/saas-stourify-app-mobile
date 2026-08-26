@@ -7,6 +7,7 @@ import type { ProfileStackParamList } from '@/shared/navigation/types'
 import { WISHLIST_QUERY_KEY, getWishlist, type WishlistItem } from '@/shared/api/wishlist'
 import { thumbFor } from '@/features/discover/api/exploreSpots'
 import { EmptyState, SpotCard, Text } from '@/shared/components/ui'
+import { useRefetchOnFocus } from '@/shared/hooks/useRefetchOnFocus'
 import { useTheme } from '@/theme/ThemeProvider'
 
 type Props = NativeStackScreenProps<ProfileStackParamList, 'Wishlist'>
@@ -32,6 +33,10 @@ export default function SavedSpotsScreen({ navigation }: Props) {
     queryKey: WISHLIST_QUERY_KEY,
     queryFn: getWishlist,
   })
+
+  // A save made on the spot page has to appear here when you come back, and
+  // this screen stays mounted between visits (STOURIFY-200).
+  useRefetchOnFocus(navigation, refetch)
 
   const items = data ?? []
 

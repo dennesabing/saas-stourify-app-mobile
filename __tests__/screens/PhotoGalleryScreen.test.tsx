@@ -211,3 +211,59 @@ describe('background', () => {
     expect(styleOf(screen.getByTestId('gallery-root')).backgroundColor).toBe(palette.light.surface)
   })
 })
+
+/**
+ * STOURIFY-199 — the gallery says which spot the photos belong to.
+ *
+ * A full-bleed photo with a lone Back button says nothing about what you are
+ * looking at. Arrive from a search result, or come back to the app a few
+ * minutes later, and the photo could be of anywhere.
+ */
+describe('the gallery header', () => {
+  // Each case sets its own fixture. `clearAllMocks` clears CALLS, not
+  // implementations, so a test that relies on a previous test's
+  // `mockResolvedValue` passes or fails depending on the order they run in.
+  it('names the spot the photos belong to', async () => {
+    ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
+
+    renderScreen()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('gallery-header-title')).toBeTruthy()
+    })
+
+    expect(screen.getByText('Blue Cove')).toBeTruthy()
+  })
+
+  it('says which photo of how many', async () => {
+    ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
+
+    renderScreen()
+
+    // The fixture carries three photos, and the gallery opens on the first.
+    await waitFor(() => {
+      expect(screen.getByText('Photo 1 of 3')).toBeTruthy()
+    })
+  })
+
+  /**
+   * The name only appears once the spot has arrived. A plaque with a
+   * placeholder on it would claim to answer "what am I looking at?" and not
+   * answer it — worse than no plaque.
+   */
+  it('shows no plaque before the spot has arrived', () => {
+    ;(getSpot as jest.Mock).mockReturnValue(new Promise(() => {}))
+
+    renderScreen()
+
+    expect(screen.queryByTestId('gallery-header-title')).toBeNull()
+  })
+
+  it('keeps the Back button', async () => {
+    ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByLabelText('Back')).toBeTruthy())
+  })
+})

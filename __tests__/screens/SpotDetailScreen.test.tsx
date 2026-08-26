@@ -114,7 +114,7 @@ it('renders a real hero image, the rating and the review count', async () => {
   renderScreen()
 
   await waitFor(() => {
-    expect(screen.getByTestId('spot-hero-image')).toBeTruthy()
+    expect(screen.getAllByTestId('spot-hero-image').length).toBeGreaterThan(0)
     expect(screen.getByText('Blue Cove')).toBeTruthy()
     expect(screen.getByText('4.5')).toBeTruthy()
     // "See all reviews" is now the rating row's accessible name rather than a
@@ -382,7 +382,7 @@ it('keeps showing a spot it already has while the refetch is failing', async () 
 
   await waitFor(() => expect(getSpot).toHaveBeenCalled())
 
-  expect(screen.getByTestId('spot-hero-image')).toBeTruthy()
+  expect(screen.getAllByTestId('spot-hero-image').length).toBeGreaterThan(0)
   expect(screen.getByText('Blue Cove')).toBeTruthy()
   expect(screen.queryByTestId('spot-hero-error')).toBeNull()
   expect(screen.queryByText("Couldn't load this spot")).toBeNull()
@@ -443,7 +443,7 @@ it('opens the gallery when the hero is tapped', async () => {
   // returns during the loading state and the press races that flush: green on an
   // idle machine, dropped under load (STOURIFY-62). `spot-hero-image` exists only
   // on the has-photos branch, so waiting for it waits for the actual precondition.
-  await waitFor(() => expect(screen.getByTestId('spot-hero-image')).toBeTruthy())
+  await waitFor(() => expect(screen.getAllByTestId('spot-hero-image').length).toBeGreaterThan(0))
   fireEvent.press(screen.getByTestId('spot-hero'))
 
   expect(navigation.navigate).toHaveBeenCalledWith('PhotoGallery', { spotId: 'spot-1' })
@@ -1045,5 +1045,85 @@ it('keeps the Note composer clear of the keyboard', async () => {
 
   await waitFor(() => {
     expect(screen.getByTestId('spot-detail-keyboard-avoider')).toBeTruthy()
+  })
+})
+
+/**
+ * STOURIFY-201 — the hero shows every photo, not just the first.
+ *
+ * It drew `media[0]` and nothing else, so a spot with five photos looked
+ * exactly like a spot with one. The only way to find out otherwise was to tap
+ * through to the gallery, which is something you do when you already believe
+ * there is more to see.
+ */
+describe('the hero pager', () => {
+  it('renders every photo, not only the first', async () => {
+    ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
+    ;(getSpotPosts as jest.Mock).mockResolvedValue({
+      data: [],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 0 },
+    })
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-hero-pager')).toBeTruthy())
+
+    // The fixture carries two photos, and both must be mounted — one image
+    // would be the old behaviour passing under a new name.
+    expect(screen.getAllByTestId('spot-hero-image')).toHaveLength(2)
+  })
+
+  it('shows a dot per photo when there is more than one', async () => {
+    ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
+    ;(getSpotPosts as jest.Mock).mockResolvedValue({
+      data: [],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 0 },
+    })
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-hero-dots')).toBeTruthy())
+  })
+
+  /**
+   * A single dot under a single photo is a claim that there is something to
+   * swipe to. So is a hero that can be dragged when there is nowhere to drag.
+   */
+  it('draws no dots, and does not scroll, for a spot with one photo', async () => {
+    ;(getSpot as jest.Mock).mockResolvedValue(
+      makeSpot({ media: [{ uuid: 'm1', url: 'https://cdn.test/photo1.jpg', thumb_url: null }] }),
+    )
+    ;(getSpotPosts as jest.Mock).mockResolvedValue({
+      data: [],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 0 },
+    })
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-hero-pager')).toBeTruthy())
+
+    expect(screen.queryByTestId('spot-hero-dots')).toBeNull()
+    expect(screen.getByTestId('spot-hero-pager').props.scrollEnabled).toBe(false)
+  })
+
+  // The hero is a preview; the gallery is the reading room. Swiping here must
+  // not have cost us the way through to the full-screen view.
+  it('still opens the gallery when the hero is tapped', async () => {
+    ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
+    ;(getSpotPosts as jest.Mock).mockResolvedValue({
+      data: [],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 0 },
+    })
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-hero-pager')).toBeTruthy())
+    fireEvent.press(screen.getByTestId('spot-hero'))
+
+    expect(navigation.navigate).toHaveBeenCalledWith('PhotoGallery', { spotId: 'spot-1' })
   })
 })

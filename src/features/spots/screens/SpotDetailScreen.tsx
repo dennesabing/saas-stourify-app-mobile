@@ -6,6 +6,7 @@ import {
   Pressable,
   ScrollView,
   View,
+  type ViewToken,
 } from 'react-native'
 import { Image } from 'expo-image'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -18,6 +19,7 @@ import {
   Button,
   EmptyState,
   HashtagText,
+  OverlayHeader,
   Rating,
   Skeleton,
   Tag,
@@ -31,7 +33,10 @@ import { useTheme } from '@/theme/ThemeProvider'
 
 const { width } = Dimensions.get('window')
 const THUMB = (width - 4) / 3
+/** A hero page is exactly one screen wide, so `pagingEnabled` lands on photo boundaries. */
+const SCREEN_WIDTH = width
 const HERO_HEIGHT = 240
+const HERO_VIEWABILITY = { itemVisiblePercentThreshold: 60 }
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'SpotDetail'>
 
@@ -47,6 +52,13 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
   const theme = useTheme()
   const database = useDatabase()
   const [tab, setTab] = useState<'Posts' | 'About'>('Posts')
+  /** Which hero photo is showing, so the dots can say so. */
+  const [heroIndex, setHeroIndex] = useState(0)
+
+  const onHeroViewableChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    const first = viewableItems[0]
+    if (typeof first?.index === 'number') setHeroIndex(first.index)
+  }, [])
 
   const {
     data: spot,
@@ -137,28 +149,12 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
           contentContainerStyle={{ paddingBottom: theme.spacing[7] }}
           keyboardShouldPersistTaps="handled"
         >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            onPress={() => navigation.goBack()}
-            style={{
-              position: 'absolute',
-              top: theme.spacing[3],
-              left: theme.spacing[3],
-              zIndex: 10,
-              minWidth: theme.minTouchTarget,
-              minHeight: theme.minTouchTarget,
-              borderRadius: theme.radius.chip,
-              backgroundColor: theme.colors.card,
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingHorizontal: theme.spacing[3],
-            }}
-          >
-            <Text variant="body" color="ink">
-              ← Back
-            </Text>
-          </Pressable>
+          {/*
+            Shared with the photo gallery (STOURIFY-199), so the two cannot
+            drift apart. No title here: the spot's name is already set in full a
+            few lines down, and saying it twice on one screen is noise.
+          */}
+          <OverlayHeader onBack={() => navigation.goBack()} />
 
           {/*
             Save, as a mark on the photo rather than a labelled button in the
@@ -252,17 +248,79 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                   <Skeleton height={HERO_HEIGHT} radius={0} />
                 </View>
               ) : media.length > 0 ? (
-                <Image
-                  testID="spot-hero-image"
-                  source={{ uri: media[0].url }}
-                  style={{
-                    width: '100%',
-                    height: HERO_HEIGHT,
-                    backgroundColor: theme.colors.surfaceAlt,
-                  }}
-                  contentFit="cover"
-                  transition={theme.motion.fast}
-                />
+                /*
+                  Every photo, swipeable, rather than the first one and a hint
+                  that there might be others (STOURIFY-201).
+
+                  It drew `media[0]` and nothing else, so a spot with five
+                  photos looked exactly like a spot with one. The only way to
+                  learn otherwise was to tap through to the gallery, which is
+                  something you do when you already believe there is more to
+                  see.
+
+                  Tapping still opens the full-screen gallery. This is the
+                  preview; that is the reading room.
+
+                  `scrollEnabled` is off for a single photo so the one-photo
+                  case cannot be dragged around, which reads as broken rather
+                  than as "there is only one".
+                */
+                <View>
+                  <FlatList
+                    testID="spot-hero-pager"
+                    data={media}
+                    horizontal
+                    pagingEnabled
+                    scrollEnabled={media.length > 1}
+                    showsHorizontalScrollIndicator={false}
+                    keyExtractor={(photo) => photo.uuid}
+                    onViewableItemsChanged={onHeroViewableChanged}
+                    viewabilityConfig={HERO_VIEWABILITY}
+                    renderItem={({ item: photo }) => (
+                      <Image
+                        testID="spot-hero-image"
+                        source={{ uri: photo.url }}
+                        style={{
+                          width: SCREEN_WIDTH,
+                          height: HERO_HEIGHT,
+                          backgroundColor: theme.colors.surfaceAlt,
+                        }}
+                        contentFit="cover"
+                        transition={theme.motion.fast}
+                      />
+                    )}
+                  />
+
+                  {/*
+                    Dots, only when there is more than one. A single dot under a
+                    single photo is a claim that there is something to swipe to.
+                  */}
+                  {media.length > 1 ? (
+                    <View
+                      testID="spot-hero-dots"
+                      style={{
+                        position: 'absolute',
+                        bottom: theme.spacing[3],
+                        alignSelf: 'center',
+                        flexDirection: 'row',
+                        gap: theme.spacing[1],
+                      }}
+                    >
+                      {media.map((photo, dotIndex) => (
+                        <View
+                          key={photo.uuid}
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: 3,
+                            backgroundColor:
+                              dotIndex === heroIndex ? theme.colors.card : theme.colors.hairline,
+                          }}
+                        />
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
               ) : (
                 <View
                   style={{
