@@ -7,6 +7,7 @@ import { drainPendingMedia } from './mediaDrain'
 import { drainPostOutbox } from './postOutboxDrain'
 import { countPending, drainOutbox, listSyncFailures, type DrainOutcome } from './pushService'
 import { useSyncStatusStore } from './status'
+import { syncTrace } from './trace'
 
 /**
  * Why a cycle ran. Carried through to `SyncCycleOutcome` as a label — nothing
@@ -42,6 +43,23 @@ const IDLE_DRAIN: DrainOutcome = {
  * guard.
  */
 let inFlight = false
+
+/**
+ * Bookkeeping for the trace, and for nothing else — no decision in this file
+ * reads either of these.
+ *
+ * They exist so a turned-away cycle can say more than "somebody else is
+ * running". A queue at a counter tells you nothing; a queue at a counter where
+ * the person in front has been there forty minutes tells you the counter is
+ * broken. `holderTrigger` and `holderSince` are what let the skip line carry
+ * that second reading, which is the measurement STOURIFY-220 exists to take:
+ * the leading explanation for the app going silent after a reconnect is a cycle
+ * left over from the offline period, still waiting on a socket that will never
+ * answer, and a large `held=` on the skip line is what that looks like.
+ */
+let holderTrigger: SyncTrigger | null = null
+let holderSince = 0
+let cycleCount = 0
 
 export function isSyncInFlight(): boolean {
   return inFlight
@@ -152,6 +170,11 @@ export async function runSyncCycle(options: {
   trigger: SyncTrigger
 }): Promise<SyncCycleOutcome> {
   if (inFlight) {
+    syncTrace(
+      `cycle skip trigger=${options.trigger} reason=in-flight ` +
+        `holder=${String(holderTrigger)} held=${Date.now() - holderSince}ms`,
+    )
+
     return {
       trigger: options.trigger,
       skipped: 'in-flight',
@@ -163,12 +186,24 @@ export async function runSyncCycle(options: {
   }
 
   inFlight = true
+  holderTrigger = options.trigger
+  holderSince = Date.now()
+  const id = ++cycleCount
+  const startedAt = holderSince
+  syncTrace(`cycle#${id} enter trigger=${options.trigger}`)
+
   const client = options.client ?? syncHttpClient
   const status = useSyncStatusStore.getState()
 
   try {
     status.setPhase('draining')
+    syncTrace(`cycle#${id} drain start`)
     const drain = await drainOutbox(options.database, client)
+    syncTrace(
+      `cycle#${id} drain done attempted=${drain.attempted} acked=${drain.acked} ` +
+        `rejected=${drain.rejected} fullyAcked=${drain.fullyAcked} ` +
+        `networkFailure=${drain.networkFailure}`,
+    )
     await publishQueueState(options.database)
 
     // A drain that reaches the server at all — success or a non-network
@@ -182,6 +217,8 @@ export async function runSyncCycle(options: {
     }
 
     if (!drain.fullyAcked) {
+      syncTrace(`cycle#${id} exit reason=gate-not-fully-acked`)
+
       return {
         trigger: options.trigger,
         skipped: null,
@@ -193,7 +230,12 @@ export async function runSyncCycle(options: {
     }
 
     status.setPhase('pulling')
+    syncTrace(`cycle#${id} pull start`)
     const observed = await createStourifySyncEngine(options.database, client).runPullSync()
+    syncTrace(
+      `cycle#${id} pull done rows=${observed.rows} networkFailure=${observed.networkFailure} ` +
+        `error=${observed.error === null ? 'none' : 'yes'}`,
+    )
 
     if (observed.networkFailure) status.setOffline(true)
     else status.setOffline(false)
@@ -208,6 +250,7 @@ export async function runSyncCycle(options: {
           observed.error instanceof Error ? observed.error.message : String(observed.error),
         )
       }
+      syncTrace(`cycle#${id} exit reason=pull-error`)
       return {
         trigger: options.trigger,
         skipped: null,
@@ -221,6 +264,7 @@ export async function runSyncCycle(options: {
     status.recordPull(observed.rows)
     status.markSynced(Date.now())
     await publishQueueState(options.database)
+    syncTrace(`cycle#${id} exit reason=ok rows=${observed.rows}`)
 
     return {
       trigger: options.trigger,
@@ -254,8 +298,13 @@ export async function runSyncCycle(options: {
     //
     // An ordinary statement placed anywhere else would fix today's four exits
     // and none of tomorrow's. `finally` is what makes it structural.
+    syncTrace(`cycle#${id} media start`)
     await runMediaPhase(options.database)
+    syncTrace(`cycle#${id} media done`)
+
+    syncTrace(`cycle#${id} post-outbox start`)
     await runPostOutboxPhase(options.database)
+    syncTrace(`cycle#${id} post-outbox done`)
 
     // Idempotent, and covers every exit path — including an uncaught
     // exception from `drainOutbox`/`publishQueueState` (e.g. a local DB read
@@ -265,5 +314,14 @@ export async function runSyncCycle(options: {
     // overwrite it — the UI would show a sync in progress indefinitely.
     status.setPhase('idle')
     inFlight = false
+    holderTrigger = null
+
+    // The closing half of the pair. Read the log by matching `enter` against
+    // `end` on the same number: an `enter` with no `end` is a cycle that never
+    // came back, and the phase line above it says which step it is still
+    // sitting in. That pairing is the whole readability of this trace, which is
+    // why this line is inside the `finally` — an early return, or a throw from
+    // anywhere above, must not be able to skip it.
+    syncTrace(`cycle#${id} end elapsed=${Date.now() - startedAt}ms`)
   }
 }

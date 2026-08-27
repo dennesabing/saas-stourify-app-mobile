@@ -21,6 +21,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The app can be asked to narrate every sync cycle, so a sync that does nothing can say why
+  (STOURIFY-220).** There is a long-running fault where the phone is demonstrably back on the
+  network, the app's own flag agrees, and still nothing is sent — and until now all six ways a sync
+  cycle can end looked identical from outside: silence. Build with `EXPO_PUBLIC_SYNC_TRACE=1` and
+  the app writes one line to the phone's log for every network reading it receives, every cycle it
+  starts, every step inside that cycle, and every reason a cycle ends. A cycle turned away because
+  another is already running now says which one is holding it up and for how long, which is the
+  measurement the leading explanation for this bug turns on. It is off in every ordinary build and
+  it changes nothing the app does — no decision anywhere reads it. `docs/instrumenting-a-sync-cycle.md`
+  says how to switch it on and how to read the output.
+
+  The first run of it — twenty airplane-mode reconnects on the physical handset — did **not**
+  reproduce the fault: twenty rounds, twenty clean. That is written up as the null result it is in
+  `docs/what-the-sync-cycle-did-on-a-stuck-reconnect.md`, along with a healthy reconnect in full so
+  the next stuck one has something to be compared against. Nothing about the bug is settled by it,
+  and no repair was designed.
+
 - **The app can now tell you it is too old to work** (STOURIFY-190).
 
   When the backend moved to a new address in August, every copy of the app already on a phone

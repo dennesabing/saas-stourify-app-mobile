@@ -1,5 +1,6 @@
 import NetInfo, { type NetInfoState } from '@react-native-community/netinfo'
 import type { ConnectivityMonitor } from '@soxerp/offline-sync-core'
+import { syncTrace } from '../trace'
 
 /**
  * The engine's connectivity seam (`seams.ts:15-18`).
@@ -36,6 +37,19 @@ export const netInfoConnectivity: ConnectivityMonitor = {
     return NetInfo.addEventListener((state) => {
       const next = toOnline(state)
       online = next
+
+      // Observe-only, and it earns its place by separating two things that
+      // otherwise look identical from further downstream: the network library
+      // saying nothing at all, and it speaking while this seam decides the
+      // reading is not a change and swallows it. Only one of those is a fault,
+      // and the scheduler cannot tell them apart because in both cases nobody
+      // calls it. Nothing here is read by any decision — see `trace.ts`.
+      syncTrace(
+        `seam netinfo type=${String(state.type)} conn=${String(state.isConnected)} ` +
+          `reach=${String(state.isInternetReachable)} next=${next} ` +
+          `edge=${next === previous ? 'none' : 'yes'}`,
+      )
+
       if (next === previous) return
       previous = next
       cb(next)

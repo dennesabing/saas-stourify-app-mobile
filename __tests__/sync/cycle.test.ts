@@ -605,3 +605,122 @@ describe('the send-later post queue runs whatever else the cycle did', () => {
     expect(outcome.error).toBeNull()
   })
 })
+
+/**
+ * The trace exists for one reason: STOURIFY-134 measured a reconnect on real
+ * hardware where the app knew it was back online and sent nothing at all for a
+ * minute. Silence is the symptom, and silence is what every one of this
+ * function's six exits looks like from outside.
+ *
+ * So what is asserted here is not "a log line appeared". It is the two
+ * properties that make the log usable at three in the morning with one rare
+ * failure in front of you:
+ *
+ *   1. Every cycle that starts also ends, and both lines carry the same number,
+ *      so a cycle that never came back is visible as an opening with no close.
+ *   2. A cycle that is turned away says WHO turned it away and HOW LONG that
+ *      holder has been sitting there. That number is the whole hypothesis: a
+ *      cycle left over from the offline period, still waiting on a socket that
+ *      will never answer, shows up as a large `held=`.
+ */
+describe('the sync cycle trace', () => {
+  const original = process.env.EXPO_PUBLIC_SYNC_TRACE
+  let spy: jest.SpyInstance
+
+  const lines = (): string[] => spy.mock.calls.map((call) => String(call[0]))
+
+  beforeEach(() => {
+    process.env.EXPO_PUBLIC_SYNC_TRACE = '1'
+    spy = jest.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    spy.mockRestore()
+    if (original === undefined) delete process.env.EXPO_PUBLIC_SYNC_TRACE
+    else process.env.EXPO_PUBLIC_SYNC_TRACE = original
+  })
+
+  it('opens and closes exactly once per cycle, with the same cycle number', async () => {
+    const database = createTestDatabase()
+
+    await runSyncCycle({
+      database,
+      client: {
+        get: jest.fn(async () => ({ data: { server_time: 'now' } })),
+        post: jest.fn(),
+      } as any,
+      trigger: 'connectivity',
+    })
+
+    const enters = lines().filter((line) => / enter /.test(line))
+    const ends = lines().filter((line) => / end /.test(line))
+
+    expect(enters).toHaveLength(1)
+    expect(ends).toHaveLength(1)
+    expect(enters[0]).toContain('trigger=connectivity')
+
+    const number = /cycle#(\d+) enter/.exec(enters[0])?.[1]
+    expect(number).toBeDefined()
+    expect(ends[0]).toContain(`cycle#${number} end`)
+  })
+
+  it('reports every phase boundary it crossed, in order', async () => {
+    const database = createTestDatabase()
+
+    await runSyncCycle({
+      database,
+      client: {
+        get: jest.fn(async () => ({ data: { server_time: 'now' } })),
+        post: jest.fn(),
+      } as any,
+      trigger: 'manual',
+    })
+
+    const joined = lines().join('\n')
+    for (const phase of ['drain', 'pull', 'media', 'post-outbox']) {
+      expect(joined).toContain(`${phase} start`)
+      expect(joined).toContain(`${phase} done`)
+    }
+  })
+
+  it('names the holder and its age when a cycle is turned away', async () => {
+    const database = createTestDatabase()
+
+    const get = jest.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25))
+      return { data: { server_time: 'now' } }
+    })
+
+    const client = { get, post: jest.fn() } as any
+    await Promise.all([
+      runSyncCycle({ database, client, trigger: 'foreground' }),
+      runSyncCycle({ database, client, trigger: 'connectivity' }),
+    ])
+
+    const skips = lines().filter((line) => / skip /.test(line))
+    expect(skips).toHaveLength(1)
+    expect(skips[0]).toContain('reason=in-flight')
+    expect(skips[0]).toContain('trigger=connectivity')
+    expect(skips[0]).toContain('holder=foreground')
+    expect(skips[0]).toMatch(/held=\d+ms/)
+  })
+
+  it('says the cycle finished even when the pull threw', async () => {
+    const database = createTestDatabase()
+
+    await runSyncCycle({
+      database,
+      client: {
+        get: jest.fn(async () => {
+          throw new Error('the delta endpoint fell over')
+        }),
+        post: jest.fn(),
+      } as any,
+      trigger: 'login',
+    })
+
+    const joined = lines().join('\n')
+    expect(joined).toContain('pull start')
+    expect(joined).toMatch(/cycle#\d+ end/)
+  })
+})
