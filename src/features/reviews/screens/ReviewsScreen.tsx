@@ -8,6 +8,7 @@ import { getSpotReviews } from '@/shared/api/reviews'
 import { getSpot } from '@/shared/api/spots'
 import {
   Avatar,
+  Button,
   Card,
   Divider,
   EmptyState,
@@ -157,7 +158,10 @@ export default function ReviewsScreen({ route, navigation }: Props) {
   )
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: theme.colors.surface }}
+      edges={['top', 'bottom']}
+    >
       <ScreenHeader
         testID="reviews-header"
         onBack={() => navigation.goBack()}
@@ -201,6 +205,32 @@ export default function ReviewsScreen({ route, navigation }: Props) {
           </Card>
         )}
       />
+
+      {/*
+        The way to add your own (STOURIFY-211). It used to sit on the spot page,
+        one line under the rating row that leads here — the comment cards by the
+        front door, the guest book in the back room. This is the page that shows
+        you what other people wrote, so this is where the pen belongs.
+
+        Pinned as a sibling of the `FlatList` rather than drawn inside it, and
+        that placement is the whole decision. Inside, as a list header, it would
+        scroll off the top — away from the one person most likely to press it,
+        who is whoever just read to the bottom. Put only in the empty state's
+        action slot, it would vanish the moment a spot had a single review.
+        Outside the list it is on screen in all three states: loading, empty, and
+        a list too long to fit.
+
+        `edges` on the SafeAreaView above gained `'bottom'` for the same reason:
+        a footer is the one thing on this screen the phone's gesture bar can sit
+        on top of.
+      */}
+      <View style={{ padding: theme.gutter }}>
+        <Button
+          label="Write a review"
+          fullWidth
+          onPress={() => navigation.navigate('WriteReview', { spotId })}
+        />
+      </View>
     </SafeAreaView>
   )
 }

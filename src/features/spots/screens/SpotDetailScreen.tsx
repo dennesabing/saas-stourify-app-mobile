@@ -16,7 +16,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
 import { getSpot, getSpotPosts } from '@/shared/api/spots'
 import {
-  Button,
   Card,
   EmptyState,
   HashtagText,
@@ -528,17 +527,16 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               "· 12 reviews", so nothing is lost by saying it once.
             */}
               {/*
-                One button where there were two. "See all reviews" moved into the
-                rating row above, which already carries the review count and now
-                leads to the same place — so the button was repeating a link that
-                was sitting right on top of it (STOURIFY-197).
+                No review buttons left on this page at all, and that took two
+                cards. STOURIFY-197 removed "See all reviews", because the
+                rating row directly above it already carried the count and
+                already led to the same place. STOURIFY-211 removed the survivor,
+                "Write a review", by moving it to the reviews page itself —
+                comment cards belong beside the guest book, not by the front
+                door. Nothing was lost: the rating row still leads to the
+                reviews, and the button is now pinned to the foot of the page it
+                leads to.
               */}
-              <Button
-                label="Write a review"
-                variant="secondary"
-                fullWidth
-                onPress={() => navigation.navigate('WriteReview', { spotId })}
-              />
             </View>
           )}
 
