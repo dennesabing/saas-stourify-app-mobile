@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The reconnect protocol now proves its own instrument is alive before it counts a round
+  (STOURIFY-223).** `docs/does-the-vpn-explain-the-stuck-offline-flag.md` judges every round by
+  whether a request reached the local backend, and an empty log is what a stuck round looks like —
+  so a silent log makes the whole procedure report the fault every time. Two runs on the same
+  machine disagree about whether the plain server logs at all, and nothing has explained the
+  difference, so the document no longer relies on either account: it starts the server through the
+  request-logging script committed in the root repository, and it opens with a check that makes one
+  request by hand — from this machine and once from the phone — and confirms a line appears, with an
+  instruction to stop rather than record anything if it does not. No app code changed.
+
 - **Wrote down what the handset actually does after a reconnect, and it is not what the bug report
   said (STOURIFY-134).** Twenty airplane-mode reconnects on the physical Samsung SM-S908E, ten with
   its always-on VPN up and ten with it switched off, to find out whether the tunnel was the reason
