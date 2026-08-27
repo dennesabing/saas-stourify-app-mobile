@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **"Write a review" moved off the spot page and onto the reviews page** (STOURIFY-211).
+
+  The button used to sit on a spot's page, one line under the rating you tap to read what other
+  people wrote. That is the comment cards by the front door and the guest book in the back room:
+  you were asked to add to a list you had not been shown.
+
+  It is now pinned to the foot of the reviews page itself, where it stays put whether the spot has
+  no reviews, a few, or more than fit on a screen. The spot page keeps the rating row as the way
+  through, and has no review buttons of its own left.
+
 - **A spot's description now sits in its own panel, so you can tell it is the spot's own words**
   (STOURIFY-213).
 

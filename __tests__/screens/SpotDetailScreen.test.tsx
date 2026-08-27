@@ -400,7 +400,6 @@ it('keeps showing a spot it already has while the refetch is failing', async () 
   // failed-state rule that hid the reviews link here would be taking a real
   // number off the screen because a background request went wrong.
   expect(screen.getByLabelText('See all reviews')).toBeTruthy()
-  expect(screen.getByText('Write a review')).toBeTruthy()
   expect(screen.getByTestId('spot-save')).toBeTruthy()
 })
 
@@ -458,7 +457,7 @@ it('opens the gallery when the hero is tapped', async () => {
   expect(navigation.navigate).toHaveBeenCalledWith('PhotoGallery', { spotId: 'spot-1' })
 })
 
-it('navigates to the reviews list and to write review', async () => {
+it('navigates to the reviews list', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
   ;(getSpotPosts as jest.Mock).mockResolvedValue({
     data: [],
@@ -473,9 +472,6 @@ it('navigates to the reviews list and to write review', async () => {
   await waitFor(() => expect(screen.getByLabelText('See all reviews')).toBeTruthy())
   fireEvent.press(screen.getByLabelText('See all reviews'))
   expect(navigation.navigate).toHaveBeenCalledWith('Reviews', { spotId: 'spot-1' })
-
-  fireEvent.press(screen.getByText('Write a review'))
-  expect(navigation.navigate).toHaveBeenCalledWith('WriteReview', { spotId: 'spot-1' })
 })
 
 /**
@@ -516,11 +512,15 @@ it('puts Save on the photo, outside the hero button, and not in the rating row',
 })
 
 /**
- * Direction A's actual claim: fewer controls above the content, without losing
- * any capability. Both destinations are still reachable — one is a button, the
- * other is the rating row.
+ * STOURIFY-197 took this page from two review buttons to one. STOURIFY-211
+ * takes it to none: the survivor, "Write a review", moved to the reviews page
+ * itself — the comment cards now live next to the guest book rather than by the
+ * front door.
+ *
+ * No capability was lost. The rating row still leads to the reviews, and the
+ * button is the first thing on the page it leads to.
  */
-it('shows one review button where there were two', async () => {
+it('offers no review buttons at all — both moved or merged into the rating row', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
   ;(getSpotPosts as jest.Mock).mockResolvedValue({
     data: [],
@@ -530,11 +530,12 @@ it('shows one review button where there were two', async () => {
 
   renderScreen()
 
-  await waitFor(() => expect(screen.getByText('Write a review')).toBeTruthy())
+  await waitFor(() => expect(screen.getByLabelText('See all reviews')).toBeTruthy())
 
-  // The old second button is gone as a LABEL. Asserting on the text rather than
-  // the accessible name is deliberate: the name still exists, on the rating row.
+  // Both gone as LABELS. Asserting on the text rather than the accessible name
+  // is deliberate for the first one: that name still exists, on the rating row.
   expect(screen.queryByText('See all reviews')).toBeNull()
+  expect(screen.queryByText('Write a review')).toBeNull()
 })
 
 it('saves to the wishlist as a local write, never touching the network', async () => {

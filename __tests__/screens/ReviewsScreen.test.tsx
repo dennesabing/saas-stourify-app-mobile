@@ -255,3 +255,60 @@ describe('the reviews header', () => {
     expect(screen.getByLabelText('Back')).toBeTruthy()
   })
 })
+
+/**
+ * STOURIFY-211 — the button to write a review moved here from the spot page.
+ *
+ * It used to sit on the spot page, one line under the rating row that leads
+ * here: the comment cards by the front door, the guest book in the back room.
+ * Now it is on the page that shows you what other people wrote.
+ *
+ * It is pinned under the list rather than drawn inside it, so the three states
+ * this screen has — loading, empty, and a list long enough to scroll — all
+ * still show it. A list header would have scrolled away from the one person
+ * most likely to press it: whoever just read to the bottom.
+ */
+describe('the write-a-review button', () => {
+  it('is on the page when the spot already has reviews', async () => {
+    ;(getSpotReviews as jest.Mock).mockResolvedValue({
+      data: [makeServerReview()],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 1 },
+    })
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Ana Martinez')).toBeTruthy())
+    expect(screen.getByText('Write a review')).toBeTruthy()
+  })
+
+  it('is still on the page when the spot has none, which is where it is needed most', async () => {
+    ;(getSpotReviews as jest.Mock).mockResolvedValue({
+      data: [],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 0 },
+    })
+
+    renderScreen()
+
+    // The empty state says "Be the first to write one." Before this card that
+    // sentence was a dead end — there was nothing on the screen to write with.
+    await waitFor(() => expect(screen.getByText('No reviews yet')).toBeTruthy())
+    expect(screen.getByText('Write a review')).toBeTruthy()
+  })
+
+  it('opens the write-review form for the spot this page is about', async () => {
+    ;(getSpotReviews as jest.Mock).mockResolvedValue({
+      data: [],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 0 },
+    })
+
+    renderScreen(createTestDatabase(), 'spot-77')
+
+    await waitFor(() => expect(screen.getByText('Write a review')).toBeTruthy())
+    fireEvent.press(screen.getByText('Write a review'))
+
+    expect(navigation.navigate).toHaveBeenCalledWith('WriteReview', { spotId: 'spot-77' })
+  })
+})
