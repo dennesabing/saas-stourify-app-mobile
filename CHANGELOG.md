@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Wrote down what the handset actually does after a reconnect, and it is not what the bug report
+  said (STOURIFY-134).** Twenty airplane-mode reconnects on the physical Samsung SM-S908E, ten with
+  its always-on VPN up and ten with it switched off, to find out whether the tunnel was the reason
+  the offline queue sometimes fails to send itself. It is not: the one round that failed was in the
+  arm with the VPN switched *off*. More usefully, the diagnostic log of that round shows the app's
+  online flag recovering correctly and the sync still never running — so the failure is downstream
+  of the connectivity flag, not in it, which contradicts the diagnosis this bug has carried since
+  it was filed. No app code changed. The full account, including the protocol to reproduce it and
+  what to instrument next, is in `docs/does-the-vpn-explain-the-stuck-offline-flag.md`.
+
 ### Added
 
 - **The app can now tell you it is too old to work** (STOURIFY-190).
