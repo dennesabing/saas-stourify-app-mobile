@@ -24,6 +24,8 @@ interface Props {
   style?: ViewStyle
   /** Screen-reader label when the visible text is not descriptive enough. */
   accessibilityLabel?: string
+  /** Handle for tests, when the label alone is not a stable way to find it. */
+  testID?: string
 }
 
 export default function Button({
@@ -37,6 +39,7 @@ export default function Button({
   fullWidth = false,
   style,
   accessibilityLabel,
+  testID,
 }: Props) {
   const theme = useTheme()
   const isInert = disabled || loading
@@ -61,6 +64,7 @@ export default function Button({
 
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       disabled={isInert}
       accessibilityRole="button"

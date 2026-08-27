@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The app can now tell you it is too old to work** (STOURIFY-190).
+
+  When the backend moved to a new address in August, every copy of the app already on a phone
+  failed every request and said nothing about why. It looked broken rather than out of date, which
+  is a shop that moves premises and leaves no note on the old door.
+
+  At launch the app now reads the published release manifest — the same file the download page
+  renders from, which lives on the storage CDN and has nothing to do with the backend's address.
+  If that file says the oldest permitted build is newer than this one, the app replaces its whole
+  interface with a screen naming the problem and offering the download link, with no way past it.
+  The link comes from the manifest too, so it still works when nothing this project operates is
+  reachable.
+
+  Nothing fires unless the manifest actually says so. A file that cannot be reached, times out, or
+  carries no floor at all lets the app run exactly as before — a forced-update screen caused by a
+  bad minute at the CDN would be a worse outage than the one it prevents. Development builds are
+  never checked. See `docs/telling-a-stale-install-it-is-too-old.md`.
+
 ### Changed
 
 - **"Write a review" moved off the spot page and onto the reviews page** (STOURIFY-211).
