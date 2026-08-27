@@ -3,6 +3,7 @@ import type { Database } from '@nozbe/watermelondb'
 import { runSyncCycle, type SyncCycleOutcome, type SyncTrigger } from './cycle'
 import { netInfoConnectivity } from './seams/connectivity'
 import { useSyncStatusStore } from './status'
+import { syncTrace } from './trace'
 
 /**
  * A cycle on demand — pull-to-refresh, and the one immediately after login.
@@ -48,6 +49,12 @@ export function startSyncScheduler(database: Database): () => void {
   let stopped = false
 
   const unsubscribeNetInfo = netInfoConnectivity.subscribe((online) => {
+    // Traced BEFORE the `stopped` guard, so a log that shows nothing here
+    // genuinely means the seam never called us — rather than that we were
+    // called and quietly declined. Telling those two apart is the first fork in
+    // the STOURIFY-220 diagnosis: was the van never told to leave, or told and
+    // refused?
+    syncTrace(`scheduler connectivity edge online=${online} stopped=${stopped}`)
     if (stopped) return
     useSyncStatusStore.getState().setOffline(!online)
     if (online) void runSyncCycle({ database, trigger: 'connectivity' })
@@ -56,8 +63,12 @@ export function startSyncScheduler(database: Database): () => void {
   let previousAppState: AppStateStatus = AppState.currentState
 
   const appStateSubscription = AppState.addEventListener('change', (next: AppStateStatus) => {
-    if (stopped) return
     const returningToForeground = previousAppState !== 'active' && next === 'active'
+    syncTrace(
+      `scheduler appstate ${previousAppState}->${next} ` +
+        `foreground=${returningToForeground} stopped=${stopped}`,
+    )
+    if (stopped) return
     previousAppState = next
 
     if (returningToForeground) void runSyncCycle({ database, trigger: 'foreground' })
