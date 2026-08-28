@@ -81,7 +81,16 @@ describe('the sync client', () => {
     await expect(syncHttpClient.get('/stourify/sync/delta')).rejects.toThrow()
 
     expect(onRejection).toHaveBeenCalledTimes(1)
-    expect(onRejection).toHaveBeenCalledWith('unauthenticated')
+    // The handler is told WHICH request was rejected, not just that one was —
+    // and in particular whether a credential went out with it, which is what
+    // separates "the server rejected my login" from "I asked anonymously"
+    // (STOURIFY-214).
+    expect(onRejection).toHaveBeenCalledWith('unauthenticated', {
+      status: 401,
+      method: 'GET',
+      path: '/stourify/sync/delta',
+      credentialSent: true,
+    })
   })
 
   it('re-arms the latch so a 401 after a fresh login is not swallowed', async () => {

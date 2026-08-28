@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { AuthRejectionDetail } from '@soxerp/offline-sync-core'
 import { useAuthStore } from '@/shared/store/auth'
 
 // `__DEV__`-gated fallback: `10.0.2.2` is the Android emulator's alias for the
@@ -38,9 +39,9 @@ client.interceptors.request.use((config) => {
  * dependency as `undefined` mid-initialisation — a failure that surfaces as a
  * sync layer that silently does nothing rather than as an error.
  */
-let authRejectionHandler: (() => void) | null = null
+let authRejectionHandler: ((detail: AuthRejectionDetail) => void) | null = null
 
-export function setApiAuthRejectionHandler(fn: () => void): void {
+export function setApiAuthRejectionHandler(fn: (detail: AuthRejectionDetail) => void): void {
   authRejectionHandler = fn
 }
 
@@ -52,7 +53,18 @@ client.interceptors.response.use(
       // the token, wipes the local database, drops the sync cursor and
       // navigates — none of which the old `clearAuth()` + `navigateTo()` pair
       // did.
-      authRejectionHandler?.()
+      //
+      // The detail is assembled here rather than left to the handler because
+      // this is the only place that still holds the request: afterwards there
+      // is nothing left to ask. `credentialSent` reads the header that actually
+      // went out, not the token store — the store can have been cleared in the
+      // meantime, and the question is what this request carried.
+      authRejectionHandler?.({
+        status: 401,
+        method: String(error.config?.method ?? 'unknown').toUpperCase(),
+        path: String(error.config?.url ?? 'unknown'),
+        credentialSent: Boolean(error.config?.headers?.Authorization),
+      })
     }
     return Promise.reject(error)
   },

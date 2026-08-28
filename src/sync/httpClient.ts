@@ -1,4 +1,8 @@
-import { createHttpClient, type HttpClient } from '@soxerp/offline-sync-core'
+import {
+  createHttpClient,
+  type AuthRejectionDetail,
+  type HttpClient,
+} from '@soxerp/offline-sync-core'
 import { authTokenStore } from './seams/tokenStore'
 
 /**
@@ -40,7 +44,10 @@ const { baseUrl, apiPath } = splitApiUrl(RAW_API_URL)
  */
 export const SYNC_TIMEOUT_MS = 20000
 
-let authRejectionHandler: (reason: 'disabled' | 'unauthenticated') => void = () => {}
+let authRejectionHandler: (
+  reason: 'disabled' | 'unauthenticated',
+  detail: AuthRejectionDetail,
+) => void = () => {}
 
 /**
  * Registered by whatever module owns session/app bootstrap (a later task —
@@ -66,7 +73,7 @@ let authRejectionHandler: (reason: 'disabled' | 'unauthenticated') => void = () 
  * removed, only unexercised.
  */
 export function setSyncAuthRejectionHandler(
-  fn: (reason: 'disabled' | 'unauthenticated') => void,
+  fn: (reason: 'disabled' | 'unauthenticated', detail: AuthRejectionDetail) => void,
 ): void {
   authRejectionHandler = fn
 }
@@ -101,7 +108,7 @@ export const syncHttpClient: HttpClient = createHttpClient({
   apiPath,
   tokenStore: authTokenStore,
   timeoutMs: SYNC_TIMEOUT_MS,
-  onAuthRejection: (reason) => authRejectionHandler(reason),
+  onAuthRejection: (reason, detail) => authRejectionHandler(reason, detail),
   onReachability: (ok) => reachabilityHandler(ok),
 })
 
