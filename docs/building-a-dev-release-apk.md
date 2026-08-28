@@ -61,6 +61,53 @@ cd saas-boilerplate && php artisan serve --host=0.0.0.0 --port=8000
 The API address is baked into the APK at build time from `mobile/.env` →
 `EXPO_PUBLIC_API_URL`. Set that file before you build, not after.
 
+## The build refuses to point this APK at production
+
+This is the one failure worth knowing about before you hit it, because the fix people reach for
+first is the wrong one.
+
+A `releaseDev` APK carries its JavaScript inside it, so the backend address is *compiled in*. Once
+the file exists, that address is a fact about the file rather than a setting anyone can change. And
+the address does not only come from `mobile/.env`: Expo reads several `.env` files for a
+release-family build, and it reads **`mobile/.env.production.local` above plain `.env`**. That file
+is gitignored, so it shows up in no diff and no test can assert its contents.
+
+On 2026-08-28 that produced a test APK pointing at the production backend, and two sign-in attempts
+reached it before anybody noticed (STOURIFY-231). Nothing errored — every request was answered, by
+the wrong server. That is the shape of this failure and the reason it needs a guard rather than
+care.
+
+So the Gradle build now **fails** rather than producing such a file. It stops for three things:
+
+- **nothing set at all** — the app's own fallback for a non-development build is the production
+  address, so an unset variable is not a neutral state (STOURIFY-232);
+- **an address belonging to a tier `app.json` declares as non-development**;
+- **an address that disagrees with `mobile/.env`** — compared by scheme, host and port, so a
+  trailing slash is fine and a different port is not.
+
+The message names the file or environment variable the value came from. **If it names
+`.env.production.local`, do not delete that file** — production builds need it. Build with
+`.\scripts\mobile-apk-builder.ps1 -ReleaseDev`, which hides it for the length of the build and puts
+it straight back.
+
+This lives in the build on purpose. It used to live only in the PowerShell script above, which
+protected whoever typed that command and nobody else — and an automated runner naturally calls
+`gradlew` directly. `mobile/__tests__/android/apiUrlGuard.test.ts` is what stops it moving back out.
+
+### Reading the address out of a finished APK
+
+The build checks its own output, but you can ask any APK the same question — one somebody sent you,
+or one built before this guard existed:
+
+```bash
+bash scripts/check-apk-api-url.sh mobile/android/app/build/outputs/apk/releaseDev/app-releaseDev.apk
+```
+
+Exit `0` means it carries the backend `mobile/.env` declares. Exit `1` means it carries something it
+must not, or is missing the one it should. Exit `2` means there was nothing inside to measure, which
+is not the same as a pass. **Run it before `adb install`** — a live run that installs first and asks
+afterwards has already sent its first request somewhere.
+
 ## When to reach for it
 
 Use `releaseDev` when you need **both** of these at once:
