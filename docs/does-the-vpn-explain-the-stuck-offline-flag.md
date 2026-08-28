@@ -213,24 +213,92 @@ been merged once, on a gate that had measured red, and reverted the next day.
 
 ## Reproducing this yourself
 
-The protocol is a shell loop with `adb`; nothing here needs a rebuild.
+Nothing here needs a rebuild. **Do not retype the loop by hand** — run
+`scripts/handset-round-loop.sh`, which is the same protocol with three things the hand-typed version
+did not have: it claims the phone before it touches it, it says out loud that it is still going, and
+it throws away any round it cannot vouch for.
 
-**Step zero, and it is not optional: start the backend through the router script and prove the log
-is alive**, exactly as *Starting the backend so that it actually logs* above sets out. A silent log
-turns every round below into a false "stuck", so a session that skips this check produces results
-that are worse than none.
+### Step zero: take the guard, and do not skip it because somebody told you the last loop finished
+
+A relay runner does not set off because a spectator shouted that the last runner has arrived. They
+set off when the baton is in their hand. A "finished" message is somebody's account of a process; the
+baton is the process itself.
+
+That distinction cost half a session on 2026-08-28. A harness reported the round loop had stopped, a
+second loop was started on the strength of it, and for nine minutes two loops toggled one handset's
+radio — each one's airplane change landing inside the other's counting minute. Rounds 39 to 45 were
+thrown away (STOURIFY-227). **Waiting longer before starting the second loop would not have helped:
+the report was wrong, not late.**
+
+So ask the machine instead:
 
 ```bash
-adb -s <serial> shell am force-stop com.zivsluck.stourify
-adb -s <serial> shell am start -n com.zivsluck.stourify/.MainActivity
-sleep 20
-adb -s <serial> shell cmd connectivity airplane-mode enable
-sleep 15
-adb -s <serial> shell cmd connectivity airplane-mode disable
-# then watch the backend's request log for 60 seconds, touching nothing
-adb -s <serial> logcat -d | grep S134 | tail -40
+bash scripts/handset-round-loop.sh status --serial <serial>
 ```
 
-Two practical notes. Attach the phone over **USB**, not wireless debugging — airplane mode kills a
-wireless link and takes your view of the device with it. And keep the screen awake with
-`adb shell svc power stayon usb`, remembering to put it back with `svc power stayon false`.
+`free` means no round loop on this machine holds that phone. Anything else prints who holds it, which
+run it belongs to, and how long ago that loop last said it was alive — and exits `3`. The loop itself
+makes the same check when it starts, so you cannot forget it; `status` is for when you want to know
+before you commit to a session.
+
+### Step one: start the backend and prove its log is alive
+
+Exactly as *Starting the backend so that it actually logs* above sets out. A silent log turns every
+round into a false "stuck", so a session that skips this check produces results that are worse than
+none. The loop refuses to start if the log file does not exist at all, but it cannot tell a log that
+is merely quiet from a log that is broken — only your hand-made request can do that.
+
+### Step two: run the rounds
+
+```bash
+bash scripts/handset-round-loop.sh run   --serial <serial>   --rounds 20   --backend-log /tmp/backend.log   --owner "<your card key>"   --instance "<something unique to this run>"   --out rounds.tsv
+```
+
+It prints one line per round — `CLEAN`, `STUCK` or `SUSPECT` — and a tally at the end. Exit `0` means
+every round was trustworthy, `1` means at least one was not, and `3` means another loop already has
+the phone and **nothing was done to it**.
+
+`--owner` and `--instance` are two different facts and both matter. The owner says *what work* this
+is; the instance says *which run*. Two runs of one card share an owner, so the owner alone can never
+answer the only question a refusal turns on — is this claim mine?
+
+### What `SUSPECT` means, and why it is not a failure of the app
+
+A suspect round is one the loop cannot vouch for, so it is counted neither clean nor stuck. Two
+things produce it:
+
+- **`airplane-state-not-ours`** — the phone's airplane setting was not what this loop last left it
+  as. Something else has been at the phone. This is the check that would have caught the incident
+  above on its *first* overlapping round rather than at round 39, and it is the one that matters.
+- **`round-too-fast`** — the round's wall clock came in under the floor. This one is weaker than it
+  looks and it is worth knowing why: a round built out of `sleep` calls cannot be shortened by
+  another loop, so it never catches a second driver. What it does catch is a sleep cut short by a
+  signal, a laptop resuming from suspend, or a stray Ctrl-C between phases — each of which makes a
+  round's verdict meaningless in the same way.
+
+Either way, do not argue with it and do not fold it into a rate. Find out what else was driving the
+phone, then re-run those rounds.
+
+### If a loop dies without cleaning up
+
+The claim carries a heartbeat that the loop rewrites at every phase boundary. Once that heartbeat is
+older than five minutes the claim is abandoned, and the next loop takes it over and says so. If you
+are certain a loop is gone and do not want to wait:
+
+```bash
+bash scripts/handset-round-loop.sh release --serial <serial> --force
+```
+
+Releasing a phone nothing holds succeeds, so this is safe to put in a teardown that always runs.
+
+### Two practical notes about the phone itself
+
+Attach it over **USB**, not wireless debugging — airplane mode kills a wireless link and takes your
+view of the device with it. And keep the screen awake with `adb shell svc power stayon usb`,
+remembering to put it back with `svc power stayon false`.
+
+To read the app's own diagnostic lines alongside the rounds:
+
+```bash
+adb -s <serial> logcat -d | grep S134 | tail -40
+```
