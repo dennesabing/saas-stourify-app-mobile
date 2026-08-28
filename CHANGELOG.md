@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The feed no longer tells you your connection is broken when the server said no
+  (STOURIFY-225).** On the test handset the Home tab showed "We couldn't reach Stourify just now.
+  Check your connection and try again." while the sync layer, in the same app in the same seconds,
+  was talking to that same server without a hitch. The feed's request had been answered too. The
+  answer was `403 This action is unauthorized.`
+
+  So the screen was sending somebody to look at their wifi over a permission problem they cannot see
+  and could not have fixed. Picture ringing a shop, being told you are not a member, and reporting
+  afterwards that the line was dead.
+
+  The information was never missing. A failed request from `axios` carries a `response` when the
+  server answered and carries none when it did not, and the status says which answer — the screen was
+  holding both facts and never read either. `src/shared/api/errorMessage.ts` now reads them, in one
+  small function, and `FeedScreen` asks it what to say. A dead network still gets the old sentence,
+  because for a dead network the old sentence was right; a deadline that ran out says the server was
+  slow rather than absent; a `403` says the account is not allowed and mentions the connection
+  nowhere. A test pins that last absence, because a screen that stacked both sentences would pass a
+  test that only checked the new one was present.
+
+  Twelve other screens still carry the original wording and are STOURIFY-230. Two things the
+  diagnosis turned up on the server side are STOURIFY-228 and STOURIFY-229.
+
 - **The handset procedure no longer tells you to clear the setting that keeps the phone unlocked
   (STOURIFY-226).** `docs/does-the-vpn-explain-the-stuck-offline-flag.md` used to say: keep the
   screen awake with `adb shell svc power stayon usb`, "remembering to put it back with `svc power
