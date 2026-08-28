@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The production APK can be built again (STOURIFY-234).** The guard added yesterday under
+  STOURIFY-231 refused every production `assembleRelease`, so the 0.9.0 release could not be built
+  at all. It decided whether to refuse by asking "is the task called `preReleaseDevBuild`
+  running?" — which reads like a precise question about the `releaseDev` variant and is not one.
+  Android's C++ compilation tasks are named after the **CMake** build type (`RelWithDebInfo`), not
+  after the Android variant, so `release` and `releaseDev` share one set of them; a shared task has
+  to wait for the setup step of every variant that uses it, which pulls `releaseDev`'s setup step
+  into the production build's task list. A bouncer told to turn away anyone with a visitor badge,
+  posted at the door everybody walks through, does not let the wrong people in — he stops
+  everybody.
+
+  The guard now asks the **task graph** whether a `releaseDev` artifact is actually going to be
+  produced, keyed on tasks that only a `releaseDev` assembly ever puts there. Gradle hands that list
+  over before it executes anything, so the answer arrives even faster than before.
+
+  **Nothing about what the guard refuses has changed.** All three refusals from STOURIFY-231 —
+  nothing resolved, a non-development tier, a disagreement with `mobile/.env` — are untouched, and
+  the check that actually guarantees them still sits on `createBundleReleaseDevJsAndAssets`, the
+  task that compiles the address in. The fast check is now an optimisation rather than the thing
+  safety rests on: if its knowledge of Android's task names ever goes stale, the cost is a slower
+  refusal and never a missing one.
+
+  `mobile/__tests__/android/apiUrlGuard.test.ts` now asserts **both** directions. Covering only one
+  of them is exactly how this happened.
+
 ## [0.9.0] - 2026-08-28
 
 ### Added
