@@ -291,11 +291,37 @@ bash scripts/handset-round-loop.sh release --serial <serial> --force
 
 Releasing a phone nothing holds succeeds, so this is safe to put in a teardown that always runs.
 
-### Two practical notes about the phone itself
+### Practical notes about the phone itself
 
 Attach it over **USB**, not wireless debugging — airplane mode kills a wireless link and takes your
-view of the device with it. And keep the screen awake with `adb shell svc power stayon usb`,
-remembering to put it back with `svc power stayon false`.
+view of the device with it.
+
+**The screen is already set to stay awake while the phone is plugged in, and you leave that alone.**
+Android calls the setting `stay_on_while_plugged_in`; on this handset the operator set it to `2` —
+stay awake while charging over USB — on 2026-08-28, permanently. It is not this run's setting and
+never was, so there is nothing to put back. If you run `adb shell svc power stayon usb` yourself you
+are writing the value the phone already holds, which changes nothing and therefore owes nothing.
+
+This page used to end that sentence with *"remembering to put it back with `svc power stayon
+false`"*, and that half-line is the whole reason this section is now four paragraphs long. Clearing
+the flag lets the screen time out about ten minutes later; the lock screen then comes back, and the
+phone sits behind a PIN that no session on the dev box holds or should hold. The next card that
+needs a real phone simply cannot start. It cost two skipped device cards in one drain, plus three
+earlier attempts at STOURIFY-134 that each built and unit-tested a change they could then not verify
+(STOURIFY-226).
+
+The general rule this is an instance of lives in `.claude/docs/testing.md` → `## Teardown`, rule 6:
+a device-preparation setting the operator owns is not part of a run's delta, even when a run also
+writes to it. The full list for this handset — what to leave alone, what to restore, and how to
+check without changing anything — is in the root repo's
+`docs/testing/what-a-run-must-not-restore-on-the-test-handset.md`.
+**Everything else about the phone is still restored exactly as you found it** — the
+VPN back up and confirmed, airplane mode off, nothing installed or uninstalled, the login and the
+local database untouched.
+
+`2` rather than `7` is deliberate: `7` would add mains and wireless charging, holding an AMOLED
+screen lit all night on a wall charger for no benefit, since the phone only needs to stay awake
+while it is tethered to the dev box.
 
 To read the app's own diagnostic lines alongside the rounds:
 

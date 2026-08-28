@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The handset procedure no longer tells you to clear the setting that keeps the phone unlocked
+  (STOURIFY-226).** `docs/does-the-vpn-explain-the-stuck-offline-flag.md` used to say: keep the
+  screen awake with `adb shell svc power stayon usb`, "remembering to put it back with `svc power
+  stayon false`". That half-sentence was the instruction that stalled a board drain.
+
+  Clearing the flag lets the screen time out about ten minutes later. The lock screen then comes
+  back, and the phone sits behind a PIN that nothing on the dev box holds — so the next card needing
+  a real phone cannot start at all. It cost two skipped device cards in one drain, plus three earlier
+  attempts at STOURIFY-134 that each built and unit-tested a change they could then not verify.
+
+  The setting is `stay_on_while_plugged_in`, the operator set it to `2` on 2026-08-28, and it is
+  permanent. It is not a run's setting, so there is nothing to put back — writing the value the phone
+  already holds changes nothing and owes nothing. Everything else about the phone is still restored
+  exactly as found: the VPN back up and confirmed, airplane mode off, nothing installed or
+  uninstalled, the login and the local database untouched. The general rule is
+  `.claude/docs/testing.md` → `## Teardown`, rule 6; the full per-setting list for this handset is in
+  the orchestrator repo's `docs/testing/what-a-run-must-not-restore-on-the-test-handset.md`.
+
 ### Changed
 
 - **The reconnect protocol's first step is now taking a guard on the phone, not trusting a report
