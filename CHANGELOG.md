@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The reconnect protocol's first step is now taking a guard on the phone, not trusting a report
+  that the last loop finished (STOURIFY-227).** `docs/does-the-vpn-explain-the-stuck-offline-flag.md`
+  used to end with six `adb` lines to retype. It now sends you to `scripts/handset-round-loop.sh` in
+  the orchestrator repo, and it opens by saying why: on 2026-08-28 a harness reported the round loop
+  had stopped, it had not, and for nine minutes two loops toggled one handset's radio underneath each
+  other's rounds. Seven rounds were discarded. Waiting longer before starting the second loop would
+  not have helped — the report was wrong, not late — so the answer is to ask the machine instead.
+
+  The section also explains what a `SUSPECT` round is and why it is counted neither clean nor stuck,
+  and which of the two checks that produce one is load-bearing: a round made of `sleep` calls cannot
+  be shortened by another loop, so the wall-clock floor never catches a second driver. The check that
+  the phone's airplane setting is what the loop last left it as does, in the round it happens.
+
 - **Sixty reconnects on the handset, sixty of them clean — the stuck-sync fault did not appear
   (STOURIFY-221).** With the sync trace on, sixty airplane-mode reconnects on the physical Samsung
   all ended with a `sync/delta` request reaching the backend inside the sixty-second watch: the
