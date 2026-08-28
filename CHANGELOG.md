@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A build that was told nothing no longer guesses production (STOURIFY-232).** Three files —
+  `src/shared/api/client.ts`, `src/sync/httpClient.ts` and `src/shared/config/legal.ts` — each
+  worked out the backend address for themselves, with the same line: use `EXPO_PUBLIC_API_URL`, and
+  if nothing set it, use the emulator loopback for a development build and **the production
+  backend** for anything else. Read as a sentence: *if nobody told me where to go, drive to head
+  office.* The trap is that `__DEV__` does not mean "development build" — it is false for a
+  `releaseDev` APK, the build our own offline tests install, exactly as it is false for a production
+  one. At run time the app cannot tell those two apart, so no single default can be right for
+  production and safe for `releaseDev` at the same time.
+
+  There is now one file that decides, `src/shared/config/apiUrl.ts`, and the three above import it.
+  Its rule: use the address you were given; with none, a development build falls back to
+  `http://10.0.2.2:8000/api/v1` (this laptop and nowhere else); anything else **refuses to start**,
+  with a message naming the variable and where to set it. A blank value counts as no value.
+
+  The old guess existed for a real reason — `mobile/.env` is gitignored, so it never reaches an EAS
+  builder, and a production build that lost its variable would still have worked. That case can no
+  longer happen quietly: `eas.json` sets the variable on every build profile, and
+  `android/app/build.gradle` refuses any variant when nothing resolved (STOURIFY-231,
+  STOURIFY-234). A test reads the app's own source and fails if a second copy of the rule, or the
+  production address as a fallback, ever appears again.
+
 ### Fixed
 
 - **The production APK can be built again (STOURIFY-234).** The guard added yesterday under

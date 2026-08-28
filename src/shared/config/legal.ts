@@ -1,4 +1,5 @@
 import { splitApiUrl } from '@/sync/httpClient'
+import { API_URL } from '@/shared/config/apiUrl'
 
 /**
  * URLs of the public legal pages.
@@ -19,10 +20,10 @@ import { splitApiUrl } from '@/sync/httpClient'
  * So the website address is now stated, not inferred. It still falls back to the
  * old derivation when nothing sets it, because a dev build talking to a laptop
  * has no separate website to point at and the backend does serve these pages.
+ *
+ * The backend address itself is no longer worked out here either — it comes from
+ * `shared/config/apiUrl.ts`, the one place that decides it (STOURIFY-232).
  */
-const RAW_API_URL =
-  process.env.EXPO_PUBLIC_API_URL ??
-  (__DEV__ ? 'http://10.0.2.2:8000/api/v1' : 'https://api.stourify.com/api/v1')
 
 /**
  * Origin of the public website.
@@ -32,7 +33,7 @@ const RAW_API_URL =
  * A trailing slash is trimmed so the paths below never produce a double one.
  */
 export const WEB_BASE_URL = (
-  process.env.EXPO_PUBLIC_WEB_URL ?? splitApiUrl(RAW_API_URL).baseUrl
+  process.env.EXPO_PUBLIC_WEB_URL ?? splitApiUrl(API_URL).baseUrl
 ).replace(/\/+$/, '')
 
 export const PRIVACY_POLICY_URL = `${WEB_BASE_URL}/privacy`

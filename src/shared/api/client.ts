@@ -1,14 +1,12 @@
 import axios from 'axios'
 import type { AuthRejectionDetail } from '@soxerp/offline-sync-core'
+import { API_URL } from '@/shared/config/apiUrl'
 import { useAuthStore } from '@/shared/store/auth'
 
-// `__DEV__`-gated fallback: `10.0.2.2` is the Android emulator's alias for the
-// host loopback and resolves to nothing on a real phone. `mobile/.env` is
-// gitignored so it never reaches an EAS builder — see `src/sync/httpClient.ts`
-// for the full note. `eas.json` sets this explicitly on every build profile.
-const API_URL =
-  process.env.EXPO_PUBLIC_API_URL ??
-  (__DEV__ ? 'http://10.0.2.2:8000/api/v1' : 'https://api.stourify.com/api/v1')
+// Which backend this talks to is decided in ONE place, `shared/config/apiUrl.ts`
+// — read the note there for why it refuses rather than guessing production when
+// nothing set an address (STOURIFY-232). This file used to work it out itself,
+// and so did two others.
 
 export const client = axios.create({
   baseURL: API_URL,

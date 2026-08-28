@@ -3,6 +3,7 @@ import {
   type AuthRejectionDetail,
   type HttpClient,
 } from '@soxerp/offline-sync-core'
+import { API_URL } from '@/shared/config/apiUrl'
 import { authTokenStore } from './seams/tokenStore'
 
 /**
@@ -20,19 +21,11 @@ export function splitApiUrl(url: string): { baseUrl: string; apiPath: string } {
   return { baseUrl: trimmed, apiPath: 'api/v1' }
 }
 
-// Same env var the axios client reads (`src/shared/api/client.ts`) — one source
-// of truth for the host. `eas.json` now sets it explicitly on every profile.
-//
-// The fallback is deliberately `__DEV__`-gated. `10.0.2.2` is the Android
-// emulator's alias for the host machine's loopback and resolves to nothing on a
-// real phone, so a release binary that fell through to it would fail every
-// request — login, feed and sync alike — with no clue why. `mobile/.env` is
-// gitignored and never reaches an EAS builder, so that fallback was the ONLY
-// thing a production APK would have used before this.
-const RAW_API_URL =
-  process.env.EXPO_PUBLIC_API_URL ??
-  (__DEV__ ? 'http://10.0.2.2:8000/api/v1' : 'https://api.stourify.com/api/v1')
-const { baseUrl, apiPath } = splitApiUrl(RAW_API_URL)
+// The same address the axios client uses, from the one place that decides it
+// (`shared/config/apiUrl.ts`) — so the two clients cannot end up pointed at
+// different hosts. That file also explains why a build with nothing set refuses
+// to start instead of guessing production (STOURIFY-232).
+const { baseUrl, apiPath } = splitApiUrl(API_URL)
 
 /**
  * React Native's fetch has NO default timeout, so a stalled socket hangs forever
