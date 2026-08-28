@@ -13,6 +13,7 @@ import {
   syncHttpClient,
 } from './httpClient'
 import { syncNow } from './scheduler'
+import { recordSignOut, type SignOutCause } from './signOutRecord'
 import { resetSyncStatus, useSyncStatusStore } from './status'
 
 /**
@@ -76,6 +77,12 @@ export async function onLogin(database: Database = getDatabase()): Promise<void>
  *  6. `navigateTo('Login')` last — only once the device is actually clean does
  *     the user get moved off the authenticated stack.
  *
+ * Before any of that, it writes ONE line saying why it is running and how much
+ * unsent work it is about to destroy (`signOutRecord.ts`). That line has to be
+ * written first for a reason that is easy to get wrong: the queue depth it
+ * reports is reset by step 5, so a record written at the end would say zero on
+ * every sign-out, including the ones that threw away a user's work.
+ *
  * Task 13's cycle is fire-and-forget: its mutex prevents a *second* cycle from
  * overlapping this teardown, but it does NOT cancel a cycle already in flight
  * when `signOut` is called. A cycle that started a moment earlier can still be
@@ -105,7 +112,14 @@ export async function onLogin(database: Database = getDatabase()): Promise<void>
 export async function signOut(
   database: Database = getDatabase(),
   qc: QueryClient = defaultQueryClient,
+  cause: SignOutCause = { trigger: 'user-logout' },
 ): Promise<void> {
+  // Written BEFORE anything is torn down: the pending counts are cleared by
+  // `resetSyncStatus()` below, so a record taken afterwards would report an
+  // empty queue no matter how much was actually lost.
+  const { pendingCount, pendingMediaCount } = useSyncStatusStore.getState()
+  recordSignOut(cause, { pendingCount, pendingMediaCount })
+
   // Step 0: kill the ambient triggers FIRST. A scheduler left running fires
   // connectivity/foreground cycles against a database that is about to be
   // wiped, with a token that is about to be cleared — each one 401s, and each
@@ -135,12 +149,12 @@ export function installSyncSessionHandlers(database: Database, stop?: () => void
   // The app-wide API client's 401 path. Registered rather than imported by
   // `client.ts`, which would close a require cycle through the media drain —
   // see the comment on `setApiAuthRejectionHandler`.
-  setApiAuthRejectionHandler(() => {
-    void signOut(database)
+  setApiAuthRejectionHandler((detail) => {
+    void signOut(database, undefined, { trigger: 'api-client-rejected', detail })
   })
 
-  setSyncAuthRejectionHandler(() => {
-    void signOut(database)
+  setSyncAuthRejectionHandler((_reason, detail) => {
+    void signOut(database, undefined, { trigger: 'sync-client-rejected', detail })
   })
 
   setSyncReachabilityHandler((ok) => {

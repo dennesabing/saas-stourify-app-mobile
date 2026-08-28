@@ -128,7 +128,7 @@ export default function SettingsScreen({ navigation }: Props) {
       // The server has already revoked every token, so the local database and
       // sync cursor are now orphaned state describing an account that no longer
       // exists. signOut() is the one path that clears all of it.
-      await signOut()
+      await signOut(undefined, undefined, { trigger: 'account-closed' })
     },
     onError: async (error: any) => {
       // A timeout is not a rejection — see DELETION_TIMEOUT_NOTE in
@@ -138,7 +138,7 @@ export default function SettingsScreen({ navigation }: Props) {
       // revoked, and every retry answers 401.
       if (deletionOutcomeIsUnknown(error)) {
         setConfirmingDelete(false)
-        await signOut()
+        await signOut(undefined, undefined, { trigger: 'account-closed' })
         return
       }
 

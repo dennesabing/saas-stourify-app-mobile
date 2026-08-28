@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A sign-out now writes down why it happened, before it destroys the evidence (STOURIFY-214).**
+  The app can end its own session: a `401` from either HTTP client runs `signOut()`, which clears
+  the token, drops the sync cursor, wipes every local row and returns to the login screen. On a real
+  handset that was seen happening with nobody touching the phone — two airplane-mode cycles and the
+  app was on `Welcome back` — and afterwards there was nothing at all to read, because the database
+  that might have held a clue was the thing that had just been erased.
+
+  `src/sync/signOutRecord.ts` writes one line at the moment of the decision, naming what triggered
+  it (a user logout, a closed account, or a rejection from one of the two clients), the status code,
+  the method and path of the request, whether a credential was actually sent, and how many unsent
+  rows and unsent photos were about to be destroyed. Read it with `adb logcat | grep S214`.
+
+  Two details that are deliberate rather than incidental. It is written **first**, before the
+  teardown, because the queue depth it reports is reset partway through — a record taken at the end
+  would say zero on every sign-out, including the ones that threw a user's work away. And it is
+  **always on**, unlike the `EXPO_PUBLIC_SYNC_TRACE` sync trace next door, because an instrument you
+  have to arm in advance is one you do not have the one time it fires.
+
+  `docs/what-makes-the-app-sign-itself-out.md` is the write-up: what reading the code already ruled
+  out, the suspect nobody had named — a request that goes out with no credential at all, earns a
+  perfectly correct `401`, and has it read as a rejected login — and how to read the new line.
+
+  Nothing about when the app signs out changed. That is STOURIFY-224.
+
+
 - **The reconnect protocol now proves its own instrument is alive before it counts a round
   (STOURIFY-223).** `docs/does-the-vpn-explain-the-stuck-offline-flag.md` judges every round by
   whether a request reached the local backend, and an empty log is what a stuck round looks like —

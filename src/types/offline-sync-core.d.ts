@@ -108,13 +108,26 @@ declare module '@soxerp/offline-sync-core' {
   // ---- httpClient.ts ----
   export function isNetworkFailure(error: unknown): boolean
 
+  /**
+   * What the client knew when it decided a response was an auth rejection.
+   * `credentialSent` is false when the request went out with no `Authorization`
+   * header at all, which makes a `401` a correct answer to an anonymous
+   * question rather than evidence about the stored token.
+   */
+  export interface AuthRejectionDetail {
+    status: number
+    method: string
+    path: string
+    credentialSent: boolean
+  }
+
   export interface HttpClientOptions {
     baseUrl: string
     apiPath: string
     tokenStore: TokenStore
     getOrgId?: () => string | null
     timeoutMs?: number
-    onAuthRejection?: (reason: 'disabled' | 'unauthenticated') => void
+    onAuthRejection?: (reason: 'disabled' | 'unauthenticated', detail: AuthRejectionDetail) => void
     onReachability?: (ok: boolean) => void
   }
 

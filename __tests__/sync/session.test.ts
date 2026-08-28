@@ -255,3 +255,78 @@ describe('onLogin', () => {
     expect(spy).toHaveBeenCalled()
   })
 })
+
+/**
+ * STOURIFY-214 — the sign-out nobody asked for.
+ *
+ * The app was seen wiping its own database and returning to the login screen
+ * after nothing but airplane mode going on and off, and afterwards there was no
+ * way at all to find out what had triggered it. These assertions are about the
+ * record that closes that gap: one line, written before anything is destroyed,
+ * naming what caused the teardown and how much unsent work it is about to take
+ * with it.
+ */
+describe('the record signOut leaves behind', () => {
+  it('names the response that triggered it and the unsent work it is about to destroy', async () => {
+    const database = createTestDatabase()
+    useAuthStore.setState({ token: 'tok', user: ANA })
+    useSyncStatusStore.setState({ pendingCount: 4, pendingMediaCount: 2 })
+    const spy = jest.spyOn(console, 'log').mockImplementation(() => {})
+
+    try {
+      await signOut(database, undefined, {
+        trigger: 'sync-client-rejected',
+        detail: {
+          status: 401,
+          method: 'GET',
+          path: '/stourify/sync/delta',
+          credentialSent: false,
+        },
+      })
+
+      const lines = spy.mock.calls.map((c) => String(c[0])).filter((l) => l.includes('signOut '))
+      expect(lines).toHaveLength(1)
+      expect(lines[0]).toContain('trigger=sync-client-rejected')
+      expect(lines[0]).toContain('status=401')
+      expect(lines[0]).toContain('path=/stourify/sync/delta')
+      expect(lines[0]).toContain('credentialSent=false')
+      expect(lines[0]).toContain('unsentRows=4')
+      expect(lines[0]).toContain('unsentPhotos=2')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('reads the queue depth BEFORE the wipe, or the number would always be zero', async () => {
+    const database = createTestDatabase()
+    useAuthStore.setState({ token: 'tok', user: ANA })
+    useSyncStatusStore.setState({ pendingCount: 7, pendingMediaCount: 0 })
+    const spy = jest.spyOn(console, 'log').mockImplementation(() => {})
+
+    try {
+      await signOut(database)
+
+      const line = spy.mock.calls.map((c) => String(c[0])).find((l) => l.includes('signOut '))
+      expect(line).toContain('unsentRows=7')
+      // …and by the time signOut has finished, the counter really is back to zero,
+      // which is exactly why the reading has to happen first.
+      expect(useSyncStatusStore.getState().pendingCount).toBe(0)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('defaults to a user logout when nothing says otherwise', async () => {
+    const database = createTestDatabase()
+    useAuthStore.setState({ token: 'tok', user: ANA })
+    const spy = jest.spyOn(console, 'log').mockImplementation(() => {})
+
+    try {
+      await signOut(database)
+      const line = spy.mock.calls.map((c) => String(c[0])).find((l) => l.includes('signOut '))
+      expect(line).toContain('trigger=user-logout')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+})
