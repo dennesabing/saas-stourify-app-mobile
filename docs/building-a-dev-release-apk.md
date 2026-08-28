@@ -94,6 +94,33 @@ This lives in the build on purpose. It used to live only in the PowerShell scrip
 protected whoever typed that command and nobody else — and an automated runner naturally calls
 `gradlew` directly. `mobile/__tests__/android/apiUrlGuard.test.ts` is what stops it moving back out.
 
+### It does not touch the production build, and once it did
+
+**`./gradlew assembleRelease` — the real production build — is not affected by any of the above.**
+A production APK is *supposed* to carry the production address, and this guard has nothing to say
+about it.
+
+That sentence is here because for a few hours it was false. The first version of the guard decided
+whether to refuse by asking "is the task called `preReleaseDevBuild` running?", which reads like a
+precise question about this variant and is not one: Gradle runs that task during an ordinary
+production build too, so the production release refused itself and no APK could be built at all
+(STOURIFY-234).
+
+The reason is worth knowing if you ever add a build type here. Android's C++ compilation tasks are
+named after the **CMake** build type — `configureCMakeRelWithDebInfo` — not after the Android
+variant. `release` and `releaseDev` both compile native code as `RelWithDebInfo`, so they *share*
+one set of those tasks, and a shared task has to wait for the setup step of every variant that uses
+it. That is what pulls `releaseDev`'s setup step into the production build. You can see the whole
+thing for yourself in about half a minute:
+
+```bash
+cd mobile/android && ./gradlew assembleRelease --dry-run   # lists every task, runs none of them
+```
+
+`:app:preReleaseDevBuild` is still in that list today. The guard simply no longer reads it as a
+signal: it asks the task graph whether a `releaseDev` artifact is actually going to be produced, and
+the refusal that really matters sits on the task that compiles the address in.
+
 ### Reading the address out of a finished APK
 
 The build checks its own output, but you can ask any APK the same question — one somebody sent you,

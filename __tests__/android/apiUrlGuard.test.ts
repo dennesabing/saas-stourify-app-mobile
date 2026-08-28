@@ -97,3 +97,89 @@ describe('the releaseDev build refuses to bake in the wrong backend', () => {
     expect(gradle).not.toMatch(/renameTo|\.delete\(\)/);
   });
 });
+
+/**
+ * The other direction: the guard must not refuse a PRODUCTION build.
+ *
+ * A bouncer told to stop anyone wearing a visitor badge is useless if he is posted
+ * at the door everybody walks through. On 2026-08-28 that is exactly what happened:
+ * the guard above decided whether to refuse by asking "is the task called
+ * `preReleaseDevBuild` running?", and Gradle runs that task during a normal
+ * production `assembleRelease` too. The production release could not be built at
+ * all (STOURIFY-234).
+ *
+ * The reason is visible in the task names. Android's C++ compilation tasks are named
+ * after the CMake build type — `RelWithDebInfo` — and not after the Android variant,
+ * so `release` and `releaseDev` share one set of them. A shared task has to wait for
+ * the setup step of every variant that uses it, so the production build ends up
+ * running `releaseDev`'s setup step as well.
+ *
+ * Both directions are asserted here on purpose. STOURIFY-231 tested only that a bad
+ * dev build is refused, which is why nobody noticed that every good production build
+ * was refused too. A test that covers one direction is how this happened, so fixing
+ * one of these by breaking the other has to fail here.
+ */
+describe('…and it does not refuse a production build', () => {
+  // Comments in the build file legitimately discuss `preReleaseDevBuild` — that is
+  // the whole story of this bug. What must not come back is the CODE keying on it,
+  // so the comments are stripped before looking.
+  //
+  // The carriage returns come off FIRST, and that is not tidying. This file is
+  // checked out with Windows line endings, and in a JavaScript regular expression
+  // `.` refuses to match a carriage return the same way it refuses a newline — so
+  // `//.*$` matched nothing at all and every comment sailed through. The stripper
+  // silently did nothing and the assertion silently passed on prose.
+  const code = gradle
+    .replace(/\r/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .map((line) => line.replace(/(^|\s)\/\/.*$/, ''))
+    .join('\n');
+
+  // Tasks Gradle runs during a production `assembleRelease` even though their names
+  // say `releaseDev`. Measured with `./gradlew assembleRelease --dry-run`, which
+  // prints the real list: this is the only one, out of roughly six hundred tasks.
+  const IN_THE_PRODUCTION_GRAPH = ['preReleaseDevBuild'];
+
+  it.each(IN_THE_PRODUCTION_GRAPH)(
+    'never keys the guard on %s, which a production build also runs',
+    (taskName) => {
+      expect(code).not.toContain(taskName);
+    },
+  );
+
+  it('asks the task graph what is actually being built, rather than guessing from one task', () => {
+    // The honest question is "is this build going to produce a releaseDev artifact?",
+    // and the task graph is the thing that decides that. Gradle hands the whole list
+    // over before it executes anything, which is also EARLIER than the old check ran.
+    expect(code).toContain('taskGraph.whenReady');
+  });
+
+  it('keys the graph check on tasks only a releaseDev assembly puts there', () => {
+    // Each of these exists solely on the releaseDev path. None of them appears in
+    // `assembleRelease --dry-run`.
+    for (const anchor of [
+      'assembleReleaseDev',
+      'packageReleaseDev',
+      'bundleReleaseDev',
+      'createBundleReleaseDevJsAndAssets',
+    ]) {
+      expect(code).toContain(anchor);
+    }
+  });
+
+  it('still refuses at the task that actually compiles the address in', () => {
+    // This is the part that must survive every future edit. The graph check above is
+    // only about how FAST you find out; this one is why the answer is right at all.
+    // If the graph reasoning ever goes stale, the cost is a slower refusal, never a
+    // missing one.
+    expect(code).toMatch(
+      /createBundleReleaseDevJsAndAssets[\s\S]{0,200}?assertDevApiUrlIsSafe/,
+    );
+  });
+
+  it('still opens the finished releaseDev APK and checks what went in', () => {
+    // Bundling can be skipped as up to date, and an input check is a prediction.
+    expect(code).toMatch(/assembleReleaseDev[\s\S]{0,600}?assertApkApiUrlIsSafe/);
+  });
+});
