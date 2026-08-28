@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Sixty reconnects on the handset, sixty of them clean — the stuck-sync fault did not appear
+  (STOURIFY-221).** With the sync trace on, sixty airplane-mode reconnects on the physical Samsung
+  all ended with a `sync/delta` request reaching the backend inside the sixty-second watch: the
+  connectivity edge fired sixty times out of sixty, a cycle started within a millisecond of it every
+  time, no cycle was ever turned away holding the latch, and every cycle that started also finished.
+
+  **This is a failure to reproduce, not progress.** Nothing in the app changed, nothing about the
+  bug is understood, and no repair was designed. What it buys is one number: four stuck rounds in
+  123 across every session on this handset, about one in thirty rather than the one in fifteen
+  everybody had been planning against — which means running the same protocol again is a coin toss
+  and the next attempt should change the protocol instead. The full record, including two limits of
+  the measurement that bound what any number of clean rounds could prove, is
+  `docs/sixty-reconnect-rounds-with-the-trace-on.md`.
+
 - **A sign-out now writes down why it happened, before it destroys the evidence (STOURIFY-214).**
   The app can end its own session: a `401` from either HTTP client runs `signOut()`, which clears
   the token, drops the sync cursor, wipes every local row and returns to the login screen. On a real
