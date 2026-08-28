@@ -51,6 +51,260 @@ def resolveGoogleMapsApiKey = {
     return ""
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Which backend a `releaseDev` APK is allowed to talk to (STOURIFY-231)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// A release-family build carries its JavaScript INSIDE the APK, and the backend
+// address is compiled into that JavaScript. So once the file exists, the address
+// is a fact about the file rather than a setting anyone can change afterwards.
+//
+// On 2026-08-28 a `releaseDev` APK built for a local test run pointed at the
+// production backend, and two sign-in attempts reached it before anyone noticed.
+// Nothing errored. Every request was answered — by the wrong server — which is
+// precisely why nothing caught it. Think of a fire drill where the alarm panel has
+// been wired to the building across the road: the panel goes green, the drill is
+// recorded as passed, and nobody in this building hears a thing.
+//
+// The address came from `mobile/.env.production.local`, which is gitignored and
+// which Expo loads ABOVE plain `mobile/.env` for any release-family build.
+// `releaseDev` is a release build. So the file every testing document tells you to
+// edit was quietly overruled.
+//
+// All the protection against that used to live in `scripts/mobile-apk-builder.ps1`,
+// which hides that file for a dev build. That protects whoever types that command
+// and nobody else — and an automated runner naturally types `./gradlew` directly.
+// So the guard lives here now, in the build, where both commands meet.
+//
+// It REFUSES rather than quietly rerouting. Renaming a file the operator owns from
+// inside a build that can be interrupted risks leaving their machine without it,
+// and a silent reroute would mean two commands behaving differently with nothing
+// on screen saying so — which is the same invisibility that caused this in the
+// first place. A build failure is a better outcome than a test APK that reaches
+// real users' data.
+//
+// See docs/testing/which-backend-the-app-is-tested-against.md and
+// mobile/docs/building-a-dev-release-apk.md.
+
+/** Reduce a web address to its origin: scheme, host and port, and nothing else. */
+def apiOriginOf = { String url ->
+    if (!url) return null
+    def matcher = (url.trim() =~ /^([a-zA-Z][a-zA-Z0-9+.\-]*:\/\/[^\/]+)/)
+    return matcher ? matcher[0][1] : null
+}
+
+/** Read one key out of a dotenv file, stripping a single layer of quotes as dotenv does. */
+def readDotEnvValue = { File file, String key ->
+    if (!file.exists()) return null
+    for (line in file.readLines()) {
+        def trimmed = line.trim()
+        if (trimmed.startsWith("#") || !trimmed.contains("=")) continue
+        def idx = trimmed.indexOf("=")
+        if (trimmed.substring(0, idx).trim() != key) continue
+        def value = trimmed.substring(idx + 1).trim()
+        if (value.length() >= 2 && ((value.startsWith('"') && value.endsWith('"')) ||
+                (value.startsWith("'") && value.endsWith("'")))) {
+            value = value.substring(1, value.length() - 1)
+        }
+        if (value) return value
+    }
+    return null
+}
+
+/**
+ * Resolve EXPO_PUBLIC_API_URL the way Expo itself will, and say where it came from.
+ *
+ * The order matters and is not guessable. Expo's loader skips any key that is
+ * ALREADY defined in the process environment — `@expo/env` logs "is already
+ * defined and IS NOT overwritten" — so a shell export outranks every file. After
+ * that, for a release-family build (NODE_ENV=production), it reads
+ * `.env.production.local`, then `.env.local`, then `.env.production`, then `.env`.
+ * Mirroring that order is the whole reason this guard can predict what the
+ * bundler is about to do.
+ */
+def resolveExpoApiUrl = {
+    def fromProcess = System.getenv("EXPO_PUBLIC_API_URL")
+    if (fromProcess) return [value: fromProcess, source: "the process environment"]
+    for (name in [".env.production.local", ".env.local", ".env.production", ".env"]) {
+        def value = readDotEnvValue(new File(projectRoot, name), "EXPO_PUBLIC_API_URL")
+        if (value) return [value: value, source: "mobile/" + name]
+    }
+    return [value: null, source: null]
+}
+
+/**
+ * The origins a test build must never carry, read from the root `app.json`.
+ *
+ * Every entry under `deploy.environments` except `dev` is a tier this project
+ * declares as non-development. Reading them rather than typing a hostname here
+ * matters: a hostname written into a build file is a copy, and a copy goes stale
+ * in silence the day a tier moves.
+ *
+ * Returns a map of origin -> tier name.
+ */
+def forbiddenTierOrigins = {
+    def appJson = new File(projectRoot, "../app.json")
+    def forbidden = [:]
+    if (!appJson.exists()) return forbidden
+    def parsed = new groovy.json.JsonSlurper().parse(appJson)
+    def environments = parsed?.deploy?.environments
+    if (!environments) return forbidden
+    environments.each { name, settings ->
+        if (name == "dev") return
+        [settings?.url, settings?.mobileApiUrl].each { candidate ->
+            def origin = apiOriginOf(candidate as String)
+            if (origin) forbidden[origin] = name
+        }
+    }
+    return forbidden
+}
+
+/**
+ * Refuse the build if the address about to be compiled in is one a development
+ * build must not carry. Three separate refusals, and each exists because the other
+ * two cannot see its case.
+ */
+def assertDevApiUrlIsSafe = { String variantName ->
+    def resolved = resolveExpoApiUrl()
+    def devDeclaredApiUrl = readDotEnvValue(new File(projectRoot, ".env"), "EXPO_PUBLIC_API_URL")
+
+    // 1. Nothing resolved at all. The app's own source falls back to the production
+    //    address whenever the variable is unset and the build is not a development
+    //    build — and a releaseDev build is not a development build. So "no value"
+    //    is not a neutral state; it is a production build wearing a dev name.
+    if (!resolved.value) {
+        throw new GradleException(
+            "\n" +
+            "REFUSING to build ${variantName}: no EXPO_PUBLIC_API_URL is set anywhere.\n" +
+            "\n" +
+            "  That is not harmless. With nothing set, the app falls back to the address\n" +
+            "  compiled into its own source, which for a non-development build is the\n" +
+            "  production backend. This APK would talk to real users' data.\n" +
+            "\n" +
+            "  Fix: set EXPO_PUBLIC_API_URL in mobile/.env to the backend you are testing\n" +
+            "  against. Start from mobile/.env.example, and see\n" +
+            "  docs/testing/which-backend-the-app-is-tested-against.md.\n")
+    }
+
+    def origin = apiOriginOf(resolved.value)
+    def forbidden = forbiddenTierOrigins()
+
+    // 2. It belongs to a tier this project declares as non-development.
+    if (forbidden.containsKey(origin)) {
+        throw new GradleException(
+            "\n" +
+            "REFUSING to build ${variantName}: it would talk to the \"${forbidden[origin]}\" tier.\n" +
+            "\n" +
+            "    would bake in : ${resolved.value}\n" +
+            "    read from     : ${resolved.source}\n" +
+            "    declared in   : app.json -> deploy.environments.${forbidden[origin]}\n" +
+            "\n" +
+            "  A build meant for testing must never carry an address real users' data lives\n" +
+            "  behind. Note that nothing would fail at run time — every request would be\n" +
+            "  answered — which is exactly why this is stopped here instead.\n" +
+            "\n" +
+            "  If the source above is a .env file, it is one Expo loads ABOVE plain .env for\n" +
+            "  any release-family build. Build through scripts/mobile-apk-builder.ps1\n" +
+            "  -ReleaseDev, which hides it for the duration, or unset the value yourself.\n" +
+            "  Do not delete that file: production builds need it.\n")
+    }
+
+    // 3. It disagrees with mobile/.env — the file every testing document tells you
+    //    to edit, and the one the rig's own client-api-url-mismatch check reads.
+    //    This is the refusal that closes the hole rather than listing the addresses
+    //    already known to be dangerous.
+    if (devDeclaredApiUrl) {
+        def declaredOrigin = apiOriginOf(devDeclaredApiUrl)
+        if (declaredOrigin != origin) {
+            throw new GradleException(
+                "\n" +
+                "REFUSING to build ${variantName}: it would ignore what mobile/.env declares.\n" +
+                "\n" +
+                "    would bake in : ${resolved.value}\n" +
+                "    read from     : ${resolved.source}\n" +
+                "    mobile/.env   : ${devDeclaredApiUrl}\n" +
+                "\n" +
+                "  Compared by origin — scheme, host and port — so a trailing slash or a\n" +
+                "  longer path is the same backend and would not have stopped here. A\n" +
+                "  different port is a different server, which is the ordinary case on a\n" +
+                "  machine running more than one.\n" +
+                "\n" +
+                "  Whatever the build read outranks mobile/.env, so editing mobile/.env alone\n" +
+                "  would change nothing and say nothing. Fix the source named above.\n")
+        }
+    }
+
+    logger.lifecycle("API URL for ${variantName}: ${resolved.value}  (from ${resolved.source})")
+}
+
+/**
+ * Open the finished APK and read the address that actually went in.
+ *
+ * Every check above reads an INPUT, which makes it a prediction. This one opens the
+ * file that is about to reach a phone, which makes it a fact. That distinction is
+ * the whole lesson of STOURIFY-189 and STOURIFY-231: a check on what the rig
+ * DECLARES can never say what the client CONSUMED.
+ *
+ * It uses java.util.zip.ZipFile rather than shelling out to `unzip`, so it behaves
+ * the same on the Windows host this project builds on as anywhere else.
+ */
+def assertApkApiUrlIsSafe = { File apk, String variantName ->
+    def zip = new java.util.zip.ZipFile(apk)
+    def found = [] as Set
+    try {
+        def entry = zip.getEntry("assets/index.android.bundle")
+        if (entry == null) {
+            throw new GradleException(
+                "\n" +
+                "REFUSING ${apk.name}: it holds no assets/index.android.bundle, so there is\n" +
+                "  no compiled-in address to read. A ${variantName} APK is supposed to carry\n" +
+                "  its JavaScript inside it. Something went wrong in the bundling step.\n")
+        }
+        // Read the bytes as Latin-1 so every byte survives: the bundle is Hermes
+        // bytecode, and the addresses sit in its string table as plain ASCII.
+        def text = zip.getInputStream(entry).getText("ISO-8859-1")
+        (text =~ /https?:\/\/[^"'`\s,;)]+\/api\/v1/).each { found << it }
+    } finally {
+        zip.close()
+    }
+
+    if (found.isEmpty()) {
+        throw new GradleException(
+            "\n" +
+            "REFUSING ${apk.name}: its bundle carries no API address at all.\n" +
+            "  \"I checked and it is fine\" and \"there was nothing to check\" look identical\n" +
+            "  from here and mean opposite things, so this is not reported as a pass.\n")
+    }
+
+    def origins = found.collect { apiOriginOf(it) } as Set
+    def forbidden = forbiddenTierOrigins()
+    def hit = origins.find { forbidden.containsKey(it) }
+    if (hit) {
+        throw new GradleException(
+            "\n" +
+            "REFUSING ${apk.name}: the built APK talks to the \"${forbidden[hit]}\" tier.\n" +
+            "    found inside : ${found.join(', ')}\n" +
+            "  The input checks above passed and this one did not, which means something\n" +
+            "  between them changed the value. Do not install this file.\n")
+    }
+
+    def devDeclaredApiUrl = readDotEnvValue(new File(projectRoot, ".env"), "EXPO_PUBLIC_API_URL")
+    if (devDeclaredApiUrl) {
+        def want = apiOriginOf(devDeclaredApiUrl)
+        if (!origins.contains(want)) {
+            throw new GradleException(
+                "\n" +
+                "REFUSING ${apk.name}: it does not carry the backend mobile/.env declares.\n" +
+                "    expected     : ${want}\n" +
+                "    found inside : ${found.join(', ')}\n" +
+                "  Installing this and calling the result a live run would measure some other\n" +
+                "  server. See docs/testing/which-backend-the-app-is-tested-against.md.\n")
+        }
+    }
+
+    logger.lifecycle("Verified ${apk.name}: it talks to ${found.join(', ')}")
+}
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -269,6 +523,48 @@ android {
         // Ex: android.packagingOptions.pickFirsts += '**/SCCS/**'
         options.each {
             android.packagingOptions[prop] += it
+        }
+    }
+}
+
+// ── Wiring the two guards above into the build itself (STOURIFY-231) ─────────
+//
+// This is the part that matters. The same checks already existed inside
+// scripts/mobile-apk-builder.ps1, where they protected whoever ran that command
+// and nobody else. Attaching them to the tasks means `./gradlew assembleReleaseDev`
+// and the PowerShell wrapper are protected identically, and there is no longer a
+// way to build this variant that skips them.
+//
+// `configureEach` rather than `tasks.named(...)`: these tasks are created by the
+// Android and React Native plugins later in the build, so naming them directly here
+// would fail with "task not found" depending on evaluation order.
+tasks.configureEach { task ->
+    // Two places, and the first is about how long you wait to find out. The
+    // bundling step is where the address is actually compiled in, but it runs after
+    // several minutes of native compilation — so a build that was always going to be
+    // refused would spend those minutes first. `preReleaseDevBuild` is the task
+    // AGP puts at the very front of this variant, so the answer arrives in seconds.
+    // The bundling task keeps its own copy because it can be asked for on its own.
+    if (task.name == "preReleaseDevBuild" || task.name == "createBundleReleaseDevJsAndAssets") {
+        task.doFirst { assertDevApiUrlIsSafe("releaseDev") }
+    }
+
+    // …and the artifact check goes at the very end, after packaging. It is not
+    // redundant with the one above: bundling can be skipped as up to date, and an
+    // input check is a prediction while this reads the finished file.
+    if (task.name == "assembleReleaseDev") {
+        task.doLast {
+            def outputDir = new File(buildDir, "outputs/apk/releaseDev")
+            def apks = outputDir.exists()
+                ? outputDir.listFiles({ File dir, String name -> name.endsWith(".apk") } as FilenameFilter)
+                : null
+            if (apks == null || apks.length == 0) {
+                throw new GradleException(
+                    "\n" +
+                    "assembleReleaseDev produced no APK in ${outputDir}, so nothing could be\n" +
+                    "  verified. That is not a pass — see STOURIFY-231.\n")
+            }
+            apks.each { assertApkApiUrlIsSafe(it, "releaseDev") }
         }
     }
 }

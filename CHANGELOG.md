@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The Android build now refuses to compile the wrong backend into a `releaseDev` APK
+  (STOURIFY-231).** A release-family build carries its JavaScript inside the APK, so the server
+  address is baked in when the file is made — after that it is a fact about the file and not a
+  setting anybody can change. Expo reads `mobile/.env.production.local` *above* plain `mobile/.env`
+  for any release-family build, and `releaseDev` is one, so the file every testing document tells
+  you to edit was being quietly overruled. On 2026-08-28 a test APK reached production that way and
+  two sign-in attempts went there before anything noticed. Nothing errored — every request was
+  answered, by the wrong server.
+
+  `android/app/build.gradle` now resolves that value the way Expo will (the process environment
+  first, then `.env.production.local`, `.env.local`, `.env.production`, `.env`) and fails the build
+  on three things: nothing set at all, an address belonging to a tier the root `app.json` declares
+  as non-development, or an address that disagrees with `mobile/.env`. It then opens the finished
+  APK and checks what actually went in, because every other check reads an input and is therefore a
+  prediction.
+
+  "Nothing set" is a refusal because the app's own source falls back to the production address when
+  the variable is unset and the build is not a development build — and a `releaseDev` build is not
+  one. So an empty value is a production build wearing a dev name, not a neutral state
+  (STOURIFY-232).
+
+  It refuses rather than quietly fixing the value. All of this protection previously lived in
+  `scripts/mobile-apk-builder.ps1`, so it worked for whoever typed that command and for nobody else,
+  and an automated runner naturally calls `gradlew` directly. Putting it in the build means both
+  commands are protected the same. `__tests__/android/apiUrlGuard.test.ts` is what stops it moving
+  back out, alongside `cleartextTraffic.test.ts`, which guards the neighbouring property in the same
+  file.
+
 ### Fixed
 
 - **The feed no longer tells you your connection is broken when the server said no
@@ -50,6 +80,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the orchestrator repo's `docs/testing/what-a-run-must-not-restore-on-the-test-handset.md`.
 
 ### Changed
+
+- **`docs/building-a-dev-release-apk.md` says what the build now refuses and why (STOURIFY-231)**,
+  including the wrong first instinct: if the message names `.env.production.local`, do not delete
+  that file — production builds need it. Build through `mobile-apk-builder.ps1 -ReleaseDev`, which
+  hides it for the length of the build and puts it back.
 
 - **The reconnect protocol's first step is now taking a guard on the phone, not trusting a report
   that the last loop finished (STOURIFY-227).** `docs/does-the-vpn-explain-the-stuck-offline-flag.md`
