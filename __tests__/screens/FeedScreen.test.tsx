@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { AxiosError, type AxiosResponse } from 'axios'
 import { QueryClient } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
@@ -311,4 +312,51 @@ it('opening the post is still the card tap, not the author tap', async () => {
   fireEvent.press(await screen.findByLabelText('Post by Ana Martinez'))
 
   expect(navigation.navigate).toHaveBeenCalledWith('PostDetail', { postId: 'post-1' })
+})
+
+/**
+ * STOURIFY-225. On the test handset the feed showed "We couldn't reach
+ * Stourify just now. Check your connection and try again." while the sync
+ * layer, in the same app at the same moment, was talking to that same server
+ * perfectly. The server had answered the feed too — it answered `403`.
+ *
+ * So the screen was sending somebody to check their wifi over a permission
+ * problem they cannot see and cannot fix. These two tests hold the line in both
+ * directions: the connection is blamed when it deserves it, and never when it
+ * does not.
+ */
+describe('the failure it reports is the failure that happened', () => {
+  function forbidden() {
+    const config = { headers: {} } as never
+    return new AxiosError('Request failed with status code 403', '403', config, {}, {
+      status: 403,
+      statusText: 'Forbidden',
+      data: { message: 'This action is unauthorized.' },
+      headers: {},
+      config,
+    } as AxiosResponse)
+  }
+
+  it('does not blame the connection when the server answered 403', async () => {
+    ;(getFollowingFeed as jest.Mock).mockRejectedValue(forbidden())
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText("Couldn't load your feed")).toBeTruthy())
+
+    expect(screen.queryByText(/check your connection/i)).toBeNull()
+    expect(screen.getByText(/isn't allowed/i)).toBeTruthy()
+  })
+
+  it('still blames the connection when there really was no answer', async () => {
+    ;(getFollowingFeed as jest.Mock).mockRejectedValue(
+      new AxiosError('Network Error', AxiosError.ERR_NETWORK, { headers: {} } as never, {}),
+    )
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText("Couldn't load your feed")).toBeTruthy())
+
+    expect(screen.getByText(/check your connection/i)).toBeTruthy()
+  })
 })

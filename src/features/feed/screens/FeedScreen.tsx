@@ -11,6 +11,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
 import PostActionsSheet from '@/features/social/components/PostActionsSheet'
 import { EmptyState, PostCard, Skeleton } from '@/shared/components/ui'
+import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { getFollowingFeed } from '@/shared/api/feed'
 import { setPostLike } from '@/shared/api/posts'
 import type { CursorPaginatedResponse, Post } from '@/shared/api/types'
@@ -71,6 +72,7 @@ export default function FeedScreen({ navigation }: Props) {
     isFetchingNextPage,
     isLoading,
     isError,
+    error,
     refetch,
     isRefetching,
   } = useInfiniteQuery({
@@ -169,7 +171,15 @@ export default function FeedScreen({ navigation }: Props) {
    * rather than a failure. `isError` then stays true through a retry until one
    * succeeds, which keeps the failure message up while the retry is in flight
    * instead of flickering to the empty message and back.
+   *
+   * **What the failure branch says is not written here** (STOURIFY-225). It
+   * used to be one fixed sentence about the network, and it was shown to a user
+   * whose network was fine — the server had answered `403`. The words now come
+   * from `describeRequestFailure`, which reads the error this screen is already
+   * holding. Only the wording moved; the three-way branch above is unchanged.
    */
+  const failure = describeRequestFailure(error, 'your feed')
+
   const empty = isLoading ? (
     <View style={{ padding: theme.gutter, gap: theme.spacing[4] }}>
       <Skeleton height={140} />
@@ -178,9 +188,9 @@ export default function FeedScreen({ navigation }: Props) {
     </View>
   ) : isError ? (
     <EmptyState
-      icon="📡"
-      title="Couldn't load your feed"
-      subtitle="We couldn't reach Stourify just now. Your feed is still there — check your connection and try again."
+      icon={failure.icon}
+      title={failure.title}
+      subtitle={failure.subtitle}
       actionLabel="Try again"
       onAction={() => void refetch()}
     />
