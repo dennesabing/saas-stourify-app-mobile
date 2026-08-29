@@ -305,6 +305,205 @@ def assertApkApiUrlIsSafe = { File apk, String variantName ->
     logger.lifecycle("Verified ${apk.name}: it talks to ${found.join(', ')}")
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// …and the same protection for the PRODUCTION build (STOURIFY-235)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Everything above guards the `releaseDev` variant. The production `release`
+// variant had no build-time check at all: its protection lived entirely in
+// scripts/mobile-apk-builder.ps1, which is precisely the wrapper-only shape
+// STOURIFY-231 spent a card removing from the dev side. So
+// `./gradlew assembleRelease` would compile whatever happened to resolve —
+// somebody's laptop on their home network, say — into a public APK, and nothing
+// at build time would say a word. Every request from that app would then fail
+// for every user.
+//
+// A factory that x-rays every box on the export line and none on the domestic
+// line is fine right up until a domestic box is shipped abroad.
+//
+// The comparison is INVERTED relative to the dev guard. There the question is
+// "is this address forbidden?"; here it is "is this address the right one?" —
+// a production build must carry the production tier's address and nothing
+// belonging to another declared tier.
+
+/**
+ * The origins one declared tier answers on, read from the root `app.json`.
+ *
+ * `deploy.environments.<tier>.url` and `.mobileApiUrl`. Reading rather than
+ * typing matters for the same reason it does above: a hostname written into a
+ * build file is a copy, and a copy goes stale in silence the day a tier moves.
+ *
+ * An empty result means the tier is not declared, which every caller below
+ * treats as a refusal rather than as "nothing to compare against".
+ */
+def tierOrigins = { String tierName ->
+    def appJson = new File(projectRoot, "../app.json")
+    def origins = [] as Set
+    if (!appJson.exists()) return origins
+    def parsed = new groovy.json.JsonSlurper().parse(appJson)
+    def settings = parsed?.deploy?.environments?.get(tierName)
+    if (!settings) return origins
+    [settings?.url, settings?.mobileApiUrl].each { candidate ->
+        def origin = apiOriginOf(candidate as String)
+        if (origin) origins << origin
+    }
+    return origins
+}
+
+/** Every declared tier EXCEPT the named one, as a map of origin -> tier name. */
+def otherTierOrigins = { String tierName ->
+    def appJson = new File(projectRoot, "../app.json")
+    def others = [:]
+    if (!appJson.exists()) return others
+    def parsed = new groovy.json.JsonSlurper().parse(appJson)
+    def environments = parsed?.deploy?.environments
+    if (!environments) return others
+    environments.each { name, settings ->
+        if (name == tierName) return
+        [settings?.url, settings?.mobileApiUrl].each { candidate ->
+            def origin = apiOriginOf(candidate as String)
+            if (origin) others[origin] = name
+        }
+    }
+    return others
+}
+
+/**
+ * Refuse a build meant for a real tier when the address about to be compiled in
+ * is not that tier's. Two refusals, and the first is not the obvious one.
+ */
+def assertProdApiUrlIsSafe = { String variantName, String tierName ->
+    def wanted = tierOrigins(tierName)
+    if (wanted.isEmpty()) {
+        throw new GradleException(
+            "\n" +
+            "REFUSING to build ${variantName}: app.json declares no \"${tierName}\" tier with a\n" +
+            "  url, so there is nothing to check this build against. A question that cannot\n" +
+            "  be answered is not the same as one that passed.\n" +
+            "\n" +
+            "  Fix: declare it under app.json -> deploy.environments.${tierName}, or build\n" +
+            "  with -PstourifyReleaseTier=<a tier that is declared>.\n")
+    }
+
+    def resolved = resolveExpoApiUrl()
+
+    // 1. Nothing resolved at all. Since STOURIFY-232 the app carries no production
+    //    address in its own source, so a release-family build with nothing set does
+    //    not quietly reach production — it refuses to START. An unset variable is a
+    //    dead app in every user's hands, which is worse than a failed build and
+    //    invisible until they open it.
+    if (!resolved.value) {
+        throw new GradleException(
+            "\n" +
+            "REFUSING to build ${variantName}: no EXPO_PUBLIC_API_URL is set anywhere.\n" +
+            "\n" +
+            "  The app refuses to start without one, so this would ship an APK that dies on\n" +
+            "  launch for everybody who installs it.\n" +
+            "\n" +
+            "  Fix: set it in mobile/.env.production.local — Expo loads that above\n" +
+            "  mobile/.env for any release-family build — to ${wanted.join(', ')}.\n")
+    }
+
+    // 2. It resolved to something that is not this tier's address. This is the whole
+    //    card: the dev guard asks whether an address is FORBIDDEN, and that question
+    //    cannot see a laptop on somebody's home network, because no tier declares one.
+    def origin = apiOriginOf(resolved.value)
+    if (!wanted.contains(origin)) {
+        throw new GradleException(
+            "\n" +
+            "REFUSING to build ${variantName}: it would not talk to the \"${tierName}\" backend.\n" +
+            "\n" +
+            "    would bake in : ${resolved.value}\n" +
+            "    read from     : ${resolved.source}\n" +
+            "    declared in   : app.json -> deploy.environments.${tierName}\n" +
+            "    expected      : ${wanted.join(', ')}\n" +
+            "\n" +
+            "  Compared by origin — scheme, host and port — so a trailing slash or a longer\n" +
+            "  path is the same backend and would not have stopped here.\n" +
+            "\n" +
+            "  Nothing would fail at build time, and nothing would fail at run time either:\n" +
+            "  the app would simply talk to the wrong server, or to no server at all, for\n" +
+            "  every user who installed it. That is why it is stopped here.\n" +
+            "\n" +
+            "  If this build is NOT for ${tierName}, say so on the command line —\n" +
+            "  -PstourifyReleaseTier=dev builds for the local rig instead, under the same\n" +
+            "  rules a releaseDev build gets.\n")
+    }
+
+    logger.lifecycle("API URL for ${variantName} (${tierName}): ${resolved.value}  (from ${resolved.source})")
+}
+
+/**
+ * Open the finished tier APK and read the address that actually went in.
+ *
+ * The mirror of assertApkApiUrlIsSafe, with the rule flipped: the tier's own
+ * address must be PRESENT, and no other declared tier's may be.
+ *
+ * The presence rule is the strong one here rather than the weak one, and it is
+ * worth saying why, because it reads like the softer of the two. Since
+ * STOURIFY-232 the production address exists nowhere in the app's own source, so
+ * it can only be inside the bundle if this build resolved it and compiled it in.
+ *
+ * What it deliberately does not do is refuse an address it does not recognise.
+ * mobile/src/shared/config/apiUrl.ts exports a loopback constant that travels in
+ * every bundle whatever the build resolved, and a rule that refused unfamiliar
+ * addresses would fire on the next third-party library and then get switched off.
+ */
+def assertApkIsProductionSafe = { File apk, String variantName, String tierName ->
+    def wanted = tierOrigins(tierName)
+    def zip = new java.util.zip.ZipFile(apk)
+    def found = [] as Set
+    try {
+        def entry = zip.getEntry("assets/index.android.bundle")
+        if (entry == null) {
+            throw new GradleException(
+                "\n" +
+                "REFUSING ${apk.name}: it holds no assets/index.android.bundle, so there is\n" +
+                "  no compiled-in address to read. A ${variantName} APK is supposed to carry\n" +
+                "  its JavaScript inside it. Something went wrong in the bundling step.\n")
+        }
+        // Latin-1 so every byte survives: the bundle is Hermes bytecode, and the
+        // addresses sit in its string table as plain ASCII.
+        def text = zip.getInputStream(entry).getText("ISO-8859-1")
+        (text =~ /https?:\/\/[^"'`\s,;)]+\/api\/v1/).each { found << it }
+    } finally {
+        zip.close()
+    }
+
+    if (found.isEmpty()) {
+        throw new GradleException(
+            "\n" +
+            "REFUSING ${apk.name}: its bundle carries no API address at all.\n" +
+            "  \"I checked and it is fine\" and \"there was nothing to check\" look identical\n" +
+            "  from here and mean opposite things, so this is not reported as a pass.\n")
+    }
+
+    def origins = found.collect { apiOriginOf(it) } as Set
+
+    if (!origins.any { wanted.contains(it) }) {
+        throw new GradleException(
+            "\n" +
+            "REFUSING ${apk.name}: it does not carry the \"${tierName}\" backend.\n" +
+            "    expected     : ${wanted.join(', ')}\n" +
+            "    found inside : ${found.join(', ')}\n" +
+            "  The input checks are predictions; this one read the finished file. Do not\n" +
+            "  publish this APK — every request it makes would go somewhere else.\n")
+    }
+
+    def others = otherTierOrigins(tierName)
+    def stray = origins.find { others.containsKey(it) }
+    if (stray) {
+        throw new GradleException(
+            "\n" +
+            "REFUSING ${apk.name}: it also carries the \"${others[stray]}\" tier's address.\n" +
+            "    found inside : ${found.join(', ')}\n" +
+            "  A build for one tier must not ship another one's address. Both would be\n" +
+            "  answered at run time, which is exactly why this is read here instead.\n")
+    }
+
+    logger.lifecycle("Verified ${apk.name} for ${tierName}: it talks to ${found.join(', ')}")
+}
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -614,6 +813,98 @@ tasks.configureEach { task ->
             }
             apks.each { assertApkApiUrlIsSafe(it, "releaseDev") }
         }
+    }
+}
+
+// ── …and the same wiring for the production build (STOURIFY-235) ─────────────
+//
+// The dev side above asks "is a releaseDev artifact really being produced?" and
+// answers it from the task graph. The production side cannot ask that question,
+// and the reason is worth the paragraph because it is the trap this card nearly
+// walked into.
+//
+// The `release` variant does not tell you which tier a build is for. Two
+// different, legitimate builds use it:
+//
+//   scripts/mobile-apk-builder.ps1 -Target production  → the public download page
+//   scripts/mobile-apk-builder.ps1 -Target dev         → the private dev channel,
+//                                                        pointed at a local rig
+//
+// The second hides mobile/.env.production.local for the duration so the local
+// address wins. So a rule of "a release build must carry production's address"
+// would refuse a build somebody runs on purpose — which is exactly the bug
+// STOURIFY-234 had just finished fixing, one door along.
+//
+// So the CALLER says which tier, and silence means production. That default is
+// the whole point: the build this card exists for is the one nobody was thinking
+// about — an automated runner, or a stray `./gradlew assembleRelease` — and that
+// one now refuses. A caller who types -PstourifyReleaseTier=dev has said out loud
+// which tier they meant, and is then held to that tier's rules rather than to
+// none at all.
+def releaseTierName = (findProperty("stourifyReleaseTier") ?: "production").toString()
+
+// `dev` is the one value that is not a tier lookup. It means "this release build
+// is a test build for the local rig", and the rules for that already exist — they
+// are the same three the releaseDev variant gets. Any other value is read as a
+// tier name out of app.json, and a name that is not declared there is a refusal
+// rather than a build with nothing to compare against.
+def assertReleaseApiUrlIsSafe = {
+    if (releaseTierName == "dev") {
+        assertDevApiUrlIsSafe("release (dev channel)")
+    } else {
+        assertProdApiUrlIsSafe("release", releaseTierName)
+    }
+}
+
+def assertReleaseApkIsSafe = { File apk ->
+    if (releaseTierName == "dev") {
+        assertApkApiUrlIsSafe(apk, "release (dev channel)")
+    } else {
+        assertApkIsProductionSafe(apk, "release", releaseTierName)
+    }
+}
+
+tasks.configureEach { task ->
+    // The refusal that is actually load-bearing, exactly as on the dev side:
+    // nothing can bake an address into the JavaScript without running this task.
+    if (task.name == "createBundleReleaseJsAndAssets") {
+        task.doFirst { assertReleaseApiUrlIsSafe() }
+    }
+
+    // …and the artifact check after packaging, which reads a fact rather than
+    // making a prediction. Bundling can be skipped as up to date; this cannot.
+    if (task.name == "assembleRelease") {
+        task.doLast {
+            def outputDir = new File(buildDir, "outputs/apk/release")
+            def apks = outputDir.exists()
+                ? outputDir.listFiles({ File dir, String name -> name.endsWith(".apk") } as FilenameFilter)
+                : null
+            if (apks == null || apks.length == 0) {
+                throw new GradleException(
+                    "\n" +
+                    "assembleRelease produced no APK in ${outputDir}, so nothing could be\n" +
+                    "  verified. That is not a pass — see STOURIFY-231.\n")
+            }
+            apks.each { assertReleaseApkIsSafe(it) }
+        }
+    }
+}
+
+// The fast refusal, same shape and same purpose as the dev one: speed, not safety.
+// Measured with --dry-run in both directions, because the leak STOURIFY-234 found
+// might have run the other way and did not: `assembleRelease` puts 574 tasks in the
+// graph including all four of these, while `assembleReleaseDev` puts 67 :app: tasks
+// there and not one of them is a non-Dev release task — not even preReleaseBuild.
+def releaseArtifactTasks = [
+    "assembleRelease",
+    "packageRelease",
+    "bundleRelease",
+    "createBundleReleaseJsAndAssets",
+]
+def releaseAnchorPaths = releaseArtifactTasks.collect { "${project.path}:${it}".toString() } as Set
+gradle.taskGraph.whenReady { graph ->
+    if (graph.allTasks.any { releaseAnchorPaths.contains(it.path) }) {
+        assertReleaseApiUrlIsSafe()
     }
 }
 

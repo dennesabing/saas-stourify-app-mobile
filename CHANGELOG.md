@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The production build now refuses to compile the wrong backend into a public APK
+  (STOURIFY-235).** STOURIFY-231 gave the `releaseDev` build a guard inside Gradle, because
+  protection that lives only in a wrapper script protects only the people who type that command. The
+  production `release` build never got one: `cd android && ./gradlew assembleRelease` would happily
+  bake `http://192.168.68.232:8000/api/v1` — a laptop on somebody's home network — into an APK bound
+  for the public download page, and nothing at build time would say a word. Every request from that
+  app would then fail, for every user. Think of a factory that x-rays every box on the export line
+  and none on the domestic line, because the export line is where a problem was found once.
+
+  The comparison is **inverted** relative to the dev guard. That one asks *is this address
+  forbidden?*, which is a list of tiers — and nobody declares a home network as a tier, so it cannot
+  see this. The production one asks *is this address the right one?*: the build refuses unless what
+  it is about to compile in is the address `app.json` declares for the production tier, and then it
+  opens the finished APK and checks that is what really went in. An unset variable is a refusal too,
+  because since STOURIFY-232 the app carries no production address in its own source and would
+  refuse to start — a dead app in every user's hands is worse than a failed build.
+
+  **The variant does not say which tier a build is for, and assuming it did would have repeated
+  STOURIFY-234's bug in the opposite direction.** `scripts/mobile-apk-builder.ps1 -Target dev`
+  builds the same `release` variant, with `.env.production.local` hidden so the local address wins,
+  and publishes it to the private dev channel. So the caller says:
+  `./gradlew assembleRelease -PstourifyReleaseTier=dev` puts the build under the dev rules, and
+  **silence means production**. That default is the point — the build this card exists for is the
+  one nobody was thinking about, and it is the one that now refuses. The builder script passes the
+  flag on both of its dev paths, so nobody building through it has to type it.
+
+  Attached the way STOURIFY-234 settled on: `gradle.taskGraph.whenReady` for a refusal in seconds,
+  keyed on four tasks only a `release` assembly puts in the graph, with the checks that make the
+  answer *correct* on `createBundleReleaseJsAndAssets` and `assembleRelease`. Measured in both
+  directions rather than assumed — the `assembleReleaseDev` graph carries none of those four, and no
+  non-`Dev` release task at all.
+
+  One thing worth knowing before you read a report from it: a production bundle also contains
+  `http://10.0.2.2:8000/api/v1`, a constant in `src/shared/config/apiUrl.ts` that travels in every
+  bundle whatever the build resolved. Neither check refuses an address it merely does not recognise,
+  because a rule that did would fire on the next third-party library and get switched off.
+
 ### Changed
 
 - **A build that was told nothing no longer guesses production (STOURIFY-232).** Three files —

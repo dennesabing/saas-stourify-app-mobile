@@ -94,17 +94,80 @@ This lives in the build on purpose. It used to live only in the PowerShell scrip
 protected whoever typed that command and nobody else — and an automated runner naturally calls
 `gradlew` directly. `mobile/__tests__/android/apiUrlGuard.test.ts` is what stops it moving back out.
 
-### It does not touch the production build, and once it did
+### The production build is guarded too, and its guard points the other way
 
-**`./gradlew assembleRelease` — the real production build — is not affected by any of the above.**
-A production APK is *supposed* to carry the production address, and this guard has nothing to say
-about it.
+**`./gradlew assembleRelease` is not refused by any of the three rules above.** A production APK is
+*supposed* to carry the production address, and the `releaseDev` guard has nothing to say about it.
 
-That sentence is here because for a few hours it was false. The first version of the guard decided
-whether to refuse by asking "is the task called `preReleaseDevBuild` running?", which reads like a
-precise question about this variant and is not one: Gradle runs that task during an ordinary
-production build too, so the production release refused itself and no APK could be built at all
-(STOURIFY-234).
+It has a guard of its own instead, with the comparison inverted (STOURIFY-235). Where the dev guard
+asks *is this address forbidden?*, the production one asks *is this address the right one?* — the
+build refuses unless what it is about to compile in is the address `app.json` declares for the
+production tier, and then it opens the finished APK to check that is what really went in.
+
+That fills a hole the dev guard could not see, and the reason is worth a sentence. "Forbidden" is a
+list of tiers, and nobody declares a laptop on their home network as a tier — so
+`./gradlew assembleRelease` would happily bake `http://192.168.68.232:8000/api/v1` into a public
+APK, and every request from that app would then fail for every user, with nothing at build time
+saying a word.
+
+#### You sometimes have to say which tier a `release` build is for
+
+The variant does not tell you, because **two different, legitimate builds use `release`**:
+
+| Command | Tier | Address it must carry |
+|---|---|---|
+| `.\scripts\mobile-apk-builder.ps1 -Target production -ConfirmVersion <v>` | production | the production backend |
+| `.\scripts\mobile-apk-builder.ps1 -Target dev -BuildOnly` | dev | whatever `mobile/.env` declares |
+
+The second hides `.env.production.local` for the length of the build so the local address wins. So
+the build cannot work the tier out for itself, and the caller says which:
+
+```bash
+cd mobile/android && ./gradlew assembleRelease                            # production (the default)
+cd mobile/android && ./gradlew assembleRelease -PstourifyReleaseTier=dev  # the local rig
+```
+
+**Silence means production**, and that default is the whole point: the build this guard exists for
+is the one nobody was thinking about — an automated runner, or a stray `./gradlew assembleRelease` —
+and that is the one that now refuses. With `-PstourifyReleaseTier=dev` the build is held to the
+same three rules a `releaseDev` build gets, rather than to none at all.
+`scripts\mobile-apk-builder.ps1` passes the flag for you on both of its dev paths, so if you build
+through it you will never type it.
+
+#### A refusal you will hit if you build both variants by hand
+
+Gradle does not treat `.env` files as task inputs, so changing the address does **not** invalidate
+the cached JavaScript bundle. Build the dev channel and then type `./gradlew assembleRelease`, and
+the bundling task is up to date — the input check reads the production `.env` and is happy, and the
+APK that comes out still carries the previous address. The artifact check catches it at the end:
+
+```
+REFUSING app-release.apk: it does not carry the "production" backend.
+    expected     : https://api.stourify.com
+    found inside : http://192.168.68.232:8000/api/v1, http://10.0.2.2:8000/api/v1
+```
+
+That is the guard working, not failing, and it is the clearest demonstration of why the input check
+is not enough on its own: it was a correct prediction about a task that never ran.
+
+Clear the cache and build again:
+
+```bash
+rm -rf mobile/android/app/build/generated/assets/createBundleReleaseJsAndAssets \
+       mobile/node_modules/.cache/metro
+cd mobile/android && ./gradlew assembleRelease --no-daemon
+```
+
+`scripts\mobile-apk-builder.ps1` deletes both on every run, so a build through the wrapper never
+meets this.
+
+#### The task-name trap, once bitten
+
+For a few hours the sentence at the top of this section was false. The first version of the dev
+guard decided whether to refuse by asking "is the task called `preReleaseDevBuild` running?", which
+reads like a precise question about this variant and is not one: Gradle runs that task during an
+ordinary production build too, so the production release refused itself and no APK could be built
+at all (STOURIFY-234).
 
 The reason is worth knowing if you ever add a build type here. Android's C++ compilation tasks are
 named after the **CMake** build type — `configureCMakeRelWithDebInfo` — not after the Android
@@ -121,6 +184,10 @@ cd mobile/android && ./gradlew assembleRelease --dry-run   # lists every task, r
 signal: it asks the task graph whether a `releaseDev` artifact is actually going to be produced, and
 the refusal that really matters sits on the task that compiles the address in.
 
+The contamination runs **one way only**, which was measured rather than assumed: the same dry run
+against `assembleReleaseDev` lists 67 `:app:` tasks and not one non-`Dev` release task among them,
+not even `preReleaseBuild`. So the production guard's anchors can be the obvious four.
+
 ### Reading the address out of a finished APK
 
 The build checks its own output, but you can ask any APK the same question — one somebody sent you,
@@ -134,6 +201,24 @@ Exit `0` means it carries the backend `mobile/.env` declares. Exit `1` means it 
 must not, or is missing the one it should. Exit `2` means there was nothing inside to measure, which
 is not the same as a pass. **Run it before `adb install`** — a live run that installs first and asks
 afterwards has already sent its first request somewhere.
+
+That is one question — *is this a safe test build?* — and a production APK is correctly not one, so
+it exits `1` on a perfectly good production artifact. To ask the opposite question, name the tier:
+
+```bash
+bash scripts/check-apk-api-url.sh --expect production \
+  mobile/android/app/build/outputs/apk/release/app-release.apk
+```
+
+Now `0` means the APK carries the backend `app.json` declares for that tier and nothing belonging to
+another declared tier, and `1` means it does not. A tier name `app.json` has never heard of is a
+usage error rather than a quiet pass.
+
+One thing you will see and should not read as a fault: **a production bundle also contains
+`http://10.0.2.2:8000/api/v1`.** That is a constant in the app's own source
+(`src/shared/config/apiUrl.ts`), the address a development build falls back to, and it travels
+inside every bundle whatever the build resolved. Neither check refuses an address it merely does not
+recognise — a rule that did would fire on the next third-party library and get switched off.
 
 ## When to reach for it
 
@@ -153,13 +238,21 @@ a claim, and a claim about security is worth nothing unless somebody measures it
 **merged** manifest — the file Android actually assembles from every source set — for each variant:
 
 ```bash
-cd mobile/android && ./gradlew processReleaseManifest processReleaseDevManifest --no-daemon -q
+cd mobile/android && EXPO_PUBLIC_API_URL="$(sed -n 's/^EXPO_PUBLIC_API_URL=//p' ../.env)" \
+  ./gradlew processReleaseManifest processReleaseDevManifest --no-daemon -q -PstourifyReleaseTier=dev
 for v in release releaseDev; do
   echo -n "$v: "
   grep -o 'usesCleartextTraffic="[a-z]*"' \
     app/build/intermediates/merged_manifests/$v/process*Manifest/AndroidManifest.xml | wc -l
 done
 ```
+
+**Why that command carries two extra pieces.** Asking for both variants' manifests puts *both*
+bundling tasks in the task graph — `./gradlew processReleaseManifest --dry-run` lists
+`:app:createBundleReleaseJsAndAssets` — so both address guards apply, and each wants a different
+address. Naming the dev tier and handing it `mobile/.env`'s own value satisfies both at once.
+Without them the command stops on a refusal about backends, which has nothing to do with the
+manifest question you came to ask. Nothing is published or installed either way.
 
 The Play-bound `release` manifest must print `0`. The `releaseDev` manifest must print `1`. If the
 first one ever prints anything but `0`, the shipped app has been loosened and the change that did it
