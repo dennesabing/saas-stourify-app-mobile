@@ -34,6 +34,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The offline sync can no longer quietly switch a privacy setting back on (STOURIFY-243).**
+  Picture posting a change-of-address form, and then a week later posting an older copy of the same
+  form you had filled in and forgotten in a drawer. The post office cannot know which one you meant,
+  so it files whichever arrives last and your address reverts.
+
+  The two switches in **Settings → PRIVACY** — Private account, and Show location on spots — are
+  saved straight over the network with `PATCH /api/v1/profile`, and that save never touches the copy
+  of your profile the app keeps on the phone for offline use. The offline sync push, though, sent
+  that phone-side copy of both switches every time it had any reason to send the profile row at all.
+  So the old form could arrive after the new one: onboarding saving an interest was enough to post a
+  stale copy of a switch you had just turned off, the server accepted it, and the setting turned
+  itself back on with no error and no notice.
+
+  The push no longer carries either switch. Nothing in the app edits them offline, so it was sending
+  a value it could never have a fresher opinion about than the server already had. The server treats
+  a missing field here as *leave this exactly as it is*, so the two settings are now changed by one
+  writer only — the Settings screen — and nothing can undo it behind the user's back.
+
 - **A spot whose contributor hid its location no longer risks a pin in the Atlantic (STOURIFY-240).**
   Since STOURIFY-185 the API leaves `latitude` and `longitude` out of a spot whose contributor turned
   off **Show location on spots** — omitted, not nulled, so that the app can tell an unavailable
