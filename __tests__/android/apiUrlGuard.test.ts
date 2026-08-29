@@ -183,3 +183,103 @@ describe('…and it does not refuse a production build', () => {
     expect(code).toMatch(/assembleReleaseDev[\s\S]{0,600}?assertApkApiUrlIsSafe/);
   });
 });
+
+/**
+ * The third direction: the PRODUCTION build has to be guarded too.
+ *
+ * A factory x-rays every box on the export line and none on the domestic line,
+ * because the export line is where a problem was found once. Then somebody ships a
+ * domestic box abroad.
+ *
+ * That is what this block is about (STOURIFY-235). Everything above is about the
+ * `releaseDev` variant. The production `release` variant had no build-time check at
+ * all — its protection lived entirely in `scripts/mobile-apk-builder.ps1`, which is
+ * exactly the wrapper-only shape STOURIFY-231 spent a card removing from the dev
+ * side. `./gradlew assembleRelease` would happily compile a laptop's address into a
+ * public APK and say nothing at all.
+ *
+ * The complication, and the reason this is not simply "release means production":
+ * `mobile-apk-builder.ps1 -Target dev` also builds the `release` variant. It hides
+ * `.env.production.local` so the local address wins, and publishes the result to the
+ * private dev channel. So the variant does not say which tier a build is for, and a
+ * rule that assumed it did would refuse a build somebody runs on purpose — which is
+ * STOURIFY-234's bug all over again, one door along.
+ *
+ * So the caller says which tier: `-PstourifyReleaseTier=dev` puts the build under
+ * the dev rules, and silence means production. The DEFAULT is the part that matters
+ * and it is asserted below — an unattended `./gradlew assembleRelease` is the build
+ * this card exists for, and it has to be the one that refuses.
+ */
+describe('…and the production build is guarded as well', () => {
+  // Same stripper as the block above, and for the same reason: the comments here
+  // legitimately discuss every task name in the file.
+  const code = gradle
+    .replace(/\r/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .map((line) => line.replace(/(^|\s)\/\/.*$/, ''))
+    .join('\n');
+
+  it('has a production check at all, and not only a dev one', () => {
+    expect(code).toContain('assertProdApiUrlIsSafe');
+  });
+
+  it('defaults to production when nobody says which tier the build is for', () => {
+    // This single assertion is the card. If the default ever flips, a bare
+    // `./gradlew assembleRelease` stops being checked and nothing else here notices.
+    expect(code).toMatch(
+      /findProperty\(\s*["']stourifyReleaseTier["']\s*\)\s*\?:\s*["']production["']/,
+    );
+  });
+
+  it('lets a caller name the dev tier, so the dev download channel still builds', () => {
+    // `mobile-apk-builder.ps1 -Target dev` builds the `release` variant with the
+    // local address in it. Without this escape hatch the guard would refuse it, and
+    // that is exactly the mistake STOURIFY-234 was about.
+    expect(code).toMatch(/stourifyReleaseTier/);
+    expect(code).toMatch(/releaseTierName\s*==\s*["']dev["']/);
+  });
+
+  it('refuses at the task that actually compiles the address into a release build', () => {
+    // Nothing can bake an address into the JavaScript without running this task, so
+    // this is the attachment that makes the answer right rather than merely fast.
+    expect(code).toContain('createBundleReleaseJsAndAssets');
+  });
+
+  it('opens the finished production APK and reads what really went in', () => {
+    // Every input check is a prediction. This one reads the file that would reach a
+    // user's phone.
+    expect(code).toContain('assertApkIsProductionSafe');
+    expect(code).toMatch(/"assembleRelease"[\s\S]{0,900}?assertReleaseApkIsSafe/);
+  });
+
+  it('asks the task graph, keyed on tasks only a release assembly puts there', () => {
+    // Measured with `./gradlew assembleRelease --dry-run` (574 tasks) against
+    // `./gradlew assembleReleaseDev --dry-run` (67 :app: tasks): none of these
+    // appears in the releaseDev graph, and that graph carries no non-Dev release
+    // task at all, not even preReleaseBuild. The contamination runs one way only.
+    for (const anchor of [
+      '"assembleRelease"',
+      '"packageRelease"',
+      '"bundleRelease"',
+      '"createBundleReleaseJsAndAssets"',
+    ]) {
+      expect(code).toContain(anchor);
+    }
+  });
+
+  it('treats "nothing resolved" as a refusal for a production build too', () => {
+    // Since STOURIFY-232 a release-family build with no address refuses to START.
+    // An unset variable is a dead app, not a neutral state.
+    expect(code).toMatch(
+      /assertProdApiUrlIsSafe[\s\S]{0,2500}?no EXPO_PUBLIC_API_URL/i,
+    );
+  });
+
+  it('reads the production address from app.json rather than naming a host', () => {
+    // Same rule as the dev side: a hostname typed into a build file is a copy that
+    // goes stale in silence the day a tier moves. The whole-file assertion in the
+    // first block already forbids the literal; this one says where it comes from.
+    expect(code).toMatch(/tierOrigins/);
+  });
+});
