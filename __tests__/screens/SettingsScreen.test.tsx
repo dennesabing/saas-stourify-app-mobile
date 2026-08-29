@@ -32,11 +32,19 @@ import { getMyProfile, updateMyProfile } from '@/shared/api/profiles'
 import { signOut } from '@/sync/session'
 import { trackQueryClient } from '../support/queryClients'
 
-/** A profile as `GET /profile` returns one, trimmed to what this screen reads. */
-const profile = (isPrivate: boolean) => ({
+/**
+ * A profile as `GET /profile` returns one, trimmed to what this screen reads.
+ *
+ * `shows_location_on_spots` defaults to `true` here because that is what the
+ * database column defaults to and what the server sends for anybody who has
+ * never touched the setting -- so the fixture describes the ordinary account
+ * rather than a configured one.
+ */
+const profile = (isPrivate: boolean, showsLocation = true) => ({
   uuid: 'profile-uuid-1',
   username: 'ziv',
   is_private: isPrivate,
+  shows_location_on_spots: showsLocation,
 })
 
 const mockNavigation = { goBack: jest.fn() } as any
@@ -62,8 +70,11 @@ function renderSettings() {
 beforeEach(() => {
   jest.clearAllMocks()
   ;(getMyProfile as jest.Mock).mockResolvedValue(profile(false))
-  ;(updateMyProfile as jest.Mock).mockImplementation((changes: { is_private: boolean }) =>
-    Promise.resolve(profile(changes.is_private)),
+  // Merged rather than rebuilt, because the screen now has two switches: a save
+  // that carries one field must come back with the OTHER field untouched, which
+  // is exactly what the real endpoint does.
+  ;(updateMyProfile as jest.Mock).mockImplementation((changes: Record<string, unknown>) =>
+    Promise.resolve({ ...profile(false), ...changes }),
   )
 })
 
@@ -237,5 +248,120 @@ describe('the Private account row', () => {
       const style = StyleSheet.flatten(getByTestId('settings-scroll').props.contentContainerStyle)
       expect(style?.paddingBottom).toBeGreaterThan(0)
     })
+  })
+})
+
+describe('the Show location on spots row (STOURIFY-241)', () => {
+  /**
+   * Reads what the server stored, and treats "nothing stored" as ON.
+   *
+   * The default matters more than it looks. The column defaults to `true`, and
+   * an account that has never opened this screen gets that value -- so a switch
+   * that showed Off while the server was still handing out coordinates would be
+   * the same broken promise this whole feature exists to remove, told backwards.
+   */
+  it('shows On by default and Off once the account has turned it off', async () => {
+    const { getByLabelText, unmount } = renderSettings()
+
+    await waitFor(() => expect(getByLabelText('Show location on spots').props.value).toBe(true))
+    unmount()
+
+    ;(getMyProfile as jest.Mock).mockResolvedValue(profile(false, false))
+    const second = renderSettings()
+    await waitFor(() =>
+      expect(second.getByLabelText('Show location on spots').props.value).toBe(false),
+    )
+  })
+
+  /**
+   * One field and nothing else, for the same reason the Private account row
+   * sends one: `PATCH /profile` is an upsert that also validates `username`, so
+   * restating fields nobody touched lets an unrelated uniqueness failure block a
+   * save about location.
+   */
+  it('saves through PATCH /profile carrying shows_location_on_spots and no other field', async () => {
+    const { getByLabelText } = renderSettings()
+
+    await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
+    fireEvent(getByLabelText('Show location on spots'), 'valueChange', false)
+
+    await waitFor(() =>
+      expect(updateMyProfile).toHaveBeenCalledWith({ shows_location_on_spots: false }),
+    )
+  })
+
+  /** Follows your finger, like the row above it. Same reasoning, same pattern. */
+  it('moves as soon as it is tapped, before the save comes back', async () => {
+    let release: (value: unknown) => void = () => {}
+    ;(updateMyProfile as jest.Mock).mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve
+      }),
+    )
+    const { getByLabelText } = renderSettings()
+
+    await waitFor(() => expect(getByLabelText('Show location on spots').props.value).toBe(true))
+    fireEvent(getByLabelText('Show location on spots'), 'valueChange', false)
+
+    await waitFor(() => expect(getByLabelText('Show location on spots').props.value).toBe(false))
+    release(profile(false, false))
+  })
+
+  /**
+   * A switch that keeps a value the server refused tells somebody their location
+   * is hidden when it is not -- the single worst outcome this row has.
+   *
+   * The message names the location setting rather than the account, because the
+   * two switches sit one above the other and a shared sentence under both of
+   * them cannot say which save failed.
+   */
+  it('puts the switch back and says which setting failed when the save is refused', async () => {
+    ;(updateMyProfile as jest.Mock).mockRejectedValue(new Error('nope'))
+    const { getByLabelText, getByText } = renderSettings()
+
+    await waitFor(() => expect(getByLabelText('Show location on spots').props.value).toBe(true))
+    fireEvent(getByLabelText('Show location on spots'), 'valueChange', false)
+
+    await waitFor(() => expect(getByText(/location setting is unchanged/i)).toBeTruthy())
+    expect(getByLabelText('Show location on spots').props.value).toBe(true)
+  })
+
+  /** Disabled rather than hidden, exactly like the Private account row. */
+  it('is disabled, not hidden, when the caller has no profile yet', async () => {
+    ;(getMyProfile as jest.Mock).mockResolvedValue(null)
+    const { getByLabelText } = renderSettings()
+
+    await waitFor(() => expect(getByLabelText('Show location on spots').props.disabled).toBe(true))
+
+    fireEvent(getByLabelText('Show location on spots'), 'valueChange', false)
+    expect(updateMyProfile).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The copy is part of the deliverable, not decoration, so it is pinned like
+   * any other behaviour. Two things have to be said and both are easy to drop in
+   * a later tidy-up: that turning it off only works from now on, and that it
+   * costs the spot its place in nearby results.
+   */
+  it('says both of the things turning it off actually costs you', async () => {
+    const { getByTestId } = renderSettings()
+
+    await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
+    const copy = getByTestId('location-privacy-copy').props.children as string
+
+    expect(copy).toMatch(/from now on/i)
+    expect(copy).toMatch(/nearby/i)
+  })
+
+  /**
+   * One control for one fact. A second switch somewhere else would be two
+   * answers to the same question, and whichever one somebody found last would
+   * be the one they believed.
+   */
+  it('is the only control for this fact on the screen', async () => {
+    const { getAllByLabelText } = renderSettings()
+
+    await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
+    expect(getAllByLabelText('Show location on spots')).toHaveLength(1)
   })
 })

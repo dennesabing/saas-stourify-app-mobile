@@ -100,10 +100,14 @@ export async function getProfile(userUuid: string): Promise<ExplorerProfile> {
  * enforces: it turns a follow into a request, and hides the follower and
  * following lists from strangers.
  *
- * `shows_location_on_spots` is still deliberately absent. It is stored and
- * synced and NOTHING reads it — spot coordinates go to every caller regardless
- * — so a control for it would tell people their location is hidden while the
- * API serves it. STOURIFY-75.
+ * `shows_location_on_spots` IS here now, and it was not always. For most of
+ * this app's life the field was stored, synced and read by nothing at all —
+ * spot coordinates went to every caller regardless — so a control for it would
+ * have told people their location was hidden while the API kept serving it
+ * (STOURIFY-75). Three cards closed that gap: STOURIFY-185 taught every REST
+ * path to withhold a hidden spot's position, STOURIFY-187 pinned the offline
+ * sync delta with a test, and STOURIFY-240 taught the app to draw a spot that
+ * has no position. The switch that writes it is STOURIFY-241.
  */
 export interface ProfileWrite {
   username?: string
@@ -113,6 +117,14 @@ export interface ProfileWrite {
   home_city_uuid?: string | null
   interests?: string[]
   is_private?: boolean
+  /**
+   * The Settings → PRIVACY switch. `false` withholds this explorer's spot
+   * coordinates from everybody but themselves and moderators, and drops those
+   * spots out of `GET /spots/nearby` entirely — see STOURIFY-75's first
+   * `ASSUMPTION:` note for why membership of a radius result is itself a
+   * disclosure.
+   */
+  shows_location_on_spots?: boolean
 }
 
 /**

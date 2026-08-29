@@ -35,6 +35,11 @@ export default function SettingsScreen({ navigation }: Props) {
   const [deletePassword, setDeletePassword] = useState('')
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [privacyError, setPrivacyError] = useState<string | null>(null)
+  // A second error slot rather than one shared with the row above. The two
+  // switches sit one on top of the other, and a single message underneath both
+  // of them cannot say which save failed -- which on a privacy control is the
+  // whole point of showing a message at all.
+  const [locationError, setLocationError] = useState<string | null>(null)
 
   /**
    * The caller's own profile, under the SAME key the profile screen uses.
@@ -54,6 +59,17 @@ export default function SettingsScreen({ navigation }: Props) {
   })
 
   const isPrivate = profile?.is_private ?? false
+  /**
+   * Defaults to ON, and the default is the load-bearing part.
+   *
+   * `sto_explorer_profiles.shows_location_on_spots` is a boolean column with a
+   * database default of `true`, so an account that has never touched this
+   * setting is sharing its spot coordinates. A switch that guessed `false` for
+   * that account would say "hidden" over a server that is still handing the
+   * position out -- the same broken promise this feature exists to remove, told
+   * backwards.
+   */
+  const showsLocation = profile?.shows_location_on_spots ?? true
   const hasProfile = profile != null
 
   /**
@@ -94,6 +110,38 @@ export default function SettingsScreen({ navigation }: Props) {
     onError: (_error, _next, context) => {
       qc.setQueryData(['explorer-profile', 'me'], context?.previous)
       setPrivacyError('That could not be saved. Your account is unchanged.')
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['explorer-profile', 'me'] }),
+  })
+
+  /**
+   * The same shape as `privacyMutation` above, pointed at a different field —
+   * deliberately, rather than for want of imagination.
+   *
+   * Two privacy switches sitting one above the other that behaved differently —
+   * one snapping to your finger, one lagging a round trip, one silent when a
+   * save fails — would read as a fault in whichever was slower. So this one
+   * writes optimistically, rolls back with its own message, and lets the server
+   * have the last word, exactly like its neighbour.
+   *
+   * One field per save, for the same reason: `PATCH /profile` is an upsert that
+   * also validates `username`, so restating fields nobody touched would let an
+   * unrelated uniqueness failure block a save about location.
+   */
+  const locationMutation = useMutation({
+    mutationFn: (next: boolean) => updateMyProfile({ shows_location_on_spots: next }),
+    onMutate: async (next: boolean) => {
+      setLocationError(null)
+      await qc.cancelQueries({ queryKey: ['explorer-profile', 'me'] })
+      const previous = qc.getQueryData(['explorer-profile', 'me'])
+      qc.setQueryData(['explorer-profile', 'me'], (old: unknown) =>
+        old == null ? old : { ...(old as object), shows_location_on_spots: next },
+      )
+      return { previous }
+    },
+    onError: (_error, _next, context) => {
+      qc.setQueryData(['explorer-profile', 'me'], context?.previous)
+      setLocationError('That could not be saved. Your location setting is unchanged.')
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ['explorer-profile', 'me'] }),
   })
@@ -222,6 +270,52 @@ export default function SettingsScreen({ navigation }: Props) {
         {!hasProfile && <Text style={styles.rowHint}>Set up your profile first to use this.</Text>}
 
         {privacyError !== null && <Text style={styles.rowError}>{privacyError}</Text>}
+
+        {/*
+        The switch that finally makes `shows_location_on_spots` mean something.
+        The column has existed since M2 and was read by nothing at all, which is
+        why this row was held back rather than shipped alongside the setting
+        (STOURIFY-75). It is safe now because three cards closed the gap in
+        order: STOURIFY-185 stopped every REST path disclosing a hidden spot's
+        position, STOURIFY-187 pinned the offline sync delta with a test, and
+        STOURIFY-240 taught the app to render a spot that has no position.
+
+        It is deliberately the ONLY control for this fact in the app. A second
+        one anywhere else would be two answers to one question, and whichever a
+        person found last would be the one they believed.
+      */}
+        <View style={styles.row}>
+          <Text style={styles.rowIcon}>📍</Text>
+          <Text style={styles.rowLabel}>Show location on spots</Text>
+          <Switch
+            accessibilityLabel="Show location on spots"
+            value={showsLocation}
+            disabled={!hasProfile || locationMutation.isPending}
+            onValueChange={(next) => locationMutation.mutate(next)}
+          />
+        </View>
+
+        {/*
+        Standing text, not a confirmation dialog, and both halves of it are
+        required rather than helpful.
+
+        A dialog would only ever speak to somebody turning the setting OFF,
+        while the sentence people most need — that it works from now on — is for
+        somebody deciding whether to leave it ON, which is the default.
+
+        The nearby sentence is the one people are most likely to be surprised
+        by, and it is a real cost: a spot that still answers "am I within 2 km of
+        you?" has not hidden its position, so hiding the position means leaving
+        that search altogether (STOURIFY-75, first ASSUMPTION note).
+      */}
+        <Text testID="location-privacy-copy" style={styles.rowHint}>
+          Turn this off and your spots stop showing where they are, and they drop out of nearby
+          results — people can still find them in Discover, in search, on your profile, and from a
+          direct link. It works from now on: a position already downloaded onto a phone cannot be
+          called back.
+        </Text>
+
+        {locationError !== null && <Text style={styles.rowError}>{locationError}</Text>}
 
         <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('BlockedAccounts')}>
           <Text style={styles.rowIcon}>🚫</Text>
