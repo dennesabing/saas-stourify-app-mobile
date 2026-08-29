@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Settings → PRIVACY now has a Show location on spots switch (STOURIFY-241).** The setting
+  behind it has existed since M2 and, for most of that time, was a light switch with no wire behind
+  it: the value was stored, it was copied to every device, and nothing anywhere read it. Shipping the
+  control then would have told somebody their location was hidden while the API kept serving their
+  exact coordinates.
+
+  The wire is now in the wall. STOURIFY-185 stopped every REST path disclosing a hidden spot's
+  position, STOURIFY-187 pinned the offline sync channel with a test showing it never sent one
+  person's hidden coordinates to anybody else's device, and STOURIFY-240 taught the app to draw a
+  spot that has no position. So the switch can finally be fitted.
+
+  It sits directly under **Private account** and works exactly like it — it moves the instant you
+  touch it, sends one field to `PATCH /api/v1/profile` and nothing else, and slides back with its own
+  message if the server refuses. Its own message, not a shared one: two switches stacked together
+  cannot both point at the same sentence and still say which save failed.
+
+  The text under the row is part of the feature rather than decoration. It says the two things
+  turning it off actually costs you — that it works from now on, because a position already
+  downloaded onto a phone cannot be called back, and that your spots drop out of nearby results,
+  where they can no longer be found by being close to them. They still appear in Discover, in search,
+  on your profile and through a direct link. A control that quietly costs you something is the same
+  broken promise as one that quietly does nothing, pointed the other way.
+
 ### Fixed
 
 - **A spot whose contributor hid its location no longer risks a pin in the Atlantic (STOURIFY-240).**
