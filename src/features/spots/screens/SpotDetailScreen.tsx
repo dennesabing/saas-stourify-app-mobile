@@ -102,6 +102,25 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
   const categories = spot?.categories ?? []
   const title = spot?.title ?? '...'
 
+  /**
+   * The spot's position, or `null` when the server did not send one — a
+   * contributor who turned off `shows_location_on_spots` has both keys
+   * withheld from everybody else (STOURIFY-185, STOURIFY-240).
+   *
+   * Resolved once, here, rather than checked again inside the JSX. A `typeof`
+   * guard written in the markup narrows the expression it guards and nothing
+   * else: the `onPress` handler below is a closure, and TypeScript rightly
+   * refuses to assume `spot.latitude` is still a number by the time somebody
+   * taps. One `const` makes the narrowing outlive the branch.
+   *
+   * `typeof === 'number'` and never truthiness — latitude 0 is the equator and
+   * longitude 0 is Greenwich, both real places (STOURIFY-65).
+   */
+  const coordinate =
+    typeof spot?.latitude === 'number' && typeof spot?.longitude === 'number'
+      ? { latitude: spot.latitude, longitude: spot.longitude }
+      : null
+
   const onSave = useCallback(async () => {
     if (isSaved) return
     await createLocalWishlistItem(database, { spotId: null, spotUuid: spotId })
@@ -397,13 +416,15 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                 than six decimal places do. When there is no address the
                 coordinate carries the row alone rather than leaving it empty.
               */}
-              {typeof spot?.latitude === 'number' && typeof spot?.longitude === 'number' ? (
+              {coordinate ? (
                 <Pressable
                   testID="spot-location"
                   accessibilityRole="button"
-                  accessibilityLabel={`Open ${spot.title ?? 'this spot'} in maps`}
+                  accessibilityLabel={`Open ${spot?.title ?? 'this spot'} in maps`}
                   accessibilityHint="Opens your map app at this location"
-                  onPress={() => void openInMaps(spot.latitude, spot.longitude, spot.title)}
+                  onPress={() =>
+                    void openInMaps(coordinate.latitude, coordinate.longitude, spot?.title)
+                  }
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -414,7 +435,7 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                   <Text variant="body">📍</Text>
 
                   <View style={{ flex: 1 }}>
-                    {spot.address ? (
+                    {spot?.address ? (
                       <Text variant="body" color="primary" numberOfLines={2}>
                         {spot.address}
                       </Text>
@@ -422,9 +443,9 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                     <Text
                       testID="spot-coordinates"
                       variant="caption"
-                      color={spot.address ? 'muted' : 'primary'}
+                      color={spot?.address ? 'muted' : 'primary'}
                     >
-                      {spot.latitude.toFixed(4)}, {spot.longitude.toFixed(4)}
+                      {coordinate.latitude.toFixed(4)}, {coordinate.longitude.toFixed(4)}
                     </Text>
                   </View>
 
@@ -456,6 +477,31 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                   <Text variant="body">📍</Text>
                   <Text variant="body" color="muted" numberOfLines={2} style={{ flex: 1 }}>
                     {spot.address}
+                  </Text>
+                </View>
+              ) : spot ? (
+                /*
+                  Neither a coordinate nor an address (STOURIFY-240).
+
+                  This used to render nothing, and nothing is the same shape as
+                  a screen that failed to load — a reader cannot tell "this
+                  place has no location on it" from "the app is broken". One
+                  plain line is the difference.
+
+                  It says what happened, not why. The response simply has no
+                  `latitude` key, and absence carries no reason with it, so
+                  "hidden by the contributor" would be a guess printed as a
+                  fact — on the one screen where guessing about location is the
+                  failure being designed out. STOURIFY-242 would have the
+                  server say which it is.
+                */
+                <View
+                  testID="spot-location-hidden"
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2] }}
+                >
+                  <Text variant="body">📍</Text>
+                  <Text variant="body" color="muted" style={{ flex: 1 }}>
+                    Location not shown
                   </Text>
                 </View>
               ) : null}

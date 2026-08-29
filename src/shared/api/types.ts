@@ -83,8 +83,28 @@ export interface Spot {
   title: string
   slug: string
   description?: string
-  latitude: number
-  longitude: number
+  /**
+   * Where the spot is — **optional, because the server withholds it**.
+   *
+   * A contributor can turn off `shows_location_on_spots`, and since
+   * STOURIFY-185 `SpotResource` then omits `latitude` and `longitude`
+   * entirely for everybody except that contributor and a moderator. Omitted,
+   * not nulled: the decision on STOURIFY-75 was that a client must be able to
+   * TELL the position is unavailable, because a rounded or invented
+   * coordinate renders as a pin somewhere plausible and wrong.
+   *
+   * So every reader needs a branch. Declaring these required was the same
+   * defect as `name` (STOURIFY-11) and `id` (STOURIFY-27) — a required field
+   * the server does not always send types `undefined` as a `number`, and the
+   * typecheck stays green while a screen draws a pin at `(undefined,
+   * undefined)`.
+   *
+   * Check with `typeof === 'number'`, never truthiness: latitude 0 is the
+   * equator and longitude 0 is Greenwich, and both are real places
+   * (STOURIFY-65).
+   */
+  latitude?: number
+  longitude?: number
   address?: string
   status: SpotStatus
   /**
