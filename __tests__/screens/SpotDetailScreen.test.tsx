@@ -1260,14 +1260,37 @@ describe('the location line', () => {
     expect(screen.queryByTestId('spot-location')).toBeNull()
   })
 
-  it('shows nothing at all when there is neither an address nor a coordinate', async () => {
+  /**
+   * Neither an address nor a coordinate. This used to render nothing at all,
+   * and nothing is indistinguishable from a screen that failed to load — a
+   * person cannot tell "this place has no location on it" from "the app is
+   * broken" (STOURIFY-240).
+   *
+   * The wording says what happened and not why: the response has no `latitude`
+   * key, and absence carries no reason with it. Claiming the contributor hid
+   * it would be a guess printed as a fact, on the one screen where guessing
+   * about location is the failure being designed out.
+   */
+  it('says the location is not shown when there is neither an address nor a coordinate', async () => {
     mockSpot({ address: null, latitude: null, longitude: null })
     renderScreen()
 
-    await waitFor(() => expect(screen.getByText('Blue Cove')).toBeTruthy())
+    await waitFor(() => expect(screen.getByTestId('spot-location-hidden')).toBeTruthy())
+    expect(screen.getByText('Location not shown')).toBeTruthy()
 
+    // Still nothing that looks openable, and no orphan coordinate line.
     expect(screen.queryByTestId('spot-location')).toBeNull()
     expect(screen.queryByTestId('spot-location-static')).toBeNull()
+    expect(screen.queryByTestId('spot-coordinates')).toBeNull()
+  })
+
+  /** The two honest empty states are different states, and only one at a time. */
+  it('does not say the location is not shown when there is an address', async () => {
+    mockSpot({ latitude: null, longitude: null })
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-location-static')).toBeTruthy())
+    expect(screen.queryByTestId('spot-location-hidden')).toBeNull()
   })
 
   // Latitude 0 is the equator and longitude 0 is Greenwich. Both are real

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A spot whose contributor hid its location no longer risks a pin in the Atlantic (STOURIFY-240).**
+  Since STOURIFY-185 the API leaves `latitude` and `longitude` out of a spot whose contributor turned
+  off **Show location on spots** — omitted, not nulled, so that the app can tell an unavailable
+  position from a real one. Nobody had told the app. `Spot` in `src/shared/api/types.ts` still
+  declared both as required, which is a form insisting a box is filled in and then handing it back
+  empty: TypeScript believed every spot had a position and let any screen read straight through to
+  `undefined`.
+
+  Both fields are now optional, and the compiler — not a grep — was the search for who reads them. It
+  found three places, one of which nobody would have looked at: the Explore map's filter is correct at
+  run time and does not narrow a type, so its pins were `number | undefined` all along.
+
+  The rule about which spots may be drawn now lives in one place, `src/shared/map/spotPins.ts`, used
+  by both map screens. A spot with no position keeps its card in the list and loses only its pin,
+  because a place with no coordinate is still a place. `0, 0` is kept, being the equator and
+  Greenwich (STOURIFY-65).
+
+  On the spot detail screen, a spot with neither an address nor a coordinate used to render nothing
+  at all — and nothing looks exactly like a screen that failed to load. It now says **Location not
+  shown**: what happened, not why. The response carries no reason with it, and "hidden by the
+  contributor" would be a guess printed as a fact on the one screen where guessing about location is
+  the failure being designed out. STOURIFY-242 would have the server say which it is.
+
 ### Added
 
 - **The production build now refuses to compile the wrong backend into a public APK

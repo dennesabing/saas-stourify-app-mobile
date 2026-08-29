@@ -393,3 +393,43 @@ describe('the spots it renders', () => {
     }
   })
 })
+
+/**
+ * STOURIFY-240 — a spot whose contributor hid its location arrives with no
+ * `latitude` and no `longitude` at all (STOURIFY-185 omits the keys rather
+ * than nulling them).
+ *
+ * `/spots/nearby` excludes such a spot for anyone but its owner, so in
+ * ordinary use this list will not contain one. "In ordinary use" is not a
+ * guarantee: the owner's own request DOES return it, and a pin built from a
+ * coordinate that is not there is a pin at `(undefined, undefined)`.
+ */
+describe('a spot whose coordinates the server withheld', () => {
+  const HIDDEN = {
+    uuid: 'hidden',
+    title: 'Hidden Cove',
+    slug: 'hidden-cove',
+    status: 'published' as const,
+    distance_km: 0.4,
+  }
+
+  it('keeps its card in the strip and puts no pin on the map', async () => {
+    grantLocationAtGenSan()
+    ;(getNearbySpots as jest.Mock).mockResolvedValue({
+      data: [gensanSpot('plaza', 'Plaza Heneral Santos', 6.1164, 0), HIDDEN],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 2 },
+    })
+
+    renderScreen()
+
+    // The spot is still a result. Dropping it from the list as well would be a
+    // second withdrawal nobody asked for — the strip is a list of places, and
+    // this is one.
+    await waitFor(() => expect(screen.getByLabelText('Hidden Cove')).toBeTruthy())
+
+    // …and the map shows only what it can honestly place.
+    expect(screen.getByTestId('nearby-marker-Plaza Heneral Santos')).toBeTruthy()
+    expect(screen.queryByTestId('nearby-marker-Hidden Cove')).toBeNull()
+  })
+})

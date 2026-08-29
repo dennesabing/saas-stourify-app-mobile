@@ -9,6 +9,7 @@ import {
   DEFAULT_MAP_CENTER,
   MapCanvas,
   readFallbackCenter,
+  spotPins,
   type MapCoordinate,
   type MapPin,
 } from '@/shared/map'
@@ -100,22 +101,12 @@ export default function MapScreen({ navigation }: Props) {
    * id a tap comes back as is then the id that opens the spot, with nothing to
    * look up in between.
    *
-   * A spot the server sent without usable coordinates is dropped rather than
-   * pinned at `(0, 0)`, which is a real place in the Atlantic and would sit the
-   * map's only pin a hemisphere away from every other one.
+   * Which spots may be drawn is `spotPins`' rule, shared with `NearbyScreen`
+   * (STOURIFY-240): a spot the server sent without coordinates is dropped
+   * rather than pinned at `(0, 0)`, which is a real place in the Atlantic and
+   * would sit the map's only pin a hemisphere away from every other one.
    */
-  const pins = useMemo<MapPin[]>(
-    () =>
-      spots
-        .filter((spot) => typeof spot.latitude === 'number' && typeof spot.longitude === 'number')
-        .map((spot) => ({
-          id: spot.uuid,
-          coordinate: { latitude: spot.latitude, longitude: spot.longitude },
-          title: spot.title,
-          kind: 'spot' as const,
-        })),
-    [spots],
-  )
+  const pins = useMemo<MapPin[]>(() => spotPins(spots), [spots])
 
   const region = useMemo(() => ({ center, radiusKm: EXPLORE_RADIUS_KM }), [center])
 

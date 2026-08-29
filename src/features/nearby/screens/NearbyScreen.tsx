@@ -8,7 +8,7 @@ import { getNearbySpots } from '@/shared/api/spots'
 import { EmptyState, SpotCard } from '@/shared/components/ui'
 import { useRefetchOnFocus } from '@/shared/hooks/useRefetchOnFocus'
 import { useTheme } from '@/theme/ThemeProvider'
-import { MapCanvas, type MapPin } from '@/shared/map'
+import { MapCanvas, spotPins, type MapPin } from '@/shared/map'
 import type { Spot } from '@/shared/api/types'
 
 type Props = NativeStackScreenProps<DiscoverStackParamList, 'Nearby'>
@@ -152,17 +152,12 @@ export default function NearbyScreen({ navigation }: Props) {
 
   /** A pin per spot, plus one for the viewer. Ids are spot uuids. */
   const pins = useMemo<MapPin[]>(() => {
-    const spotPins: MapPin[] = spots.map((spot) => ({
-      id: spot.uuid,
-      coordinate: { latitude: spot.latitude, longitude: spot.longitude },
-      title: spot.title,
-      kind: 'spot' as const,
-    }))
+    const placed = spotPins(spots)
 
-    if (!location) return spotPins
+    if (!location) return placed
 
     return [
-      ...spotPins,
+      ...placed,
       {
         id: YOU_PIN_ID,
         coordinate: { latitude: location.lat, longitude: location.lng },
