@@ -8,7 +8,13 @@ import {
   serializeForPush,
   upsertSyncFailure,
 } from '@/sync/pushService'
-import { createTestDatabase, markSynced, seedCity, seedSpot } from '../support/testDatabase'
+import {
+  createTestDatabase,
+  markSynced,
+  seedCity,
+  seedExplorerProfile,
+  seedSpot,
+} from '../support/testDatabase'
 import type ExplorerProfile from '@/db/models/ExplorerProfile'
 import type Follow from '@/db/models/Follow'
 import type Review from '@/db/models/Review'
@@ -179,7 +185,7 @@ describe('serializeForPush', () => {
     expect(row).toEqual({ uuid: 'follow-1', user_uuid: 'user-followed' })
   })
 
-  it('sends every field ProfileUpdateRequest accepts for an explorer profile', async () => {
+  it('sends every writable profile field EXCEPT the two privacy switches', async () => {
     const database = createTestDatabase()
     await seedCity(database, { uuid: 'city-home', serverId: 5 })
     const profile = await database.write(async () =>
@@ -203,16 +209,50 @@ describe('serializeForPush', () => {
 
     const row = await serializeForPush(database, 'sto_explorer_profiles', profile)
 
+    // STOURIFY-243. `is_private` and `shows_location_on_spots` are deliberately
+    // absent: nothing in the app edits them offline, so the local copy is only
+    // ever as fresh as the last pull, and sending it can undo a switch the user
+    // just turned off in Settings. Both are `sometimes|boolean` on the server's
+    // ProfileUpdateRequest, so leaving them out means "do not change this".
     expect(row).toEqual({
       uuid: 'profile-1',
       username: 'trailblazer',
       bio: 'I hike.',
       website: 'https://example.com',
       interests: ['hiking', 'coffee'],
-      is_private: false,
-      shows_location_on_spots: true,
       home_city_uuid: 'city-home',
     })
+  })
+
+  /**
+   * The bug this card exists for, in one test (STOURIFY-243).
+   *
+   * The user turns Private account ON in Settings, which saves straight over
+   * the network and never touches the offline database — so the local row is
+   * left saying `is_private: false`. Then onboarding saves an interest, which
+   * marks that same local row as needing a push. Before the fix the push
+   * carried the stale `false` and the server dutifully switched privacy back
+   * off. Now the field simply is not in the payload, so it cannot.
+   */
+  it('does not carry a stale privacy value that would undo the Settings save', async () => {
+    const database = createTestDatabase()
+    const profile = await seedExplorerProfile(database, { uuid: 'profile-stale' })
+    await markSynced(database, profile)
+
+    // What persistProfileChoice does when the local row already exists: write
+    // an onboarding answer, which marks the whole row as needing a push.
+    await database.write(async () => {
+      await profile.update((row: any) => {
+        row._setRaw('interests', JSON.stringify(['coffee']))
+      })
+    })
+
+    const batch = await collectDirtyBatch(database, new Set())
+    const [pushed] = batch.envelope.sto_explorer_profiles.updated
+
+    expect(pushed).not.toHaveProperty('is_private')
+    expect(pushed).not.toHaveProperty('shows_location_on_spots')
+    expect(pushed).toMatchObject({ uuid: 'profile-stale', interests: ['coffee'] })
   })
 })
 

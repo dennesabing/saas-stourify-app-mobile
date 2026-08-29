@@ -156,10 +156,19 @@ export async function serializeForPush(
     putNullable(row, 'bio', profile.bio, op)
     putNullable(row, 'website', profile.website, op)
     putNullable(row, 'interests', profile.interests.length > 0 ? profile.interests : null, op)
-    row.is_private = profile.isPrivate
-    // ProfileUpdateRequest.php:58 — `sometimes|boolean`, never nullable, so it
-    // is always sent, like `is_private`.
-    row.shows_location_on_spots = profile.showsLocationOnSpots
+    // `is_private` and `shows_location_on_spots` are deliberately NOT sent
+    // (STOURIFY-243). Nothing in this app edits either column offline — the
+    // Settings screen saves them straight over the network with
+    // `PATCH /profile` and never touches this table — so the local copy is
+    // only ever as fresh as the last pull. Including it meant that any push of
+    // this row, such as the one onboarding triggers when it saves an interest,
+    // posted a week-old form on top of a fresh one and silently switched a
+    // privacy setting back on. Both fields are `sometimes|boolean` on
+    // `ProfileUpdateRequest.php`, so an absent key leaves the stored value
+    // exactly as it is, and both columns carry the same defaults this app
+    // shows (`false` / `true`), so a push that CREATES the row is safe too.
+    // Do not add them back without also giving the app an offline writer for
+    // them and a way to tell a stale local value from an edited one.
     putNullable(
       row,
       'home_city_uuid',
