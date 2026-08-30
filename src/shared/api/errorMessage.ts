@@ -14,6 +14,59 @@ export interface RequestFailureMessage {
 }
 
 /**
+ * The refusals the server names, and what each one should say to a person.
+ *
+ * A `403` on its own is the server saying "no" without saying which no it
+ * meant, and the two it can mean want opposite things from the reader. Being
+ * told you lack a permission is a dead end — there is nothing you can do about
+ * it from inside the app. Being told your account was never finished being set
+ * up is the opposite: there is one cheap thing to try, and one person to ask if
+ * it does not work.
+ *
+ * The codes are the ones `GET /api/v1/feed` sends (STOURIFY-228). They are
+ * unique across the whole API, so keeping the mapping in this shared function —
+ * rather than in a feed-only copy of it — cannot misfire on another screen, and
+ * it keeps one home for everything the app says about a refusal.
+ *
+ * Anything not in this table falls through to the generic wording below. That
+ * fall-through is the part protecting the other screens: an unrecognised code
+ * is not a licence to guess.
+ */
+const REFUSALS: Record<string, Omit<RequestFailureMessage, 'title'>> = {
+  NO_ORGANIZATION: {
+    icon: '🪪',
+    subtitle:
+      "Your account hasn't been added to a Stourify organization yet, so there's no feed to " +
+      'show. Signing out and back in usually sorts it — if it keeps happening, ask whoever set ' +
+      'up your Stourify account.',
+  },
+  FEED_ACCESS_DENIED: {
+    icon: '🔒',
+    subtitle: "This account isn't allowed to view posts in its organization.",
+  },
+}
+
+/**
+ * The `code` the server put on a refusal, if it put one there.
+ *
+ * Written to survive whatever actually comes back rather than what the API
+ * documents: a body can be a bare string from a proxy, `null` from an empty
+ * response, or an object with a numeric `code`. None of those may throw on the
+ * way to producing an error message — a crash while explaining a failure is a
+ * worse failure than the one it was explaining.
+ */
+function refusalCode(error: unknown): string | undefined {
+  if (!(error instanceof AxiosError)) return undefined
+
+  const data: unknown = error.response?.data
+  if (typeof data !== 'object' || data === null) return undefined
+
+  const code: unknown = (data as { code?: unknown }).code
+
+  return typeof code === 'string' ? code : undefined
+}
+
+/**
  * Turn a failed request into words that match what actually went wrong.
  *
  * Imagine ringing a shop and getting five different outcomes — nobody picks up,
@@ -36,7 +89,9 @@ export interface RequestFailureMessage {
  * all when the request never produced one. So `error.response` separates "the
  * server said something" from "the server said nothing", and `response.status`
  * says which something. Both facts are already in the caller's hands; this
- * function only reads them.
+ * function only reads them. Since STOURIFY-237 it reads one more thing that
+ * was always there too — the `code` the server writes on a refusal, mapped by
+ * `REFUSALS` above.
  *
  * `title` is deliberately the same in every branch. "Couldn't load your feed"
  * is true whatever went wrong, and it is the line a reader takes in first — the
@@ -84,12 +139,18 @@ export function describeRequestFailure(error: unknown, subject: string): Request
   }
 
   if (status === 403) {
+    const code = refusalCode(error)
+    const refusal = code === undefined ? undefined : REFUSALS[code]
+
     return {
-      icon: '🔒',
+      icon: refusal?.icon ?? '🔒',
       title,
-      // No mention of the network, on purpose, and a test pins that: this is the
-      // exact case that was sending people to look at their router.
-      subtitle: "This account isn't allowed to see this. Nothing on your end is broken.",
+      // No mention of the network in any branch, on purpose, and a test pins
+      // that: this is the exact case that was sending people to look at their
+      // router.
+      subtitle:
+        refusal?.subtitle ??
+        "This account isn't allowed to see this. Nothing on your end is broken.",
     }
   }
 

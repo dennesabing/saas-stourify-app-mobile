@@ -360,3 +360,46 @@ describe('the failure it reports is the failure that happened', () => {
     expect(screen.getByText(/check your connection/i)).toBeTruthy()
   })
 })
+
+/**
+ * STOURIFY-237. The refusal now arrives with a reason attached, and the screen
+ * has to show that reason rather than the one sentence it says for every `403`.
+ *
+ * The distinction matters most for `NO_ORGANIZATION`: nothing the person did
+ * caused it and nothing they can do inside the app fixes it, so the screen has
+ * to name the one thing worth trying instead of implying they lack permission.
+ */
+describe('it says which kind of refusal the server sent', () => {
+  function refusedWith(code: string) {
+    const config = { headers: {} } as never
+    return new AxiosError('Request failed with status code 403', '403', config, {}, {
+      status: 403,
+      statusText: 'Forbidden',
+      data: { message: 'refused', status: 403, code },
+      headers: {},
+      config,
+    } as AxiosResponse)
+  }
+
+  it('tells an unenrolled account it is not set up yet, not that it is offline', async () => {
+    ;(getFollowingFeed as jest.Mock).mockRejectedValue(refusedWith('NO_ORGANIZATION'))
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText("Couldn't load your feed")).toBeTruthy())
+
+    expect(screen.getByText(/signing out and back in/i)).toBeTruthy()
+    expect(screen.queryByText(/check your connection/i)).toBeNull()
+  })
+
+  it('tells an enrolled account without the permission exactly that', async () => {
+    ;(getFollowingFeed as jest.Mock).mockRejectedValue(refusedWith('FEED_ACCESS_DENIED'))
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText("Couldn't load your feed")).toBeTruthy())
+
+    expect(screen.getByText(/isn't allowed to view/i)).toBeTruthy()
+    expect(screen.queryByText(/check your connection/i)).toBeNull()
+  })
+})
