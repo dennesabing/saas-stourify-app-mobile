@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Four spot screens now say what actually went wrong instead of blaming your connection
+  (STOURIFY-248).** Opening a spot, its About notes, its photos or its reviews and getting anything
+  other than an answer produced the same sentence every time: *"We couldn't reach Stourify just now.
+  Check your connection and try again."* One of the ways a request can fail really is your
+  connection. The rest are not, and the worst of them is the one where the server picked up,
+  listened and refused — the reader was sent off to restart a router that had been working the whole
+  time.
+
+  It is the same fault STOURIFY-225 found on the feed, and it takes the same fix: the words now come
+  from `describeRequestFailure()`, which reads the failure the screen was already holding and says
+  which of the seven things happened. A refusal says a refusal, a timeout says the server was slow,
+  an ended session says to sign in again — and a genuine network failure still says to check the
+  connection, because for that one it is true.
+
+  The headline over each panel is unchanged, and so is every rule about when the panel appears at
+  all: a spot you looked at yesterday still shows you the spot when a background refetch fails,
+  rather than losing it to an apology. Only the explanation underneath moved.
+
+  `SpotAboutTab` also gained its first test file, which is what the fix is pinned with.
+
 - **Discover follows the Discover design (STOURIFY-259).** Same data, endpoints and offline behaviour
   as before, laid out per artboards 1–5 of `docs/design/Stourify - Discover.dc.html`:
   - **Explore:** a "Discover" title with a "Near me" link, a search pill, the category chips, and a

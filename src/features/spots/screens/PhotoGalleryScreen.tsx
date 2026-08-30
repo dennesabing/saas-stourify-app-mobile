@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
+import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { getSpot } from '@/shared/api/spots'
 import { EmptyState, OverlayHeader, Skeleton, Text } from '@/shared/components/ui'
 import type { SpotMedia } from '@/shared/api/types'
@@ -26,6 +27,7 @@ export default function PhotoGalleryScreen({ route, navigation }: Props) {
 
   const {
     data: spot,
+    error,
     isLoading,
     isError,
     refetch,
@@ -67,6 +69,18 @@ export default function PhotoGalleryScreen({ route, navigation }: Props) {
    */
   const hasFailed = isError && !spot
   const isWaiting = !hasFailed && (isLoading || !spot)
+
+  /**
+   * What the failure panel says, chosen from the failure that actually
+   * happened (STOURIFY-248, following STOURIFY-225).
+   *
+   * This used to be one fixed sentence about the connection, shown for every
+   * way a request can go wrong — including the one where the server picked up
+   * and refused. `describeRequestFailure` reads the error this screen was
+   * already holding and picks words to match. Only the wording moved; the
+   * branch above that decides WHETHER to show a failure at all is unchanged.
+   */
+  const failure = describeRequestFailure(error, 'the photos')
 
   function onViewableItemsChanged({ viewableItems }: { viewableItems: ViewToken[] }) {
     const first = viewableItems[0]
@@ -127,9 +141,9 @@ export default function PhotoGalleryScreen({ route, navigation }: Props) {
       {hasFailed ? (
         <View testID="gallery-error" style={{ flex: 1 }}>
           <EmptyState
-            icon="📡"
-            title="Couldn't load the photos"
-            subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+            icon={failure.icon}
+            title={failure.title}
+            subtitle={failure.subtitle}
             actionLabel="Try again"
             onAction={() => void refetch()}
           />

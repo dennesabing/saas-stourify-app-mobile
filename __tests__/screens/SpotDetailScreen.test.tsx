@@ -1,3 +1,4 @@
+import { AxiosError, type AxiosResponse } from 'axios'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native'
 import { Linking } from 'react-native'
 import { QueryClient } from '@tanstack/react-query'
@@ -1301,5 +1302,64 @@ describe('the location line', () => {
 
     await waitFor(() => expect(screen.getByTestId('spot-location')).toBeTruthy())
     expect(screen.getByText('0.0000, 0.0000')).toBeTruthy()
+  })
+})
+
+/**
+ * STOURIFY-248, following STOURIFY-225.
+ *
+ * This screen used to answer every failure with the same sentence — "We
+ * couldn't reach Stourify just now. Check your connection and try again." —
+ * including the one where the server picked up, listened, and said no. Telling
+ * somebody their connection is broken over a permission they do not have sends
+ * them off to restart a router that was working the whole time.
+ *
+ * The words now come from `describeRequestFailure`, which reads the error this
+ * screen was already holding. Two tests, because the fix has two halves and
+ * only asserting one of them would be satisfied by deleting the sentence
+ * everywhere: blame the connection when it deserves it, and never when it does
+ * not.
+ */
+describe('the failure it reports is the failure that happened', () => {
+  function forbidden() {
+    const config = { headers: {} } as never
+    return new AxiosError('Request failed with status code 403', '403', config, {}, {
+      status: 403,
+      statusText: 'Forbidden',
+      data: { message: 'This action is unauthorized.' },
+      headers: {},
+      config,
+    } as AxiosResponse)
+  }
+
+  function mockRejection(error: unknown) {
+    ;(getSpot as jest.Mock).mockRejectedValue(error)
+    ;(getSpotPosts as jest.Mock).mockResolvedValue({
+      data: [],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 0 },
+    })
+  }
+
+  it('does not blame the connection when the server answered 403', async () => {
+    mockRejection(forbidden())
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-hero-error')).toBeTruthy())
+
+    expect(screen.getByText("Couldn't load this spot")).toBeTruthy()
+    expect(screen.queryByText(/check your connection/i)).toBeNull()
+    expect(screen.getByText(/isn't allowed/i)).toBeTruthy()
+  })
+
+  it('still blames the connection when there really was no answer', async () => {
+    mockRejection(
+      new AxiosError('Network Error', AxiosError.ERR_NETWORK, { headers: {} } as never, {}),
+    )
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-hero-error')).toBeTruthy())
+
+    expect(screen.getByText(/check your connection/i)).toBeTruthy()
   })
 })

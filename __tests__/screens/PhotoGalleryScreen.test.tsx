@@ -1,3 +1,4 @@
+import { AxiosError, type AxiosResponse } from 'axios'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { QueryClient } from '@tanstack/react-query'
 import PhotoGalleryScreen from '@/features/spots/screens/PhotoGalleryScreen'
@@ -265,5 +266,46 @@ describe('the gallery header', () => {
     renderScreen()
 
     await waitFor(() => expect(screen.getByLabelText('Back')).toBeTruthy())
+  })
+})
+
+/**
+ * STOURIFY-248, following STOURIFY-225. The gallery answered every failure
+ * with one sentence about the connection, including the one where the server
+ * answered and refused. See `SpotDetailScreen.test.tsx` for the full story;
+ * the two halves are asserted here for the same reason.
+ */
+describe('the failure it reports is the failure that happened', () => {
+  function forbidden() {
+    const config = { headers: {} } as never
+    return new AxiosError('Request failed with status code 403', '403', config, {}, {
+      status: 403,
+      statusText: 'Forbidden',
+      data: { message: 'This action is unauthorized.' },
+      headers: {},
+      config,
+    } as AxiosResponse)
+  }
+
+  it('does not blame the connection when the server answered 403', async () => {
+    ;(getSpot as jest.Mock).mockRejectedValue(forbidden())
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('gallery-error')).toBeTruthy())
+
+    expect(screen.getByText("Couldn't load the photos")).toBeTruthy()
+    expect(screen.queryByText(/check your connection/i)).toBeNull()
+    expect(screen.getByText(/isn't allowed/i)).toBeTruthy()
+  })
+
+  it('still blames the connection when there really was no answer', async () => {
+    ;(getSpot as jest.Mock).mockRejectedValue(
+      new AxiosError('Network Error', AxiosError.ERR_NETWORK, { headers: {} } as never, {}),
+    )
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('gallery-error')).toBeTruthy())
+
+    expect(screen.getByText(/check your connection/i)).toBeTruthy()
   })
 })
