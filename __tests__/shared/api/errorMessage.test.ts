@@ -161,3 +161,76 @@ it('never gives two different failures the same words', () => {
 
   expect(new Set(subtitles).size).toBe(cases.length)
 })
+
+/**
+ * STOURIFY-237, the app half of STOURIFY-228.
+ *
+ * A `403` from the feed used to be one fact: "no". The backend now says which
+ * of two very different noes it means, in a `code` field on the body — and the
+ * two want opposite things from the reader. `FEED_ACCESS_DENIED` is a
+ * permission the account does not have and cannot give itself. `NO_ORGANIZATION`
+ * is an account nobody finished enrolling, which is a setup job, not a refusal
+ * — and there is one thing worth trying before anybody escalates it.
+ *
+ * The tests below are as much about what must NOT change: an unknown code, a
+ * missing one, or a body that is not an object at all has to keep the wording
+ * that is already there, because every other screen in the app shares this
+ * function.
+ */
+describe('a 403 that says which refusal it is', () => {
+  it('explains that the account is not enrolled yet on NO_ORGANIZATION', () => {
+    const { subtitle } = describeRequestFailure(
+      responseError(403, { message: 'irrelevant', status: 403, code: 'NO_ORGANIZATION' }),
+      'your feed',
+    )
+
+    expect(subtitle).toContain('organization')
+    expect(subtitle).toContain('Signing out and back in')
+    expect(subtitle).not.toContain('connection')
+  })
+
+  it('says the account is not permitted to view posts on FEED_ACCESS_DENIED', () => {
+    const { subtitle } = describeRequestFailure(
+      responseError(403, { message: 'irrelevant', status: 403, code: 'FEED_ACCESS_DENIED' }),
+      'your feed',
+    )
+
+    expect(subtitle).toContain("isn't allowed to view")
+    expect(subtitle).not.toContain('connection')
+  })
+
+  it('keeps the title it gives every other failure', () => {
+    for (const code of ['NO_ORGANIZATION', 'FEED_ACCESS_DENIED']) {
+      expect(describeRequestFailure(responseError(403, { code }), 'your feed').title).toBe(
+        "Couldn't load your feed",
+      )
+    }
+  })
+
+  it('gives the two codes different words from each other and from a plain 403', () => {
+    const subtitles = [
+      responseError(403),
+      responseError(403, { code: 'NO_ORGANIZATION' }),
+      responseError(403, { code: 'FEED_ACCESS_DENIED' }),
+    ].map((error) => describeRequestFailure(error, 'your feed').subtitle)
+
+    expect(new Set(subtitles).size).toBe(3)
+  })
+
+  /**
+   * The fall-through, which is the half that protects the other twelve screens.
+   * A body we do not recognise is not a licence to guess.
+   */
+  it.each([
+    ['no body at all', undefined],
+    ['an empty body', {}],
+    ['a code nobody here knows', { code: 'SOMETHING_ELSE' }],
+    ['a code that is not a string', { code: 7 }],
+    ['a body that is a bare string', 'Forbidden'],
+    ['a null body', null],
+  ])('keeps the plain 403 wording for %s', (_label, data) => {
+    const { subtitle } = describeRequestFailure(responseError(403, data), 'your feed')
+
+    expect(subtitle).toBe("This account isn't allowed to see this. Nothing on your end is broken.")
+  })
+})

@@ -32,6 +32,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on your profile and through a direct link. A control that quietly costs you something is the same
   broken promise as one that quietly does nothing, pointed the other way.
 
+### Changed
+
+- **The feed now says which kind of "no" the server sent (STOURIFY-237).** A refused feed used to
+  produce one sentence — *"This account isn't allowed to see this."* — whatever the reason was.
+  That is a dead end: there is nothing a reader can do about a permission they do not have, so the
+  message was correct for one case and quietly wrong for the other.
+
+  Since STOURIFY-228 the server writes a `code` on the refusal saying which of two things happened,
+  and the app now reads it. An account that was never added to a Stourify organization is told
+  exactly that, together with the one thing worth trying — sign out and back in — and who to ask if
+  it keeps happening. An account that is in an organization but not allowed to see its posts is told
+  that instead. Neither mentions the network, because neither has anything to do with it.
+
+  A refusal carrying a code the app does not recognise, or no code at all, keeps the wording it has
+  always had. That fall-through is deliberate: every screen in the app shares this one function, and
+  an unfamiliar answer is not a reason to start guessing.
+
 ### Fixed
 
 - **The offline sync can no longer quietly switch a privacy setting back on (STOURIFY-243).**
