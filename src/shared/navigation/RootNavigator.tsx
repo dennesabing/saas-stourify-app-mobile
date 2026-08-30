@@ -3,6 +3,7 @@ import { ActivityIndicator, View } from 'react-native'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { navigationRef } from './ref'
+import linking from './linking'
 import { useAuthStore } from '@/shared/store/auth'
 import { useOnboardingStore } from '@/shared/store/onboarding'
 import ForgotPasswordScreen from '@/features/auth/screens/ForgotPasswordScreen'
@@ -71,7 +72,7 @@ export default function RootNavigator() {
   const needsOnboarding = shouldOnboard && onboardingCompleted !== true
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} linking={linking} fallback={<Splash />}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {token ? (
           needsOnboarding ? (

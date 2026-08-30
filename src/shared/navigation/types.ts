@@ -103,7 +103,14 @@ export type HomeStackParamList = {
    */
   Profile: { userId?: string }
   Comments: CommentThreadTarget
-  SpotDetail: { spotId: string }
+  /**
+   * `tab` is optional and exists for one reason: a deep link can say which of
+   * the Spot Hub's two tabs to open on. The screen keeps the tab in local
+   * state and defaults to Posts exactly as it always has, so every existing
+   * caller — every `navigate('SpotDetail', { spotId })` in the app — behaves
+   * identically. See `shared/navigation/linking.ts` (STOURIFY-253).
+   */
+  SpotDetail: { spotId: string; tab?: 'Posts' | 'About' }
   PhotoGallery: { spotId: string }
   Reviews: { spotId: string }
   WriteReview: { spotId: string }
@@ -136,7 +143,14 @@ export type DiscoverStackParamList = {
    * as unreachable as it was before (STOURIFY-9).
    */
   Profile: { userId?: string }
-  SpotDetail: { spotId: string }
+  /**
+   * `tab` is optional and exists for one reason: a deep link can say which of
+   * the Spot Hub's two tabs to open on. The screen keeps the tab in local
+   * state and defaults to Posts exactly as it always has, so every existing
+   * caller — every `navigate('SpotDetail', { spotId })` in the app — behaves
+   * identically. See `shared/navigation/linking.ts` (STOURIFY-253).
+   */
+  SpotDetail: { spotId: string; tab?: 'Posts' | 'About' }
   PostDetail: { postId: string }
   /**
    * Registered here, and on the Profile stack, because `SpotDetail` is — a
@@ -227,7 +241,14 @@ export type ProfileStackParamList = {
    */
   BlockedAccounts: undefined
   PostDetail: { postId: string }
-  SpotDetail: { spotId: string }
+  /**
+   * `tab` is optional and exists for one reason: a deep link can say which of
+   * the Spot Hub's two tabs to open on. The screen keeps the tab in local
+   * state and defaults to Posts exactly as it always has, so every existing
+   * caller — every `navigate('SpotDetail', { spotId })` in the app — behaves
+   * identically. See `shared/navigation/linking.ts` (STOURIFY-253).
+   */
+  SpotDetail: { spotId: string; tab?: 'Posts' | 'About' }
   /** Reached from a spot's About tab — see the Discover stack's note. */
   Comments: CommentThreadTarget
   PhotoGallery: { spotId: string }
