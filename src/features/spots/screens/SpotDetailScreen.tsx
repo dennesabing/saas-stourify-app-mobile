@@ -49,10 +49,15 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'SpotDetail'>
  * is a synced pushable table, same pattern as `createLocalReview`.
  */
 export default function SpotDetailScreen({ route, navigation }: Props) {
-  const { spotId } = route.params
+  const { spotId, tab: initialTab } = route.params
   const theme = useTheme()
   const database = useDatabase()
-  const [tab, setTab] = useState<'Posts' | 'About'>('Posts')
+  /*
+   * Defaults to Posts, as it always has. A deep link
+   * (`stourify://spot/<uuid>?tab=about`) is the only thing that passes
+   * anything else — see `shared/navigation/linking.ts` (STOURIFY-253).
+   */
+  const [tab, setTab] = useState<'Posts' | 'About'>(initialTab ?? 'Posts')
   /** Which hero photo is showing, so the dots can say so. */
   const [heroIndex, setHeroIndex] = useState(0)
 

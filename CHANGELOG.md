@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A `stourify://` link can now open a spot directly (STOURIFY-253).** The app's front door has
+  always had a working buzzer and no room numbers behind it. Android has carried a `VIEW` intent
+  filter for the `stourify` scheme since the first build, so a link reached the app — but
+  `NavigationContainer` was mounted with no `linking` table, so React Navigation had nothing saying
+  which URL meant which screen, and the link landed nowhere at all.
+
+  The table now exists, in `src/shared/navigation/linking.ts`:
+
+  - `stourify://spot/<uuid>` opens the Spot Hub,
+  - `stourify://spot/<uuid>?tab=about` opens it on its About tab,
+  - `stourify://spot/<uuid>/photos` opens the photo gallery,
+  - `stourify://spot/<uuid>/reviews` opens the reviews list.
+
+  Links resolve inside the Discover tab with `Discover` as the stack's first screen, so pressing
+  Back from a deep-linked spot goes somewhere sensible instead of onto an empty stack. While signed
+  out nothing changes: those screens are not mounted, so there is nothing to match and the app opens
+  on Welcome exactly as before.
+
+  Why it was worth doing beyond convenience. A spot could previously be reached only by tapping a row
+  in Discover or in Search, and both of those lists ask the server for their contents. On a device
+  whose account the server refuses — which is the test emulator's situation today — the Spot Hub, its
+  About tab, its gallery and its reviews were unreachable by any route whatsoever, and several cards'
+  worth of live runs had nothing to look at. A URL is a way in that does not depend on a list loading
+  first.
+
+  `SpotDetail` gained an optional `tab` route parameter to carry that last case. It defaults to
+  Posts, so every existing `navigate('SpotDetail', { spotId })` in the app behaves exactly as it did.
+
 - **Settings → PRIVACY now has a Show location on spots switch (STOURIFY-241).** The setting
   behind it has existed since M2 and, for most of that time, was a light switch with no wire behind
   it: the value was stored, it was copied to every device, and nothing anywhere read it. Shipping the
