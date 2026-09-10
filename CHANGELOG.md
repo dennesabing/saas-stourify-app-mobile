@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **New Spot now follows the Create design as three steps: form, map, review (STOURIFY-257).**
+  It used to be one long page with an inline map and the Publish button at the bottom. Now it
+  follows artboards 4–6 of `docs/design/Stourify - Create.dc.html`:
+  - **The form** (`CreateSpotScreen`) has a photo strip with a dashed add tile, labelled Title and
+    Description fields, category chips, and a one-line location row with a tick. "Next · Review &
+    Publish" is pinned at the bottom. It still finds your position by itself when it opens, and it
+    no longer writes anything.
+  - **The map** (`SpotLocationScreen`, new) is full screen with the draggable pin. "Confirm location"
+    hands the pin back to the form. If you reopen the map, the pin stays where you put it instead of
+    snapping back to GPS.
+  - **Review** (`ReviewSpotScreen`, new) shows a preview card and the offline-first note, and is the
+    only step that saves. The save is the same local-first `publishSpot` as before. Afterwards the
+    stack is reset to My Spots, so Back can't reach Publish again and create a duplicate.
+
+  Left out because nothing backs them yet: Save draft (ruled out on 2026-08-26), operating hours,
+  address search and nearby places, visibility, and Add to collection.
+- **`Chip` is now the design's filled pill.** Every design file draws a borderless brand-tint pill
+  with badge-ink text, but the app drew a white pill with a grey border. The fix changes the chips on
+  Discover, Search, Onboarding, Profile and Edit profile as well. The pill is drawn 32 tall, and
+  `hitSlop` keeps the touch target at 44.
+
+### Added
+
+- **Lucide icons (`lucide-react-native`, ISC licence), via a new `Icon` primitive.** It's the set
+  the design is drawn with. Screens ask for an icon by what it means (`pin`, `back`), and
+  `Icon.tsx` is the only file that names the set.
+
+  **This adds a native module, `react-native-svg`.** The dev client and every APK must be rebuilt,
+  and an older install can't run this JS.
+- **`BarHeader` primitive:** the design's round back button with the title on the same line.
+- **`useKeyboardOverlap` hook:** keeps a pinned footer sitting on top of the on-screen keyboard.
+  New Spot's "Next · Review & Publish" used to stay underneath the keyboard while you typed, so a
+  tap on it landed on the keyboard instead. The hook measures how far the keyboard actually covers
+  the footer's container, in absolute screen coordinates, and lifts the footer by exactly that much.
+  It replaces `KeyboardAvoidingView` on that screen.
+
+  Two other approaches were tried on the emulator and rejected:
+  - **Padding by the keyboard's full height** floated the button about 65 dp too high, because this
+    form ends above the tab bar.
+  - **`measureInWindow`** misreported the container's position by about 54 dp on this screen, so the
+    hook uses `.measure()`'s `pageY` instead.
+
+### Fixed
+
+- **The New Spot form's red error line now clears as soon as you edit the field it's about**
+  (STOURIFY-257). It used to stay until the next press of Next, so "A spot needs a name…" sat under
+  a form that already had a valid title. Typing in Title or Description, toggling a category, or a
+  location arriving now clears it. It comes back on Next if the form is still invalid.
+- **`.screenshots/` is now gitignored in this repo.** The project rules send device screenshots
+  there, but only the root repo ignored the folder, so a screenshot taken during a test here could
+  have been committed.
+
 ## [0.10.0] - 2026-09-10
 
 ### Added

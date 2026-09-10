@@ -1,63 +1,81 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useDatabase } from '@nozbe/watermelondb/react'
-import { Button, Chip, KeyboardAwareScreen, Text } from '@/shared/components/ui'
+import { BarHeader, Button, Chip, Icon, Text, useKeyboardOverlap } from '@/shared/components/ui'
 import type { CreateStackParamList } from '@/shared/navigation/types'
 import type { MapCoordinate } from '@/shared/map'
-import { useAuthStore } from '@/shared/store/auth'
-import { syncNow } from '@/sync/scheduler'
 import type PendingMedia from '@/db/models/PendingMedia'
 import { MAX_DRAFT_PHOTOS, observeDraftMedia } from '@/features/media/api/draftMedia'
-import { publishSpot } from '@/features/create/api/publishSpot'
-import LocationPicker from '@/features/create/components/LocationPicker'
 import { MAX_SPOT_CATEGORIES, validateSpotForm } from '@/features/create/api/spotForm'
+import {
+  useInitialPosition,
+  type InitialPositionStatus,
+} from '@/features/create/api/useInitialPosition'
 import { SPOT_CATEGORIES } from '@/shared/config/spotCategories'
 import { useTheme } from '@/theme/ThemeProvider'
 
 type Props = NativeStackScreenProps<CreateStackParamList, 'CreateSpot'>
 
+/** The design's photo tile. Three photos and the add tile fit one row. */
+const TILE = 76
+
 /**
- * The offline-first vertical slice, and the review-and-publish step that closes
- * the M4 gate.
+ * New Spot — the first of three create steps: this form, then the full-screen
+ * pin (`SpotLocationScreen`), then `ReviewSpotScreen`, which is the only one
+ * that writes anything (STOURIFY-257, artboard 4 of the Create design).
  *
- * It writes straight to WatermelonDB and NEVER to the network. There is
- * deliberately no loading state for the write: a local write cannot fail for
- * network reasons, so a spinner would be describing a risk that does not exist.
- * The drain happens in the background; `syncNow` is a nudge, not a dependency —
- * the spot and its photos are already durable when it returns.
+ * This screen holds the form and checks it. It never writes: a spot is saved
+ * on Review, straight to WatermelonDB and never to the network, for the reasons
+ * `ReviewSpotScreen` and `publishSpot` give.
  *
- * That inversion — the network is a background concern, not a screen concern —
- * is the pattern M3 copies for every other owned entity.
- *
- * **Location is captured, never typed** (STOURIFY-4). `LocationPicker` owns
- * that: the phone's own position on entry, a draggable pin for correction, and
- * a stated reason on screen whenever neither is available. This screen only
- * holds the resulting coordinate, and refuses to publish without one. Note what
- * it does NOT import — no map library appears anywhere under
- * `features/create/`, because `src/shared/map/MapCanvas.tsx` is the app's only
- * map-aware file and a second one would end the one-file MapLibre swap.
+ * **Location is captured, never typed** (STOURIFY-4). The phone is asked where
+ * it is the moment the form opens, and the answer lands in the location row
+ * with a tick. Tapping the row opens the full-screen map to correct it, and
+ * "Confirm location" hands the corrected pin back here as a route param. There
+ * is still no way to type a coordinate anywhere in the flow.
  *
  * The photo strip reads the database rather than a route param, for the reason
  * `CreateStackParamList` spells out: a camera URI is an OS cache entry Android
- * may reclaim (design spec §2.3 rule 4). Capture writes a durable
- * `pending_media` row before it navigates, and publish is what binds those rows
- * to this spot.
+ * may reclaim (design spec §2.3 rule 4).
+ *
+ * Left out of the artboard on purpose, because nothing stands behind them yet:
+ * "Save draft" (the operator ruled out drafts on 2026-08-26) and the operating
+ * hours row (no hours editor exists).
  */
-export default function CreateSpotScreen({ navigation }: Props) {
+export default function CreateSpotScreen({ navigation, route }: Props) {
   const theme = useTheme()
   const database = useDatabase()
-  const userId = useAuthStore((state) => state.user?.id ?? null)
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  // Never typed: filled in from the device on entry, corrected by moving the
-  // pin. `null` means nothing has placed it yet, which validation refuses.
+  // Never typed: filled in from the device on entry, corrected on the map.
+  // `null` means nothing has placed it yet, which validation refuses.
   const [coordinate, setCoordinate] = useState<MapCoordinate | null>(null)
   const [categories, setCategories] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [photos, setPhotos] = useState<PendingMedia[]>([])
-  const [publishing, setPublishing] = useState(false)
+
+  // A late fix never overwrites a pin somebody has already placed by hand.
+  const onFix = useCallback((fix: MapCoordinate) => {
+    setCoordinate((current) => current ?? fix)
+    // STOURIFY-257: a pin landing here can turn an invalid form valid, so the
+    // stale "needs a location" line must not outlive it.
+    setError(null)
+  }, [])
+  const locating = useInitialPosition(onFix)
+
+  // The corrected pin, handed back by "Confirm location".
+  const returned = route.params?.coordinate
+  useEffect(() => {
+    if (returned) {
+      setCoordinate(returned)
+      // STOURIFY-257: same reasoning as `onFix` — this is the other path a
+      // coordinate can arrive by.
+      setError(null)
+    }
+  }, [returned])
 
   useEffect(() => {
     // Subscribe rather than refetch on focus: a photo removed on the review
@@ -67,24 +85,25 @@ export default function CreateSpotScreen({ navigation }: Props) {
     return () => subscription.unsubscribe()
   }, [database])
 
+  // The pinned footer below rides on top of this — see the hook's own comment
+  // for why it measures the wrapper's absolute position rather than trusting
+  // `KeyboardAvoidingView`'s parent-relative `onLayout` frame (STOURIFY-257).
+  const wrapperRef = useRef<View>(null)
+  const keyboardOverlap = useKeyboardOverlap(wrapperRef)
+
   const atCap = photos.length >= MAX_DRAFT_PHOTOS
 
   const inputStyle = {
+    ...theme.typography.body,
     backgroundColor: theme.colors.card,
     borderColor: theme.colors.hairline,
     borderWidth: 1,
     borderRadius: theme.radius.button,
-    padding: theme.spacing[4],
+    paddingHorizontal: 14,
+    paddingVertical: 13,
     color: theme.colors.ink,
     minHeight: theme.minTouchTarget,
   }
-
-  /**
-   * Stable, so the picker does not re-request a position every time anything
-   * else on the form changes — its effect would otherwise re-run on every
-   * keystroke in the title field.
-   */
-  const onCoordinateChange = useCallback((next: MapCoordinate) => setCoordinate(next), [])
 
   function toggleCategory(category: string): void {
     setCategories((previous) =>
@@ -94,15 +113,26 @@ export default function CreateSpotScreen({ navigation }: Props) {
           ? previous
           : [...previous, category],
     )
+    // STOURIFY-257: a chip toggle is a field the error line can be about.
+    setError(null)
   }
 
-  async function onPublish(): Promise<void> {
-    if (publishing) return
+  // STOURIFY-257: title and description each feed `validateSpotForm`, so
+  // every keystroke can be the one that makes a shown error stale.
+  function onChangeTitle(value: string): void {
+    setTitle(value)
+    setError(null)
+  }
 
+  function onChangeDescription(value: string): void {
+    setDescription(value)
+    setError(null)
+  }
+
+  function onNext(): void {
     // One rule set, shared with its own tests and kept in step with
-    // `SpotStoreRequest`. A local write that the server will later refuse is
-    // the failure this guards: the refusal arrives long after the person who
-    // typed it stopped looking.
+    // `SpotStoreRequest`. Checked here, before Review, so the person is still
+    // looking at the field that is wrong when they are told about it.
     const invalid = validateSpotForm({ title, description, coordinate, categories })
 
     if (invalid !== null) {
@@ -111,156 +141,233 @@ export default function CreateSpotScreen({ navigation }: Props) {
     }
 
     setError(null)
-    setPublishing(true)
-
-    try {
-      // One call writes the spot and binds every captured photo to its uuid.
-      // The uuid is minted in there, before the write — it is the row's
-      // identity, the key the server resolves the push by, and the
-      // `model_uuid` each photo's later `attach` resolves against.
-      await publishSpot(database, {
-        title,
-        description,
-        // Non-null by construction: `validateSpotForm` above refuses a form
-        // with no position, so reaching here means one was captured or placed.
-        latitude: coordinate!.latitude,
-        longitude: coordinate!.longitude,
-        categories,
-        userId: userId === null ? null : Number(userId),
-      })
-    } catch (publishError) {
-      // Reaching here means an invariant broke, not that the network did —
-      // publish never touches it. Say so rather than inventing a retry.
-      setError(
-        publishError instanceof Error
-          ? publishError.message
-          : 'That spot could not be published. Try again.',
-      )
-      return
-    } finally {
-      setPublishing(false)
-    }
-
-    // A nudge, not a dependency: the rows are already durable and will drain on
-    // the next trigger regardless of whether this resolves.
-    void syncNow(database)
-
-    navigation.navigate('MySpots')
+    navigation.navigate('ReviewSpot', {
+      title,
+      description,
+      categories,
+      // Non-null by construction: `validateSpotForm` refuses a form with none.
+      coordinate: coordinate!,
+    })
   }
 
   return (
-    <KeyboardAwareScreen edges={['top']} contentContainerStyle={{ gap: theme.spacing[4] }}>
-      <Text variant="h1">New spot</Text>
-      <Text variant="body" color="muted">
-        Saved on this device straight away. It uploads itself when you are back online.
-      </Text>
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: theme.colors.surface }}>
+      <BarHeader title="New Spot" onBack={() => navigation.goBack()} />
 
-      <TextInput
-        style={inputStyle}
-        placeholder="Spot name"
-        placeholderTextColor={theme.colors.muted}
-        value={title}
-        onChangeText={setTitle}
-      />
+      <View ref={wrapperRef} style={styles.fill}>
+        {/*
+          `keyboardShouldPersistTaps="handled"` is not cosmetic: without it the
+          first tap on a chip or the location row below a focused field is spent
+          dismissing the keyboard (STOURIFY-100).
+        */}
+        <ScrollView
+          contentContainerStyle={{
+            paddingHorizontal: theme.gutter,
+            paddingTop: 6,
+            paddingBottom: theme.spacing[4],
+            gap: 15,
+          }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
+          <View style={{ gap: theme.spacing[2] }}>
+            <View style={styles.strip}>
+              {photos.map((photo) => (
+                <Pressable
+                  key={photo.id}
+                  onPress={() => navigation.navigate('PhotoReview')}
+                  accessibilityRole="imagebutton"
+                  accessibilityLabel={photo.filename}
+                >
+                  <Image
+                    source={{ uri: photo.localPath }}
+                    style={[
+                      styles.tile,
+                      {
+                        borderRadius: theme.radius.button,
+                        backgroundColor: theme.colors.surfaceAlt,
+                      },
+                    ]}
+                    resizeMode="cover"
+                  />
+                </Pressable>
+              ))}
 
-      <TextInput
-        style={[inputStyle, styles.multiline]}
-        placeholder="What makes it worth the trip?"
-        placeholderTextColor={theme.colors.muted}
-        value={description}
-        onChangeText={setDescription}
-        multiline
-      />
+              {/* Disabled rather than hidden at the cap, so the strip keeps its shape. */}
+              <Pressable
+                onPress={() => navigation.navigate('CameraCapture')}
+                disabled={atCap}
+                accessibilityRole="button"
+                accessibilityLabel="Add photos"
+                accessibilityState={{ disabled: atCap }}
+                style={({ pressed }) => [
+                  styles.tile,
+                  styles.centered,
+                  {
+                    borderRadius: theme.radius.button,
+                    borderWidth: 1.5,
+                    borderStyle: 'dashed',
+                    borderColor: theme.colors.hairline,
+                    backgroundColor: theme.colors.surfaceAlt,
+                    opacity: atCap ? 0.5 : pressed ? 0.85 : 1,
+                  },
+                ]}
+              >
+                <Icon name="add" size={24} color="muted" />
+              </Pressable>
+            </View>
 
-      <LocationPicker value={coordinate} onChange={onCoordinateChange} />
+            {atCap ? (
+              <Text variant="caption" color="muted">
+                {`That is all ${MAX_DRAFT_PHOTOS} photos. Remove one to take another.`}
+              </Text>
+            ) : null}
+          </View>
 
-      <View style={{ gap: theme.spacing[2] }}>
-        <Text variant="h2">Categories</Text>
-        <Text variant="caption" color="muted">
-          {`Optional — up to ${MAX_SPOT_CATEGORIES}.`}
-        </Text>
-        <View style={styles.chips}>
-          {SPOT_CATEGORIES.map((category) => (
-            <Chip
-              key={category}
-              label={category}
-              selected={categories.includes(category)}
-              onPress={() => toggleCategory(category)}
+          <View>
+            <FieldLabel>Title</FieldLabel>
+            <TextInput
+              style={inputStyle}
+              placeholder="Spot name"
+              placeholderTextColor={theme.colors.muted}
+              accessibilityLabel="Title"
+              value={title}
+              onChangeText={onChangeTitle}
             />
-          ))}
+          </View>
+
+          <View>
+            <FieldLabel>Description</FieldLabel>
+            <TextInput
+              style={[inputStyle, styles.multiline]}
+              placeholder="What makes it worth the trip?"
+              placeholderTextColor={theme.colors.muted}
+              accessibilityLabel="Description"
+              value={description}
+              onChangeText={onChangeDescription}
+              multiline
+            />
+          </View>
+
+          <View>
+            <FieldLabel>Categories</FieldLabel>
+            <View style={styles.chips}>
+              {SPOT_CATEGORIES.map((category) => (
+                <Chip
+                  key={category}
+                  label={category}
+                  selected={categories.includes(category)}
+                  onPress={() => toggleCategory(category)}
+                />
+              ))}
+            </View>
+          </View>
+
+          <Pressable
+            onPress={() => navigation.navigate('SpotLocation', { coordinate })}
+            accessibilityRole="button"
+            accessibilityLabel="Location"
+            accessibilityHint="Opens the map to place the pin"
+            style={({ pressed }) => [
+              styles.row,
+              {
+                minHeight: theme.minTouchTarget,
+                gap: 11,
+                padding: 14,
+                borderRadius: theme.radius.button,
+                borderWidth: 1,
+                borderColor: theme.colors.hairline,
+                backgroundColor: theme.colors.card,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+          >
+            <Icon name="pin" size={18} color="primary" />
+            <Text
+              testID={coordinate ? 'picked-coordinates' : 'location-row-status'}
+              variant="body"
+              color={coordinate ? 'ink' : 'muted'}
+              numberOfLines={1}
+              style={[styles.fill, { fontFamily: theme.fontFamily.bodyMedium }]}
+            >
+              {locationLine(coordinate, locating)}
+            </Text>
+            {coordinate ? (
+              <Icon name="check" size={16} color="success" strokeWidth={2.5} />
+            ) : (
+              <Icon name="forward" size={18} color="muted" />
+            )}
+          </Pressable>
+        </ScrollView>
+
+        <View
+          testID="create-spot-footer"
+          style={{
+            paddingHorizontal: theme.gutter,
+            paddingTop: theme.spacing[3],
+            // How much of the wrapper above the keyboard actually covers,
+            // added on top of the resting padding — this is what lifts the
+            // footer to rest right on the keyboard rather than sitting under
+            // it, or floating above it (STOURIFY-257). Adding to the footer,
+            // not the screen, keeps the maths to one number: the footer just
+            // grows and the `ScrollView` above it gives up exactly that much
+            // room.
+            paddingBottom: theme.spacing[4] + keyboardOverlap,
+            gap: theme.spacing[2],
+            backgroundColor: theme.colors.surface,
+          }}
+        >
+          {/* Above the button, so a refusal is read where the finger already is. */}
+          {error !== null ? (
+            <Text variant="caption" color="danger">
+              {error}
+            </Text>
+          ) : null}
+
+          <Button label="Next · Review & Publish" size="lg" onPress={onNext} fullWidth />
         </View>
       </View>
-
-      <View style={{ gap: theme.spacing[2] }}>
-        <Text variant="h2">Photos</Text>
-        <Text variant="caption" color="muted">
-          {`${photos.length} of ${MAX_DRAFT_PHOTOS}`}
-        </Text>
-      </View>
-
-      {photos.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={{ flexDirection: 'row', gap: theme.spacing[3] }}>
-            {photos.map((photo) => (
-              <Pressable
-                key={photo.id}
-                onPress={() => navigation.navigate('PhotoReview')}
-                accessibilityRole="imagebutton"
-                accessibilityLabel={photo.filename}
-              >
-                <Image
-                  source={{ uri: photo.localPath }}
-                  style={[
-                    styles.thumbnail,
-                    { borderRadius: theme.radius.button, backgroundColor: theme.colors.surfaceAlt },
-                  ]}
-                  resizeMode="cover"
-                />
-              </Pressable>
-            ))}
-          </View>
-        </ScrollView>
-      ) : (
-        <Text variant="caption" color="muted">
-          No photos yet. They are saved on this device the moment you take them, signal or not.
-        </Text>
-      )}
-
-      {atCap ? (
-        <Text variant="caption" color="muted">
-          {`That is all ${MAX_DRAFT_PHOTOS} photos. Remove one to take another.`}
-        </Text>
-      ) : null}
-
-      <Button
-        label="Add photos"
-        variant="secondary"
-        onPress={() => navigation.navigate('CameraCapture')}
-        accessibilityLabel="Add photos"
-        disabled={atCap}
-        fullWidth
-      />
-
-      {error !== null ? (
-        <Text variant="caption" style={{ color: theme.colors.danger }}>
-          {error}
-        </Text>
-      ) : null}
-
-      <Button
-        label="Publish spot"
-        onPress={() => {
-          void onPublish()
-        }}
-        disabled={publishing}
-        fullWidth
-      />
-    </KeyboardAwareScreen>
+    </SafeAreaView>
   )
 }
 
+/** The design's `.fl`: a small uppercase label over each field. */
+function FieldLabel({ children }: { children: string }) {
+  return (
+    <Text variant="micro" color="muted" style={styles.label}>
+      {children}
+    </Text>
+  )
+}
+
+/**
+ * What the location row says. Coordinates once there are any — there is no
+ * place-name lookup yet, and a lookup would need the network this flow must
+ * not depend on — otherwise the state, in words that say what a tap will do.
+ */
+function locationLine(coordinate: MapCoordinate | null, status: InitialPositionStatus): string {
+  if (coordinate !== null) {
+    return `${coordinate.latitude.toFixed(5)}, ${coordinate.longitude.toFixed(5)}`
+  }
+
+  switch (status) {
+    case 'locating':
+      return 'Finding where you are…'
+    case 'denied':
+      return 'Location is off. Tap to place the pin'
+    case 'ready':
+    case 'unavailable':
+      return 'Tap to place the pin on the map'
+  }
+}
+
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  strip: { flexDirection: 'row', gap: 9 },
+  tile: { width: TILE, height: TILE },
+  centered: { alignItems: 'center', justifyContent: 'center' },
+  label: { marginBottom: 8 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  multiline: { minHeight: 96, textAlignVertical: 'top' },
-  thumbnail: { width: 96, height: 96 },
+  multiline: { minHeight: 88, textAlignVertical: 'top' },
+  row: { flexDirection: 'row', alignItems: 'center' },
 })

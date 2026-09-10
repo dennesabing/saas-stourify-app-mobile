@@ -42,3 +42,7 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 android/.kotlin/errors
+
+# Throwaway test artifacts (screenshots, recordings, traces). The root CLAUDE.md
+# sends them here, so this folder must never be stageable.
+.screenshots/

@@ -166,6 +166,23 @@ describe('LocationPicker — with a position', () => {
   })
 })
 
+describe('LocationPicker — opened with a pin already placed', () => {
+  // STOURIFY-257 moved the picker onto its own screen, so it is now reopened
+  // after a pin was placed. Asking the phone again would snap that pin back.
+  it('starts from the position it was given and asks the phone nothing', async () => {
+    const placed = { latitude: 7.5, longitude: 126.5 }
+    const { onChange } = renderPicker({ value: placed })
+
+    await waitFor(() => {
+      expect(mockMapProps.at(-1)!.region.latitude).toBeCloseTo(placed.latitude, 3)
+    })
+
+    expect(permissions).not.toHaveBeenCalled()
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByText(/drag the pin if it is not quite right/i)).toBeTruthy()
+  })
+})
+
 describe('LocationPicker — finding the pin again', () => {
   // The map pans freely, so the pin can end up off screen. Without a way back,
   // the picker reads as a map of somewhere else entirely.
