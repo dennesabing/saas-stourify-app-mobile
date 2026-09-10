@@ -117,6 +117,23 @@ beforeEach(() => {
   })
 })
 
+/**
+ * STOURIFY-259 — found on the emulator: with the list as the default view, the
+ * first load showed "0 spots within 10 km" over a blank page. Neither claim was
+ * known yet; the request simply had not answered.
+ */
+it('says it is still finding spots, not "0 spots", while the first request is pending', async () => {
+  grantLocationAtGenSan()
+  ;(getNearbySpots as jest.Mock).mockReturnValue(new Promise(() => {}))
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Finding spots within 10 km…')).toBeTruthy())
+  expect(screen.getByText('Finding spots nearby…')).toBeTruthy()
+  expect(screen.queryByText(/^0 spots within/)).toBeNull()
+  expect(screen.queryByText(STRIP_EMPTY_COPY)).toBeNull()
+})
+
 it('does not blame permissions when the position request fails', async () => {
   ;(Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({
     status: 'granted',
@@ -139,6 +156,9 @@ it('falls back to the last known position when the live fix fails', async () => 
 
   renderScreen()
 
+  // `nearby-map` only mounts in map view (STOURIFY-259 made list the
+  // default), so the toggle is the way to observe "ready" here.
+  fireEvent.press(await screen.findByLabelText('Show map'))
   await waitFor(() => expect(screen.getByTestId('nearby-map')).toBeTruthy())
   expect(screen.queryByText(PERMISSION_COPY)).toBeNull()
 })
@@ -156,8 +176,11 @@ it('falls back when the live fix never settles at all', async () => {
   try {
     renderScreen()
 
-    // Let the permission promise settle before the clock is moved.
+    // Let the permission promise settle before the clock is moved, then
+    // switch to map view so `nearby-map` reflects readiness rather than the
+    // default list view, which never mounts it either way.
     await act(async () => {})
+    fireEvent.press(screen.getByLabelText('Show map'))
     expect(screen.queryByTestId('nearby-map')).toBeNull()
 
     await act(async () => {
@@ -195,6 +218,7 @@ it('retries the request in place without leaving the screen', async () => {
 
   fireEvent.press(screen.getByText('Try again'))
 
+  fireEvent.press(await screen.findByLabelText('Show map'))
   await waitFor(() => expect(screen.getByTestId('nearby-map')).toBeTruthy())
 })
 
@@ -211,7 +235,7 @@ describe('the spots it renders', () => {
   })
 
   /**
-   * The gate criterion, on the screen rather than in the client: the strip and
+   * The gate criterion, on the screen rather than in the client: the list and
    * the pins must both follow the server's distance order. Asserting the whole
    * sequence matters — "four spots rendered" would pass under any permutation.
    */
@@ -225,13 +249,16 @@ describe('the spots it renders', () => {
 
     const titles = ['Plaza Heneral Santos', 'Oval Plaza', 'Bula Fish Port', 'Lagao Gymnasium']
 
-    // The strip: one `SpotCard` accessibility label per spot, in render order.
+    // The list, in its default view: one row accessibility label per spot,
+    // in render order.
     const rendered = screen
       .getAllByLabelText(/^(Plaza Heneral Santos|Oval Plaza|Bula Fish Port|Lagao Gymnasium)$/)
       .map((node) => node.props.accessibilityLabel)
     expect(rendered).toEqual(titles)
 
-    // The map: a marker per spot, plus the viewer's own pin.
+    // The map, reached via the toggle: a marker per spot, plus the viewer's
+    // own pin.
+    fireEvent.press(screen.getByLabelText('Show map'))
     titles.forEach((title) => expect(screen.getByTestId(`nearby-marker-${title}`)).toBeTruthy())
     expect(screen.getByTestId('nearby-marker-You')).toBeTruthy()
   })
@@ -242,8 +269,10 @@ describe('the spots it renders', () => {
 
     renderScreen()
 
-    await waitFor(() => expect(screen.getByText('5.3 km away')).toBeTruthy())
-    expect(screen.getByText('1.1 km away')).toBeTruthy()
+    // The list row's compact form — "· 5.3 km" — rather than the map peek's
+    // "5.3 km away" (STOURIFY-259).
+    await waitFor(() => expect(screen.getByText('· 5.3 km')).toBeTruthy())
+    expect(screen.getByText('· 1.1 km')).toBeTruthy()
   })
 
   /** Selecting a pin peeks the spot it belongs to, not whichever came first. */
@@ -253,6 +282,7 @@ describe('the spots it renders', () => {
 
     renderScreen()
 
+    fireEvent.press(await screen.findByLabelText('Show map'))
     await waitFor(() => expect(screen.getByTestId('nearby-marker-Bula Fish Port')).toBeTruthy())
 
     fireEvent.press(screen.getByTestId('nearby-marker-Bula Fish Port'))
@@ -261,6 +291,73 @@ describe('the spots it renders', () => {
     fireEvent.press(within(peek).getByLabelText('Bula Fish Port'))
 
     expect(navigation.navigate).toHaveBeenCalledWith('SpotDetail', { spotId: 'port' })
+  })
+
+  /** A row is a plain tap target, same as the map peek. */
+  it('opens the spot behind the row that was tapped', async () => {
+    grantLocationAtGenSan()
+    ;(getNearbySpots as jest.Mock).mockResolvedValue(GENSAN_PAGE)
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByLabelText('Bula Fish Port')).toBeTruthy())
+    fireEvent.press(screen.getByLabelText('Bula Fish Port'))
+
+    expect(navigation.navigate).toHaveBeenCalledWith('SpotDetail', { spotId: 'port' })
+  })
+
+  it('says how many spots are within the current radius', async () => {
+    grantLocationAtGenSan()
+    ;(getNearbySpots as jest.Mock).mockResolvedValue(GENSAN_PAGE)
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('4 spots within 10 km')).toBeTruthy())
+  })
+
+  it('switches between the list and the map from the header toggle', async () => {
+    grantLocationAtGenSan()
+    ;(getNearbySpots as jest.Mock).mockResolvedValue(GENSAN_PAGE)
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByLabelText('Plaza Heneral Santos')).toBeTruthy())
+    expect(screen.queryByTestId('nearby-map')).toBeNull()
+
+    fireEvent.press(screen.getByLabelText('Show map'))
+
+    await waitFor(() => expect(screen.getByTestId('nearby-map')).toBeTruthy())
+    expect(screen.queryByLabelText('Plaza Heneral Santos')).toBeNull()
+
+    fireEvent.press(screen.getByLabelText('Show list'))
+
+    await waitFor(() => expect(screen.getByLabelText('Plaza Heneral Santos')).toBeTruthy())
+  })
+
+  it('cycles the radius chip and re-queries at each stop', async () => {
+    grantLocationAtGenSan()
+    ;(getNearbySpots as jest.Mock).mockResolvedValue(GENSAN_PAGE)
+
+    renderScreen()
+
+    await waitFor(() =>
+      expect(getNearbySpots).toHaveBeenCalledWith(GENSAN.latitude, GENSAN.longitude, 10),
+    )
+
+    fireEvent.press(screen.getByText('Within 10 km'))
+    await waitFor(() =>
+      expect(getNearbySpots).toHaveBeenCalledWith(GENSAN.latitude, GENSAN.longitude, 25),
+    )
+
+    fireEvent.press(screen.getByText('Within 25 km'))
+    await waitFor(() =>
+      expect(getNearbySpots).toHaveBeenCalledWith(GENSAN.latitude, GENSAN.longitude, 50),
+    )
+
+    fireEvent.press(screen.getByText('Within 50 km'))
+    await waitFor(() =>
+      expect(getNearbySpots).toHaveBeenCalledWith(GENSAN.latitude, GENSAN.longitude, 5),
+    )
   })
 
   /**
@@ -424,11 +521,12 @@ describe('a spot whose coordinates the server withheld', () => {
     renderScreen()
 
     // The spot is still a result. Dropping it from the list as well would be a
-    // second withdrawal nobody asked for — the strip is a list of places, and
+    // second withdrawal nobody asked for — the list is a list of places, and
     // this is one.
     await waitFor(() => expect(screen.getByLabelText('Hidden Cove')).toBeTruthy())
 
     // …and the map shows only what it can honestly place.
+    fireEvent.press(screen.getByLabelText('Show map'))
     expect(screen.getByTestId('nearby-marker-Plaza Heneral Santos')).toBeTruthy()
     expect(screen.queryByTestId('nearby-marker-Hidden Cove')).toBeNull()
   })

@@ -48,3 +48,16 @@ export async function fetchExploreSpots(category?: string): Promise<Spot[]> {
 export function thumbFor(spot: Spot): string | null {
   return spot.media?.find((media) => media.thumb_url)?.thumb_url ?? null
 }
+
+/**
+ * The rating to show for a spot — or `null` when there is nothing to show.
+ *
+ * A spot nobody has reviewed comes back with `rating_average: 0`, not `null`,
+ * so a plain null check prints "★ 0.0" under every new spot. That reads as
+ * "rated terribly" when the truth is "not rated yet" — found on the emulator
+ * across the whole Discover redesign (STOURIFY-259). One rule, here, so the
+ * mosaic, the map peek, search rows and Nearby cannot drift apart on it.
+ */
+export function ratingFor(spot: Spot): number | null {
+  return (spot.reviews_count ?? 0) > 0 && spot.rating_average != null ? spot.rating_average : null
+}

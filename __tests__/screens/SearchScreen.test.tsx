@@ -50,8 +50,11 @@ function renderScreen(queryClient?: QueryClient) {
   )
 }
 
-/** The copy each of the four no-rows states shows, named once so a test can assert the absence of the other three. */
-const PROMPT = 'Search Stourify'
+/** The copy each no-rows-inside-results state shows, named once so a test can
+ * assert the absence of the other three. The fourth pre-STOURIFY-259 state —
+ * "we have not been asked yet" — is now the Recent/Browse-categories screen,
+ * not one of these. */
+const HINT = 'Type at least two characters to search spots, cities and people.'
 const SEARCHING = 'Searching…'
 const FAILED = "Couldn't run your search"
 const NOTHING_FOUND = 'No results'
@@ -66,8 +69,16 @@ beforeEach(() => {
   })
 })
 
+function field() {
+  return screen.getByPlaceholderText('Search spots, cities, people')
+}
+
 function type(text: string) {
-  fireEvent.changeText(screen.getByPlaceholderText('Search spots, cities, people'), text)
+  fireEvent.changeText(field(), text)
+}
+
+function submit() {
+  fireEvent(field(), 'submitEditing')
 }
 
 it('queries /discover/search and never the plain spot index', async () => {
@@ -105,7 +116,7 @@ it('sends no request for a query the server is required to reject', async () => 
 it('prompts rather than claiming there are no results before anything was searched', async () => {
   renderScreen()
 
-  expect(screen.getByText(PROMPT)).toBeTruthy()
+  expect(screen.getByText(HINT)).toBeTruthy()
   expect(screen.queryByText(NOTHING_FOUND)).toBeNull()
   expect(screen.queryByText(FAILED)).toBeNull()
 })
@@ -122,14 +133,15 @@ it('keeps prompting for a query too short to send, without claiming an outcome',
 
   await new Promise((resolve) => setTimeout(resolve, 600))
 
-  expect(screen.getByText(PROMPT)).toBeTruthy()
+  expect(screen.getByText(HINT)).toBeTruthy()
   expect(screen.queryByText(NOTHING_FOUND)).toBeNull()
   expect(screen.queryByText(FAILED)).toBeNull()
 })
 
 /**
  * The chip row used to be six hardcoded category names with no server rule
- * behind them; it is now the endpoint's real `type` selector.
+ * behind them; it is now the endpoint's real `type` selector, drawn as a
+ * `SegmentedControl` since STOURIFY-259.
  */
 it('filters by result type through the server, not client-side', async () => {
   renderScreen()
@@ -137,8 +149,7 @@ it('filters by result type through the server, not client-side', async () => {
 
   await waitFor(() => expect(searchDiscover).toHaveBeenCalled(), { timeout: 3000 })
 
-  // By role, not by text: "People" is also a section header once results land.
-  fireEvent.press(screen.getByRole('button', { name: 'People' }))
+  fireEvent.press(screen.getByRole('tab', { name: 'People' }))
 
   await waitFor(() => expect(searchDiscoverType).toHaveBeenCalledWith('kalaklan', 'people'), {
     timeout: 3000,
@@ -339,5 +350,83 @@ describe('an empty catalogue versus an empty result', () => {
     await waitFor(() => expect(screen.getByText(NOTHING_FOUND)).toBeTruthy(), { timeout: 3000 })
 
     expect(screen.queryByText('There is nothing to find yet')).toBeNull()
+  })
+})
+
+/** The redesign's "before you search" screen (STOURIFY-259): Recent, then
+ * Browse categories, replacing the old centred "Search Stourify" prompt. */
+describe('before a search runs', () => {
+  it('records a submitted query under Recent', async () => {
+    renderScreen()
+    type('sunset viewpoints')
+    submit()
+    type('')
+
+    await waitFor(() => expect(screen.getByText('Recent')).toBeTruthy())
+    expect(screen.getByText('sunset viewpoints')).toBeTruthy()
+  })
+
+  it('records a query when a result from it is opened', async () => {
+    renderScreen()
+    type('kalaklan')
+
+    await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
+      timeout: 3000,
+    })
+    fireEvent.press(screen.getByText('Kalaklan Lighthouse'))
+    type('')
+
+    await waitFor(() => expect(screen.getByText('kalaklan')).toBeTruthy())
+  })
+
+  it('removes one recent query, leaving the rest', async () => {
+    renderScreen()
+    type('sunset viewpoints')
+    submit()
+    type('')
+    await waitFor(() => expect(screen.getByText('sunset viewpoints')).toBeTruthy())
+
+    type('best coffee')
+    submit()
+    type('')
+    await waitFor(() => expect(screen.getByText('best coffee')).toBeTruthy())
+
+    fireEvent.press(screen.getByLabelText('Remove sunset viewpoints'))
+
+    expect(screen.queryByText('sunset viewpoints')).toBeNull()
+    expect(screen.getByText('best coffee')).toBeTruthy()
+  })
+
+  it('clears every recent query', async () => {
+    renderScreen()
+    type('sunset viewpoints')
+    submit()
+    type('')
+    await waitFor(() => expect(screen.getByText('sunset viewpoints')).toBeTruthy())
+
+    fireEvent.press(screen.getByText('Clear'))
+
+    expect(screen.queryByText('sunset viewpoints')).toBeNull()
+    expect(screen.queryByText('Recent')).toBeNull()
+  })
+
+  it('fills the field when a recent query is tapped', async () => {
+    renderScreen()
+    type('sunset viewpoints')
+    submit()
+    type('')
+    await waitFor(() => expect(screen.getByText('sunset viewpoints')).toBeTruthy())
+
+    fireEvent.press(screen.getByText('sunset viewpoints'))
+
+    expect(field().props.value).toBe('sunset viewpoints')
+  })
+
+  it('navigates to Discover with the category when a tile is tapped', async () => {
+    renderScreen()
+
+    fireEvent.press(screen.getByText('Nature'))
+
+    expect(navigation.navigate).toHaveBeenCalledWith('Discover', { category: 'Nature' })
   })
 })

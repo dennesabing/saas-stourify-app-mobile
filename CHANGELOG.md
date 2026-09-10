@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Discover follows the Discover design (STOURIFY-259).** Same data, endpoints and offline behaviour
+  as before, laid out per artboards 1–5 of `docs/design/Stourify - Discover.dc.html`:
+  - **Explore:** a "Discover" title with a "Near me" link, a search pill, the category chips, and a
+    two-column photo mosaic. Each tile is the spot's photo fading to dark at the bottom (an svg
+    gradient), with the title and "Category · ★ rating". A floating Map button sits bottom-right.
+    Cached spots still show before any error. A category can now be pre-selected by the route, which
+    is what Search's category tiles use.
+  - **Map:** a back button, a search pill, and category chips that filter the pins, all floating over
+    the map; also the design's peek card with a round go button, and a list button that opens Nearby.
+  - **Search:** the search field is the header. Before you type: recent searches kept on the device,
+    and category tiles that open Explore filtered. After: a segmented switch (All / Spots / People /
+    Places) and rows with photos. Every empty, loading and error message is unchanged.
+  - **Nearby:** list-first cards with a map toggle, a "N spots within X km" line, and a radius chip
+    that cycles 5/10/25/50 km. Its hard-coded dark colours are gone; it now uses the theme, like every
+    other screen.
+  - **Left out:** For You, trending tags, Featured Cities and Collections have no data behind them,
+    and tags can't be followed, so the Category hero is out too.
+  - **Found on the emulator and fixed before shipping:**
+    - Unreviewed spots showed "★ 0.0", because the server sends `rating_average: 0`, not `null`,
+      and that reads as "rated badly". A new shared `ratingFor()` shows a rating only when a spot has
+      reviews, on every Discover screen.
+    - Nearby's first load said "0 spots within 10 km" over a blank list. It now says "Finding spots
+      within 10 km…" and shows a spinner until the answer arrives.
+
 - **New Spot now follows the Create design as three steps: form, map, review (STOURIFY-257).**
   It used to be one long page with an inline map and the Publish button at the bottom. Now it
   follows artboards 4–6 of `docs/design/Stourify - Create.dc.html`:
@@ -38,7 +62,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   **This adds a native module, `react-native-svg`.** The dev client and every APK must be rebuilt,
   and an older install can't run this JS.
-- **`BarHeader` primitive:** the design's round back button with the title on the same line.
+- **`BarHeader` primitive:** the design's round back button with the title on the same line. Since
+  STOURIFY-259 it takes an optional `right` control (Nearby's map/list toggle).
+- **`SearchField` and `SegmentedControl` primitives (STOURIFY-259).** `SearchField` is the design's
+  search pill. It can be a typable input, or a button that opens search. `SegmentedControl` is the
+  grey track with a raised, selected segment. `Icon` gains the meanings `search`, `map`, `list`,
+  `clock`, `close`, `locate`, `navigate` and `sort`.
 - **`useKeyboardOverlap` hook:** keeps a pinned footer sitting on top of the on-screen keyboard.
   New Spot's "Next · Review & Publish" used to stay underneath the keyboard while you typed, so a
   tap on it landed on the keyboard instead. The hook measures how far the keyboard actually covers

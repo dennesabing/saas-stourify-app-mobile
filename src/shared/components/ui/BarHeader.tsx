@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Pressable, View } from 'react-native'
 import { useTheme } from '@/theme/ThemeProvider'
 import Icon from './Icon'
@@ -6,6 +7,14 @@ import Text from './Text'
 interface Props {
   title: string
   onBack: () => void
+  /**
+   * An optional control drawn at the far end of the row — Nearby's
+   * list/map toggle is the first caller (STOURIFY-259). Optional and
+   * additive only: `CreateSpotScreen` and `ReviewSpotScreen` pass neither
+   * `right` nor anything that depends on it, so they render exactly as
+   * before.
+   */
+  right?: ReactNode
   testID?: string
 }
 
@@ -24,7 +33,7 @@ const BACK_SIZE = 38
  *
  * The disc is drawn at 38 and answers to 44: `hitSlop` makes up the rest.
  */
-export default function BarHeader({ title, onBack, testID }: Props) {
+export default function BarHeader({ title, onBack, right, testID }: Props) {
   const theme = useTheme()
   const slop = (theme.minTouchTarget - BACK_SIZE) / 2
 
@@ -61,10 +70,12 @@ export default function BarHeader({ title, onBack, testID }: Props) {
       <Text
         variant="h2"
         numberOfLines={1}
-        style={{ flexShrink: 1, fontFamily: theme.fontFamily.displayBold }}
+        style={{ flexShrink: 1, flexGrow: 1, fontFamily: theme.fontFamily.displayBold }}
       >
         {title}
       </Text>
+
+      {right}
     </View>
   )
 }

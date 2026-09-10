@@ -1,4 +1,19 @@
-import { Check, ChevronLeft, ChevronRight, MapPin, Plus, RefreshCw } from 'lucide-react-native'
+import {
+  ArrowUpDown,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  List,
+  LocateFixed,
+  Map,
+  MapPin,
+  Navigation,
+  Plus,
+  RefreshCw,
+  Search,
+  X,
+} from 'lucide-react-native'
 import { useTheme } from '@/theme/ThemeProvider'
 import type { ColorRole } from '@/theme/tokens'
 
@@ -19,8 +34,23 @@ const GLYPHS = {
   add: Plus,
   back: ChevronLeft,
   check: Check,
+  /** A recent search (STOURIFY-259). */
+  clock: Clock,
+  /** Dismiss or clear — a recent search, a search field. */
+  close: X,
   forward: ChevronRight,
+  /** Switch to a list view of the same spots. */
+  list: List,
+  /** Bring the map back to where you are. */
+  locate: LocateFixed,
+  /** Switch to, or open, a map. */
+  map: Map,
+  /** Go to a spot — the round button on a map peek card. */
+  navigate: Navigation,
   pin: MapPin,
+  search: Search,
+  /** Change how a list is ordered or bounded — Nearby's radius chip. */
+  sort: ArrowUpDown,
   sync: RefreshCw,
 } as const
 

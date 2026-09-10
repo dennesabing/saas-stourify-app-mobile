@@ -134,7 +134,13 @@ export type HomeStackParamList = {
 }
 
 export type DiscoverStackParamList = {
-  Discover: undefined
+  /**
+   * `category` pre-selects a chip on the explore grid. It exists for the
+   * "Browse categories" tiles on Search (STOURIFY-259): a tile there opens
+   * Explore already filtered, rather than a second category screen that would
+   * duplicate the grid. Optional, so the tab itself opens unfiltered as always.
+   */
+  Discover: { category?: string } | undefined
   Search: undefined
   Nearby: undefined
   Map: undefined
