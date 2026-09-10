@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import { useColorScheme } from 'react-native'
 import {
   elevation,
+  fontFamily,
   gutter,
   minTouchTarget,
   motion,
@@ -16,6 +17,11 @@ import {
 export interface Theme {
   scheme: ColorScheme
   colors: Colors
+  /**
+   * The families, for the few places a type role needs a different weight —
+   * the design's `.chip` is 600, where `caption` is 500 (STOURIFY-257).
+   */
+  fontFamily: typeof fontFamily
   typography: typeof typography
   spacing: typeof spacing
   gutter: number
@@ -29,6 +35,7 @@ function buildTheme(scheme: ColorScheme): Theme {
   return {
     scheme,
     colors: palette[scheme],
+    fontFamily,
     typography,
     spacing,
     gutter,

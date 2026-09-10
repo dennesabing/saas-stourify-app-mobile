@@ -1,37 +1,21 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { DeviceEventEmitter, View } from 'react-native'
 import type { Database } from '@nozbe/watermelondb'
 import CreateSpotScreen from '@/features/create/screens/CreateSpotScreen'
 import MySpotsScreen from '@/features/spots/screens/MySpotsScreen'
-import type PendingMedia from '@/db/models/PendingMedia'
 import type Spot from '@/db/models/Spot'
 import { createTestDatabase, markSynced } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
 
-jest.mock('@/sync/scheduler', () => ({ syncNow: jest.fn(async () => undefined) }))
-
 /**
- * Since STOURIFY-4 the screen captures its coordinates instead of asking for
- * them, so a screen test has to stand in for two pieces of hardware: the map
- * (a Google native view jest cannot render) and the position sensor.
+ * The New Spot form — step one of three since STOURIFY-257. It checks the form
+ * and hands it to Review; it never writes. The write, and the photo bind, are
+ * `ReviewSpotScreen.test.tsx`'s to prove.
  *
- * The map mock is a bare view. Whether it *draws* is the emulator gate's
- * question; what matters here is that the screen got far enough to mount one
- * and that publishing uses the coordinates it was given.
+ * The form captures its coordinates instead of asking for them (STOURIFY-4), so
+ * the test stands in for the position sensor. It no longer mounts a map — that
+ * lives on `SpotLocationScreen` now.
  */
-jest.mock('react-native-maps', () => {
-  const React = require('react')
-  const { View } = require('react-native')
-
-  const MapView = React.forwardRef((props: any, ref: any) => {
-    React.useImperativeHandle(ref, () => ({ animateToRegion: jest.fn() }))
-    return React.createElement(View, { testID: 'vendor-map' }, props.children)
-  })
-  const Marker = (props: any) =>
-    React.createElement(View, { testID: `vendor-marker-${props.identifier}` })
-
-  return { __esModule: true, default: MapView, Marker }
-})
-
 jest.mock('expo-location', () => ({
   requestForegroundPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
   getCurrentPositionAsync: jest.fn(async () => ({
@@ -94,6 +78,7 @@ jest.mock('expo-file-system', () => {
   }
 })
 
+import * as Location from 'expo-location'
 import { queueCapturedPhoto } from '@/features/media/api/draftMedia'
 
 async function capture(database: Database, filename: string): Promise<void> {
@@ -104,10 +89,13 @@ async function capture(database: Database, filename: string): Promise<void> {
   })
 }
 
+const SENSOR = { latitude: 6.1164, longitude: 125.1716 }
+const NEXT = 'Next · Review & Publish'
+
 /**
- * A publishable spot: a name, plus the position the mocked sensor supplies on
- * its own. Waiting for the coordinates to land is the whole difference from the
- * old version of this helper — nothing types them any more.
+ * A complete form: a name, plus the position the mocked sensor supplies on its
+ * own. Waiting for the coordinates to land in the location row is the point —
+ * nothing types them.
  */
 async function fillValidSpot(name = 'Hidden Cove'): Promise<void> {
   fireEvent.changeText(screen.getByPlaceholderText('Spot name'), name)
@@ -120,99 +108,105 @@ async function fillValidSpot(name = 'Hidden Cove'): Promise<void> {
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 const route = {} as any
 
+function renderForm(database: Database, withRoute: any = route) {
+  return render(
+    <TestProviders database={database}>
+      <CreateSpotScreen navigation={navigation} route={withRoute} />
+    </TestProviders>,
+  )
+}
+
 beforeEach(() => {
   jest.clearAllMocks()
 })
 
-it('writes the spot straight to the local database and never to the network', async () => {
+it('hands a valid form to Review, with the position the phone reported, and writes nothing', async () => {
   const database = createTestDatabase()
   const fetchSpy = jest.fn()
   global.fetch = fetchSpy as unknown as typeof fetch
 
-  render(
-    <TestProviders database={database}>
-      <CreateSpotScreen navigation={navigation} route={route} />
-    </TestProviders>,
-  )
+  renderForm(database)
 
   await fillValidSpot('Hidden Cove')
-  fireEvent.press(screen.getByText('Publish spot'))
+  fireEvent.press(screen.getByText(NEXT))
 
-  await waitFor(async () => {
-    expect(await database.get<Spot>('sto_spots').query().fetchCount()).toBe(1)
+  expect(navigation.navigate).toHaveBeenCalledWith('ReviewSpot', {
+    title: 'Hidden Cove',
+    description: '',
+    categories: [],
+    coordinate: expect.objectContaining({
+      latitude: expect.closeTo(SENSOR.latitude, 4),
+      longitude: expect.closeTo(SENSOR.longitude, 4),
+    }),
   })
 
+  // The form is a form. Only Review writes.
+  expect(await database.get<Spot>('sto_spots').query().fetchCount()).toBe(0)
   expect(fetchSpy).not.toHaveBeenCalled()
-
-  const [spot] = await database.get<Spot>('sto_spots').query().fetch()
-  expect(spot.title).toBe('Hidden Cove')
-  expect(spot.latitude).toBeCloseTo(6.1164)
-  // Published, not draft (STOURIFY-202).
-  //
-  // This assertion read 'draft' and passed for months, which is the part worth
-  // pausing on: it did not miss the bug, it PINNED it. Every spot the app made
-  // was invisible to everyone forever, and the test suite was quietly holding
-  // that in place as the expected result. A test can only defend the behaviour
-  // somebody decided was right, and nobody had ever decided this one.
-  expect(spot.status).toBe('published')
-  expect(spot.isQueued).toBe(true)
-  expect(spot.uuid).toBe(spot.id)
 })
 
-it('navigates to My Spots after the local write', async () => {
+it('validates locally, and stays on the form', async () => {
   const database = createTestDatabase()
+  renderForm(database)
 
-  render(
-    <TestProviders database={database}>
-      <CreateSpotScreen navigation={navigation} route={route} />
-    </TestProviders>,
-  )
-
-  await fillValidSpot('Kalaklan Point')
-  fireEvent.press(screen.getByText('Publish spot'))
-
-  await waitFor(() => {
-    expect(navigation.navigate).toHaveBeenCalledWith('MySpots')
-  })
-})
-
-it('shows no loading spinner, because a local write cannot fail for network reasons', () => {
-  const database = createTestDatabase()
-
-  render(
-    <TestProviders database={database}>
-      <CreateSpotScreen navigation={navigation} route={route} />
-    </TestProviders>,
-  )
-
-  expect(screen.queryByTestId('create-spot-loading')).toBeNull()
-})
-
-it('validates locally without touching the database', async () => {
-  const database = createTestDatabase()
-
-  render(
-    <TestProviders database={database}>
-      <CreateSpotScreen navigation={navigation} route={route} />
-    </TestProviders>,
-  )
-
-  fireEvent.press(screen.getByText('Publish spot'))
+  fireEvent.press(screen.getByText(NEXT))
 
   await waitFor(() => {
     expect(screen.getByText('A spot needs a name of at least 3 characters.')).toBeTruthy()
   })
-  expect(await database.get<Spot>('sto_spots').query().fetchCount()).toBe(0)
+  expect(navigation.navigate).not.toHaveBeenCalledWith('ReviewSpot', expect.anything())
 })
 
-it("offers no way to type a coordinate — the card's first acceptance line", async () => {
+it('clears the error once the title is fixed (STOURIFY-257)', async () => {
   const database = createTestDatabase()
+  renderForm(database)
 
-  render(
-    <TestProviders database={database}>
-      <CreateSpotScreen navigation={navigation} route={route} />
-    </TestProviders>,
-  )
+  fireEvent.press(screen.getByText(NEXT))
+  await waitFor(() => {
+    expect(screen.getByText('A spot needs a name of at least 3 characters.')).toBeTruthy()
+  })
+
+  fireEvent.changeText(screen.getByPlaceholderText('Spot name'), 'Fixed Cove')
+
+  expect(screen.queryByText('A spot needs a name of at least 3 characters.')).toBeNull()
+})
+
+it('clears the error when a category chip is pressed (STOURIFY-257)', async () => {
+  const database = createTestDatabase()
+  renderForm(database)
+
+  fireEvent.press(screen.getByText(NEXT))
+  await waitFor(() => {
+    expect(screen.getByText('A spot needs a name of at least 3 characters.')).toBeTruthy()
+  })
+
+  fireEvent.press(screen.getByText('Coast'))
+
+  expect(screen.queryByText('A spot needs a name of at least 3 characters.')).toBeNull()
+})
+
+it('shows the error again on the next Next press if the form is still invalid (STOURIFY-257)', async () => {
+  const database = createTestDatabase()
+  renderForm(database)
+
+  fireEvent.press(screen.getByText(NEXT))
+  await waitFor(() => {
+    expect(screen.getByText('A spot needs a name of at least 3 characters.')).toBeTruthy()
+  })
+
+  // Still under three characters, so the same rule fires again.
+  fireEvent.changeText(screen.getByPlaceholderText('Spot name'), 'Hi')
+  expect(screen.queryByText('A spot needs a name of at least 3 characters.')).toBeNull()
+
+  fireEvent.press(screen.getByText(NEXT))
+  await waitFor(() => {
+    expect(screen.getByText('A spot needs a name of at least 3 characters.')).toBeTruthy()
+  })
+})
+
+it("offers no way to type a coordinate — STOURIFY-4's first acceptance line", async () => {
+  const database = createTestDatabase()
+  renderForm(database)
 
   await waitFor(() => {
     expect(screen.getByTestId('picked-coordinates')).toBeTruthy()
@@ -222,86 +216,146 @@ it("offers no way to type a coordinate — the card's first acceptance line", as
   expect(screen.queryByPlaceholderText('Longitude')).toBeNull()
 })
 
-it('publishes the position the phone reported, without anybody typing it', async () => {
-  const database = createTestDatabase()
-
-  render(
-    <TestProviders database={database}>
-      <CreateSpotScreen navigation={navigation} route={route} />
-    </TestProviders>,
+it('says it is locating until the phone answers', () => {
+  // A permission promise that never settles is the real shape of "still looking".
+  ;(Location.requestForegroundPermissionsAsync as jest.Mock).mockReturnValueOnce(
+    new Promise(() => {}),
   )
 
-  await fillValidSpot('Sensor Sourced')
-  fireEvent.press(screen.getByText('Publish spot'))
+  renderForm(createTestDatabase())
 
-  await waitFor(async () => {
-    expect(await database.get<Spot>('sto_spots').query().fetchCount()).toBe(1)
-  })
-
-  const [spot] = await database.get<Spot>('sto_spots').query().fetch()
-  expect(spot.latitude).toBeCloseTo(6.1164)
-  expect(spot.longitude).toBeCloseTo(125.1716)
+  expect(screen.getByText('Finding where you are…')).toBeTruthy()
 })
 
-it('saves the categories that were picked, in the field name the server uses', async () => {
+it('opens the full-screen map from the location row, carrying the current pin', async () => {
   const database = createTestDatabase()
+  renderForm(database)
 
-  render(
-    <TestProviders database={database}>
-      <CreateSpotScreen navigation={navigation} route={route} />
-    </TestProviders>,
+  await waitFor(() => {
+    expect(screen.getByTestId('picked-coordinates')).toBeTruthy()
+  })
+
+  fireEvent.press(screen.getByLabelText('Location'))
+
+  expect(navigation.navigate).toHaveBeenCalledWith('SpotLocation', {
+    coordinate: expect.objectContaining({ latitude: expect.closeTo(SENSOR.latitude, 4) }),
+  })
+})
+
+it('takes the pin the location picker hands back, over the phone’s own fix', async () => {
+  const database = createTestDatabase()
+  const placed = { latitude: 7.25, longitude: 126.5 }
+
+  renderForm(database, { params: { coordinate: placed } })
+
+  await waitFor(() => {
+    expect(screen.getByTestId('picked-coordinates').props.children).toBe('7.25000, 126.50000')
+  })
+
+  fireEvent.changeText(screen.getByPlaceholderText('Spot name'), 'Hand Placed')
+  fireEvent.press(screen.getByText(NEXT))
+
+  expect(navigation.navigate).toHaveBeenCalledWith(
+    'ReviewSpot',
+    expect.objectContaining({ coordinate: placed }),
   )
+})
+
+it('carries the categories that were picked', async () => {
+  const database = createTestDatabase()
+  renderForm(database)
 
   await fillValidSpot('Categorised Cove')
   fireEvent.press(screen.getByText('Coast'))
-  fireEvent.press(screen.getByText('Publish spot'))
+  fireEvent.press(screen.getByText(NEXT))
 
-  await waitFor(async () => {
-    expect(await database.get<Spot>('sto_spots').query().fetchCount()).toBe(1)
-  })
-
-  const [spot] = await database.get<Spot>('sto_spots').query().fetch()
-  expect(spot.categories).toEqual(['Coast'])
+  expect(navigation.navigate).toHaveBeenCalledWith(
+    'ReviewSpot',
+    expect.objectContaining({ categories: ['Coast'] }),
+  )
 })
 
 // The reason this is worth a screen test rather than only a unit test: the row
 // would otherwise sit in the outbox and be refused by the server minutes later,
 // with nobody watching to be told.
-it("refuses a description past the server's limit before writing anything", async () => {
+it("refuses a description past the server's limit before Review", async () => {
   const database = createTestDatabase()
-
-  render(
-    <TestProviders database={database}>
-      <CreateSpotScreen navigation={navigation} route={route} />
-    </TestProviders>,
-  )
+  renderForm(database)
 
   await fillValidSpot('Overlong Story')
   fireEvent.changeText(
     screen.getByPlaceholderText('What makes it worth the trip?'),
     'x'.repeat(5001),
   )
-  fireEvent.press(screen.getByText('Publish spot'))
+  fireEvent.press(screen.getByText(NEXT))
 
   await waitFor(() => {
     expect(screen.getByText(/5,000 characters/)).toBeTruthy()
   })
-
-  expect(await database.get<Spot>('sto_spots').query().fetchCount()).toBe(0)
+  expect(navigation.navigate).not.toHaveBeenCalledWith('ReviewSpot', expect.anything())
 })
 
-it('shows the photo counter against the cap, and routes to capture', async () => {
-  const database = createTestDatabase()
-
-  render(
-    <TestProviders database={database}>
-      <CreateSpotScreen navigation={navigation} route={route} />
-    </TestProviders>,
+it('rests the footer on the keyboard — not under it, and not floating above it (STOURIFY-257)', () => {
+  // RN's own jest mock (`react-native/jest/MockNativeMethods.js`) makes
+  // `measure` a no-op shared by every `View` in the tree — real enough to
+  // exist, not real enough to report a position. `useKeyboardOverlap` needs
+  // one that does, standing in for the wrapper's screen position: below the
+  // keyboard test's own bottom on purpose, because this app's screen sits
+  // above a tab bar and the wrapper's real bottom edge is never the bottom of
+  // the screen. A mock that put them level would pass even with the bug this
+  // hook replaced (padding by the keyboard's raw height) — this one would not.
+  const WRAPPER_BOTTOM = 720
+  ;(View.prototype.measure as jest.Mock).mockImplementation(
+    (
+      callback: (
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        pageX: number,
+        pageY: number,
+      ) => void,
+    ) => callback(0, 0, 400, 100, 0, WRAPPER_BOTTOM - 100),
   )
 
-  await waitFor(() => {
-    expect(screen.getByText('0 of 3')).toBeTruthy()
+  renderForm(createTestDatabase())
+
+  const restingPadding = screen.getByTestId('create-spot-footer').props.style.paddingBottom
+
+  act(() => {
+    // `keyboardWillShow` — Jest's RN preset defaults `Platform.OS` to `'ios'`
+    // (`react-native/jest-preset.js` → `haste.defaultPlatform`), which is the
+    // event pair `useKeyboardOverlap` listens for there.
+    DeviceEventEmitter.emit('keyboardWillShow', {
+      duration: 0,
+      easing: 'keyboard',
+      endCoordinates: { screenX: 0, screenY: 500, width: 400, height: 300 },
+    })
   })
+
+  // The wrapper's bottom edge (720) sits 80dp above the keyboard's own bottom
+  // (500 + 300 = 800), so only 720 - 500 = 220 of it is actually covered —
+  // not the keyboard's full 300dp height. Padding by the full height is
+  // exactly the overshoot this test would catch.
+  expect(screen.getByTestId('create-spot-footer').props.style.paddingBottom).toBe(
+    restingPadding + 220,
+  )
+
+  act(() => {
+    DeviceEventEmitter.emit('keyboardWillHide', {
+      duration: 0,
+      easing: 'keyboard',
+      endCoordinates: { screenX: 0, screenY: 800, width: 400, height: 0 },
+    })
+  })
+
+  expect(screen.getByTestId('create-spot-footer').props.style.paddingBottom).toBe(restingPadding)
+
+  ;(View.prototype.measure as jest.Mock).mockReset()
+})
+
+it('routes to capture from the add-photo tile', () => {
+  renderForm(createTestDatabase())
 
   fireEvent.press(screen.getByLabelText('Add photos'))
   expect(navigation.navigate).toHaveBeenCalledWith('CameraCapture')
@@ -309,68 +363,22 @@ it('shows the photo counter against the cap, and routes to capture', async () =>
 
 it('shows the captured photos as they are queued', async () => {
   const database = createTestDatabase()
-
-  render(
-    <TestProviders database={database}>
-      <CreateSpotScreen navigation={navigation} route={route} />
-    </TestProviders>,
-  )
+  renderForm(database)
 
   await capture(database, 'one.jpg')
   await capture(database, 'two.jpg')
 
   await waitFor(() => {
-    expect(screen.getByText('2 of 3')).toBeTruthy()
     expect(screen.getByLabelText('one.jpg')).toBeTruthy()
     expect(screen.getByLabelText('two.jpg')).toBeTruthy()
   })
 })
 
-it('binds every captured photo to the published spot — the M4 gate, in one screen', async () => {
-  const database = createTestDatabase()
-  const fetchSpy = jest.fn()
-  global.fetch = fetchSpy as unknown as typeof fetch
-
-  for (const filename of ['one.jpg', 'two.jpg', 'three.jpg']) await capture(database, filename)
-
-  render(
-    <TestProviders database={database}>
-      <CreateSpotScreen navigation={navigation} route={route} />
-    </TestProviders>,
-  )
-
-  await waitFor(() => {
-    expect(screen.getByText('3 of 3')).toBeTruthy()
-  })
-
-  await fillValidSpot()
-  fireEvent.press(screen.getByText('Publish spot'))
-
-  await waitFor(() => {
-    expect(navigation.navigate).toHaveBeenCalledWith('MySpots')
-  })
-
-  const [spot] = await database.get<Spot>('sto_spots').query().fetch()
-  const media = await database.get<PendingMedia>('pending_media').query().fetch()
-
-  expect(media).toHaveLength(3)
-  for (const row of media) {
-    expect(row.hostUuid).toBe(spot.uuid)
-    expect(row.hostType).toBe('stourify_spot')
-  }
-  // Offline throughout: the bind is a local write, not a deferred upload.
-  expect(fetchSpy).not.toHaveBeenCalled()
-})
-
-it('at the cap, the add-photos affordance is disabled rather than hidden', async () => {
+it('at the cap, the add-photo tile is disabled rather than hidden', async () => {
   const database = createTestDatabase()
   for (const filename of ['one.jpg', 'two.jpg', 'three.jpg']) await capture(database, filename)
 
-  render(
-    <TestProviders database={database}>
-      <CreateSpotScreen navigation={navigation} route={route} />
-    </TestProviders>,
-  )
+  renderForm(database)
 
   await waitFor(() => {
     expect(screen.getByText('That is all 3 photos. Remove one to take another.')).toBeTruthy()

@@ -3,6 +3,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import ActivityScreen from '@/features/activity/screens/ActivityScreen'
 import CreateMenuScreen from '@/features/create/screens/CreateMenuScreen'
 import CreateSpotScreen from '@/features/create/screens/CreateSpotScreen'
+import ReviewSpotScreen from '@/features/create/screens/ReviewSpotScreen'
+import SpotLocationScreen from '@/features/create/screens/SpotLocationScreen'
 import ThemeGalleryScreen from '@/features/dev/screens/ThemeGalleryScreen'
 import DiscoverScreen from '@/features/discover/screens/DiscoverScreen'
 import MapScreen from '@/features/discover/screens/MapScreen'
@@ -96,6 +98,8 @@ function CreateStackNav() {
       <CreateStack.Screen name="CameraCapture" component={CameraCaptureScreen} />
       <CreateStack.Screen name="PhotoReview" component={PhotoReviewScreen} />
       <CreateStack.Screen name="CreateSpot" component={CreateSpotScreen} />
+      <CreateStack.Screen name="SpotLocation" component={SpotLocationScreen} />
+      <CreateStack.Screen name="ReviewSpot" component={ReviewSpotScreen} />
       <CreateStack.Screen name="MySpots" component={MySpotsScreen} />
       {/*
         Registered here as well as in the Profile stack (STOURIFY-118). The

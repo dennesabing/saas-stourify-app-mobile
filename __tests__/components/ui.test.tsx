@@ -85,10 +85,17 @@ describe('Chip', () => {
     expect(screen.getByRole('button', { selected: true })).toBeTruthy()
   })
 
+  // The pill is drawn 32 tall to match the design's `.chip` (STOURIFY-257), so
+  // the target is the drawn height plus the slop above and below it — what a
+  // finger actually gets — not the drawn height alone.
   it('meets the minimum touch target', () => {
     renderThemed(<Chip label="Nature" />)
 
-    expect(styleOf(screen.getByRole('button')).minHeight).toBe(minTouchTarget)
+    const chip = screen.getByRole('button')
+    const drawn = styleOf(chip).minHeight as number
+    const slop = chip.props.hitSlop as { top: number; bottom: number }
+
+    expect(drawn + slop.top + slop.bottom).toBeGreaterThanOrEqual(minTouchTarget)
   })
 })
 

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useDatabase } from '@nozbe/watermelondb/react'
-import { Button, Text } from '@/shared/components/ui'
+import { Button, Icon, Text } from '@/shared/components/ui'
 import { useIsOnline } from '@/shared/hooks/useIsOnline'
 import { MapCanvas, readFallbackCenter, type MapCoordinate, type MapPin } from '@/shared/map'
 import { requestPosition } from '@/shared/location/position'
@@ -15,7 +16,12 @@ import { useTheme } from '@/theme/ThemeProvider'
  * moving a sticker on a paper map, it cannot produce a coordinate that is not a
  * real place, which two number fields very much can.
  *
- * Three things about the shape of this component are load-bearing.
+ * Since STOURIFY-257 it fills the screen it is on (`SpotLocationScreen`,
+ * artboard 5 of the Create design): the map edge to edge, a floating card at
+ * the bottom saying what the picker knows, and the screen's own confirm button
+ * under that card, passed in as `footer`.
+ *
+ * Four things about the shape of this component are load-bearing.
  *
  * **It never names a map library.** It talks to `@/shared/map`, the single
  * map-aware seam, and `__tests__/shared/map/vendorIsolation.test.ts` fails the
@@ -26,6 +32,11 @@ import { useTheme } from '@/theme/ThemeProvider'
  * **The map's centre is not the pin.** They are set together when a fix arrives
  * and then move independently: re-centring on every drag would yank the map out
  * from under the finger doing the dragging.
+ *
+ * **A pin it was given is kept.** Opened with a position already chosen — the
+ * form's own fix, or a pin placed on an earlier visit — it starts there and
+ * asks the phone nothing. Asking would snap a hand-placed pin back to the GPS
+ * fix every time somebody reopened the map to check it.
  *
  * **A refusal and a silence are different states.** "You said no to location"
  * and "location is on and produced nothing" need different sentences, and
@@ -38,26 +49,32 @@ const PICKER_RADIUS_KM = 1
 /** Only one pin exists here, so its id is a constant rather than a spot uuid. */
 const PICK_PIN_ID = 'spot-being-created'
 
-type PickerStatus = 'locating' | 'ready' | 'denied' | 'unavailable'
+type PickerStatus = 'locating' | 'ready' | 'placed' | 'denied' | 'unavailable'
 
 export interface LocationPickerProps {
   /** The chosen coordinate, or `null` while none has been chosen. */
   value: MapCoordinate | null
   onChange: (coordinate: MapCoordinate) => void
+  /** Drawn under the status card — the owning screen's confirm button. */
+  footer?: ReactNode
 }
 
-export default function LocationPicker({ value, onChange }: LocationPickerProps) {
+export default function LocationPicker({ value, onChange, footer }: LocationPickerProps) {
   const theme = useTheme()
+  const insets = useSafeAreaInsets()
   const database = useDatabase()
   const online = useIsOnline()
+
+  // Where the pin already was when the picker opened, if anywhere. A ref, so a
+  // drag during this visit never turns into a "start here" on a retry.
+  const startedAt = useRef(value)
 
   const [status, setStatus] = useState<PickerStatus>('locating')
   const [accuracyMeters, setAccuracyMeters] = useState<number | null>(null)
   const [attempt, setAttempt] = useState(0)
   // Held as two numbers rather than one object so the region below keeps a
   // stable identity across re-renders. A fresh region object every render makes
-  // the map re-seat its camera, which shows up as a twitch on every keystroke
-  // elsewhere on the form.
+  // the map re-seat its camera, which shows up as a twitch on every re-render.
   const [centerLat, setCenterLat] = useState<number | null>(null)
   const [centerLng, setCenterLng] = useState<number | null>(null)
 
@@ -65,6 +82,14 @@ export default function LocationPicker({ value, onChange }: LocationPickerProps)
     let cancelled = false
 
     async function locate(): Promise<void> {
+      const start = startedAt.current
+      if (start !== null && attempt === 0) {
+        setCenterLat(start.latitude)
+        setCenterLng(start.longitude)
+        setStatus('placed')
+        return
+      }
+
       // Worked out first and unconditionally: it is a local database read, and
       // every path that is not a clean fix needs somewhere to point the map.
       const fallback = await readFallbackCenter(database)
@@ -99,7 +124,7 @@ export default function LocationPicker({ value, onChange }: LocationPickerProps)
       cancelled = true
     }
     // `onChange` is deliberately not a dependency: a caller that re-creates it
-    // every render would otherwise re-request the position on every keystroke.
+    // every render would otherwise re-request the position on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [database, attempt])
 
@@ -147,16 +172,24 @@ export default function LocationPicker({ value, onChange }: LocationPickerProps)
   }
 
   return (
-    <View style={{ gap: theme.spacing[2] }}>
-      <Text variant="h2">Where is it?</Text>
-
-      {status === 'locating' && !mapReady ? (
+    <View style={styles.fill}>
+      {mapReady ? (
+        <MapCanvas
+          testID="location-picker-map"
+          style={StyleSheet.absoluteFill}
+          region={region}
+          pins={pins}
+          movablePinId={PICK_PIN_ID}
+          onMovePin={(_pinId, coordinate) => onChange(coordinate)}
+          onRecenter={recenterOnPin}
+        />
+      ) : (
         <View
           testID="location-picker-locating"
           style={[
-            styles.frame,
+            StyleSheet.absoluteFill,
             styles.centered,
-            { borderRadius: theme.radius.button, backgroundColor: theme.colors.surfaceAlt },
+            { backgroundColor: theme.colors.surfaceAlt },
           ]}
         >
           <ActivityIndicator color={theme.colors.primary} />
@@ -164,55 +197,81 @@ export default function LocationPicker({ value, onChange }: LocationPickerProps)
             Finding where you are…
           </Text>
         </View>
-      ) : null}
-
-      {mapReady ? (
-        <View style={[styles.frame, { borderRadius: theme.radius.button, overflow: 'hidden' }]}>
-          <MapCanvas
-            testID="location-picker-map"
-            region={region}
-            pins={pins}
-            movablePinId={PICK_PIN_ID}
-            onMovePin={(_pinId, coordinate) => onChange(coordinate)}
-            onRecenter={recenterOnPin}
-          />
-        </View>
-      ) : null}
-
-      {status === 'locating' ? null : (
-        <Text variant="caption" color="muted">
-          {explain(status)}
-        </Text>
       )}
 
-      {status === 'ready' && accuracyMeters !== null ? (
-        <Text variant="caption" color="muted">
-          {`Accurate to about ${Math.max(1, Math.round(accuracyMeters))} m.`}
-        </Text>
-      ) : null}
+      <View
+        style={[
+          styles.bottom,
+          {
+            left: 14,
+            right: 14,
+            bottom: insets.bottom + theme.spacing[4],
+            gap: theme.spacing[3],
+          },
+        ]}
+      >
+        <View
+          style={[
+            theme.elevation.floating,
+            {
+              borderRadius: 14,
+              padding: 14,
+              gap: theme.spacing[2],
+              backgroundColor: theme.colors.card,
+            },
+          ]}
+        >
+          <View style={[styles.row, { gap: 11 }]}>
+            <Icon name="pin" size={18} color="primary" />
+            <View style={[styles.fill, { gap: 2 }]}>
+              {value !== null ? (
+                <Text
+                  testID="picked-coordinates"
+                  variant="body"
+                  style={{ fontFamily: theme.fontFamily.bodySemiBold }}
+                >
+                  {`${value.latitude.toFixed(5)}, ${value.longitude.toFixed(5)}`}
+                </Text>
+              ) : (
+                <Text variant="body" style={{ fontFamily: theme.fontFamily.bodySemiBold }}>
+                  Where is it?
+                </Text>
+              )}
 
-      {!online ? (
-        <Text variant="caption" color="muted">
-          No signal, so the map images will fill in once you are back online. Placing the pin works
-          without them.
-        </Text>
-      ) : null}
+              {status === 'locating' ? null : (
+                <Text variant="caption" color="muted">
+                  {explain(status)}
+                </Text>
+              )}
+            </View>
+          </View>
 
-      {value !== null ? (
-        <Text testID="picked-coordinates" variant="caption" color="muted">
-          {`${value.latitude.toFixed(5)}, ${value.longitude.toFixed(5)}`}
-        </Text>
-      ) : null}
+          {status === 'ready' && accuracyMeters !== null ? (
+            <Text variant="caption" color="muted">
+              {`Accurate to about ${Math.max(1, Math.round(accuracyMeters))} m.`}
+            </Text>
+          ) : null}
 
-      {status === 'unavailable' || status === 'denied' ? (
-        <Button
-          label="Try locating me again"
-          variant="secondary"
-          onPress={() => setAttempt((n) => n + 1)}
-          accessibilityLabel="Try locating me again"
-          fullWidth
-        />
-      ) : null}
+          {!online ? (
+            <Text variant="caption" color="muted">
+              No signal, so the map images will fill in once you are back online. Placing the pin
+              works without them.
+            </Text>
+          ) : null}
+
+          {status === 'unavailable' || status === 'denied' ? (
+            <Button
+              label="Try locating me again"
+              variant="secondary"
+              onPress={() => setAttempt((n) => n + 1)}
+              accessibilityLabel="Try locating me again"
+              fullWidth
+            />
+          ) : null}
+        </View>
+
+        {footer}
+      </View>
     </View>
   )
 }
@@ -227,6 +286,8 @@ function explain(status: PickerStatus): string {
       return 'Finding where you are…'
     case 'ready':
       return 'Taken from your phone. Drag the pin if it is not quite right.'
+    case 'placed':
+      return 'Drag the pin if it is not quite right.'
     case 'denied':
       return 'Location is switched off for Stourify, so we could not fill this in. Drag the pin to where the spot is.'
     case 'unavailable':
@@ -235,6 +296,8 @@ function explain(status: PickerStatus): string {
 }
 
 const styles = StyleSheet.create({
-  frame: { height: 240 },
+  fill: { flex: 1 },
   centered: { alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bottom: { position: 'absolute' },
+  row: { flexDirection: 'row', alignItems: 'center' },
 })

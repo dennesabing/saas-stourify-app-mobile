@@ -1,3 +1,5 @@
+import type { MapCoordinate } from '@/shared/map'
+
 /**
  * Navigation contract, shaped to the deck's information architecture:
  * Home · Discover · ⊕ Create · Activity · Profile.
@@ -195,8 +197,28 @@ export type CreateStackParamList = {
    */
   CameraCapture: undefined
   PhotoReview: undefined
-  /** The offline-first slice: writes straight to WatermelonDB. */
-  CreateSpot: undefined
+  /**
+   * The New Spot form — the first of the three create steps (STOURIFY-257).
+   *
+   * Its one param is the coordinate `SpotLocation` hands back on "Confirm
+   * location". Plain numbers, so the reasoning above about URIs does not apply.
+   */
+  CreateSpot: { coordinate?: MapCoordinate } | undefined
+  /**
+   * The full-screen pin. `coordinate` is where the pin starts; `null` means the
+   * form has no position yet, and the picker goes looking for one itself.
+   */
+  SpotLocation: { coordinate: MapCoordinate | null }
+  /**
+   * Review & publish — the only screen that writes the spot. It carries the
+   * form's typed values; the photos are read from `pending_media`, as ever.
+   */
+  ReviewSpot: {
+    title: string
+    description: string
+    categories: string[]
+    coordinate: MapCoordinate
+  }
   MySpots: undefined
   /**
    * Posts started and not shared. Registered here as well as in the Profile
