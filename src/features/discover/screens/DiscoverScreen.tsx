@@ -1,15 +1,21 @@
-import { useCallback, useState } from 'react'
-import { FlatList, ScrollView, View } from 'react-native'
+import { useCallback, useEffect, useState } from 'react'
+import { Pressable, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Button, Chip, EmptyState, SpotCard, Text } from '@/shared/components/ui'
+import { Chip, EmptyState, Icon, SearchField, Text } from '@/shared/components/ui'
 import type { DiscoverStackParamList } from '@/shared/navigation/types'
 import type { Spot } from '@/shared/api/types'
 import { useRefetchOnFocus } from '@/shared/hooks/useRefetchOnFocus'
 import { useTheme } from '@/theme/ThemeProvider'
 import { SPOT_CATEGORIES } from '@/shared/config/spotCategories'
-import { EXPLORE_SPOTS_QUERY_KEY, fetchExploreSpots, thumbFor } from '../api/exploreSpots'
+import {
+  EXPLORE_SPOTS_QUERY_KEY,
+  fetchExploreSpots,
+  ratingFor,
+  thumbFor,
+} from '../api/exploreSpots'
+import MosaicTile from '../components/MosaicTile'
 
 type Props = NativeStackScreenProps<DiscoverStackParamList, 'Discover'>
 
@@ -37,26 +43,50 @@ const ALL_FILTER = 'All'
 const FILTERS = [ALL_FILTER, ...SPOT_CATEGORIES]
 
 /**
+ * The two alternating tile heights the mosaic uses, and the offset each
+ * column starts at, per the design (STOURIFY-259, artboard 1). The right
+ * column starts on the short tile so the two columns step past each other
+ * rather than lining up into an ordinary two-column grid.
+ */
+const TILE_HEIGHTS: [number, number] = [170, 120]
+
+function tileHeight(columnIndex: number, positionInColumn: number): number {
+  const parity = positionInColumn % 2 === 0 ? 0 : 1
+  return columnIndex === 0 ? TILE_HEIGHTS[parity] : TILE_HEIGHTS[1 - parity]
+}
+
+/**
  * Discover's explore grid — the browse surface of the app.
  *
- * Two things about it are worth knowing before changing it.
+ * Three things about it are worth knowing before changing it.
  *
  * **Cells draw thumbnails.** `thumbFor()` owns that rule and explains why there
  * is no fallback to the original.
  *
- * **It reads whatever it has.** The grid renders `spots` whenever `spots` has
+ * **It reads whatever it has.** The mosaic renders `spots` whenever `spots` has
  * rows, and only reaches for an empty or an error state when it has nothing at
  * all. That single ordering is what makes the screen work in a dead spot: the
  * persisted React Query cache rehydrates yesterday's page at launch, a
  * background refetch fails silently, and the explorer keeps reading. An
  * `isError` check placed before the list would delete that behaviour, and never
  * once show it had, because online the branch is unreachable.
+ *
+ * **It honours `route.params.category`.** Search's category tiles navigate
+ * here with one, so the chip they meant is already selected rather than
+ * landing on an unfiltered grid the explorer has to re-filter by hand — and it
+ * keeps responding if that param changes again while this screen stays
+ * mounted, since React Navigation reuses the screen instance rather than
+ * remounting it.
  */
-export default function DiscoverScreen({ navigation }: Props) {
+export default function DiscoverScreen({ navigation, route }: Props) {
   const theme = useTheme()
 
   const [filter, setFilter] = useState<string>(ALL_FILTER)
   const category = filter === ALL_FILTER ? undefined : filter
+
+  useEffect(() => {
+    if (route.params?.category) setFilter(route.params.category)
+  }, [route.params?.category])
 
   const { data, isPending, isError, refetch } = useQuery({
     // The category is part of the key, so each rail selection caches its own
@@ -74,26 +104,59 @@ export default function DiscoverScreen({ navigation }: Props) {
 
   const spots = data ?? []
 
-  const renderItem = useCallback(
-    ({ item }: { item: Spot }) => (
-      <View style={{ flex: 1 }}>
-        <SpotCard
-          title={item.title}
-          category={item.categories?.[0]}
-          imageUri={thumbFor(item)}
-          rating={item.rating_average}
-          reviewCount={item.reviews_count}
-          meta={item.address}
-          onPress={() => navigation.navigate('SpotDetail', { spotId: item.uuid })}
-        />
-      </View>
+  // Two columns, in order — even-indexed spots left, odd-indexed right — so
+  // the staggered heights below step past each other down the screen instead
+  // of lining up into an ordinary grid.
+  const leftColumn: Spot[] = []
+  const rightColumn: Spot[] = []
+  spots.forEach((spot, index) => (index % 2 === 0 ? leftColumn : rightColumn).push(spot))
+
+  const renderTile = useCallback(
+    (spot: Spot, columnIndex: number, positionInColumn: number) => (
+      <MosaicTile
+        key={spot.uuid}
+        title={spot.title}
+        category={spot.categories?.[0]}
+        rating={ratingFor(spot)}
+        imageUri={thumbFor(spot)}
+        height={tileHeight(columnIndex, positionInColumn)}
+        onPress={() => navigation.navigate('SpotDetail', { spotId: spot.uuid })}
+      />
     ),
     [navigation],
   )
 
+  const sectionLabel = category ? `${category} spots` : 'Spots to explore'
+
   const header = (
-    <View style={{ gap: theme.spacing[4], paddingBottom: theme.spacing[4] }}>
-      <Text variant="display">Discover</Text>
+    <View style={{ gap: theme.spacing[4], paddingBottom: theme.spacing[3] }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text variant="h1">Discover</Text>
+
+        {/* Replaces the design's "For You" — there is no feed behind it yet,
+            and "Near me" is a real entry point Nearby already answers. */}
+        <Pressable
+          onPress={() => navigation.navigate('Nearby')}
+          accessibilityRole="button"
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: theme.spacing[1],
+            minHeight: theme.minTouchTarget,
+            paddingHorizontal: theme.spacing[1],
+          }}
+        >
+          <Icon name="locate" size={15} color="primary" />
+          <Text variant="caption" color="primary" style={{ fontFamily: theme.fontFamily.bodyBold }}>
+            Near me
+          </Text>
+        </Pressable>
+      </View>
+
+      <SearchField
+        placeholder="Search spots, cities, people…"
+        onPress={() => navigation.navigate('Search')}
+      />
 
       {/* `flexGrow: 0` is load-bearing. A horizontal ScrollView with no height
           constraint stretches to fill whatever space is left below it, so the
@@ -113,35 +176,11 @@ export default function DiscoverScreen({ navigation }: Props) {
         </View>
       </ScrollView>
 
-      <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
-        <View style={{ flex: 1 }}>
-          <Button
-            label="Search spots"
-            variant="secondary"
-            onPress={() => navigation.navigate('Search')}
-          />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Button
-            label="Spots near me"
-            variant="secondary"
-            onPress={() => navigation.navigate('Nearby')}
-          />
-        </View>
-      </View>
-
-      {/*
-        The other way of reading the same spots. It is a row of its own rather
-        than a third button beside the two above, because three labels of this
-        length on a 360dp screen wrap to two lines each and the row stops
-        looking like a row.
-      */}
-      <Button
-        label="Explore on a map"
-        variant="secondary"
-        fullWidth
-        onPress={() => navigation.navigate('Map')}
-      />
+      {/* `micro` is already uppercase by style; the string itself stays mixed
+          case so `getByText` (and a screen reader) sees the real words. */}
+      <Text variant="micro" color="muted">
+        {sectionLabel}
+      </Text>
     </View>
   )
 
@@ -180,16 +219,48 @@ export default function DiscoverScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
-      <FlatList
-        data={spots}
-        keyExtractor={(item) => item.uuid}
-        renderItem={renderItem}
-        numColumns={2}
-        ListHeaderComponent={header}
-        ListEmptyComponent={empty}
-        columnWrapperStyle={{ gap: theme.spacing[3] }}
-        contentContainerStyle={{ padding: theme.gutter, gap: theme.spacing[3] }}
-      />
+      <ScrollView contentContainerStyle={{ padding: theme.gutter, flexGrow: 1 }}>
+        {header}
+        {spots.length > 0 ? (
+          <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
+            <View style={{ flex: 1, gap: theme.spacing[2] }}>
+              {leftColumn.map((spot, position) => renderTile(spot, 0, position))}
+            </View>
+            <View style={{ flex: 1, gap: theme.spacing[2] }}>
+              {rightColumn.map((spot, position) => renderTile(spot, 1, position))}
+            </View>
+          </View>
+        ) : (
+          <View style={{ flex: 1 }}>{empty}</View>
+        )}
+      </ScrollView>
+
+      {/* Floats over the mosaic rather than sitting in the flow, per the
+          design's FAB — it is always reachable without scrolling to a button
+          at the bottom of a long list. */}
+      <Pressable
+        onPress={() => navigation.navigate('Map')}
+        accessibilityRole="button"
+        accessibilityLabel="Map"
+        style={{
+          position: 'absolute',
+          right: theme.gutter,
+          bottom: theme.spacing[6],
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: theme.spacing[1],
+          backgroundColor: theme.colors.button,
+          borderRadius: 26,
+          paddingVertical: theme.spacing[3],
+          paddingHorizontal: theme.spacing[4],
+          ...theme.elevation.floating,
+        }}
+      >
+        <Icon name="map" size={17} color="onButton" />
+        <Text variant="caption" color="onButton" style={{ fontFamily: theme.fontFamily.bodyBold }}>
+          Map
+        </Text>
+      </Pressable>
     </SafeAreaView>
   )
 }

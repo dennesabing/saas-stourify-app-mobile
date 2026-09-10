@@ -15,7 +15,6 @@ import { getSpots } from '@/shared/api/spots'
 import { trackQueryClient } from '../support/queryClients'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
-const route = {} as any
 
 function makeSpot(overrides: Partial<Spot> = {}): Spot {
   return {
@@ -44,10 +43,14 @@ function page(spots: Spot[]) {
   return { data: spots, links: {}, meta: { current_page: 1, last_page: 1, total: spots.length } }
 }
 
-function renderScreen(queryClient?: QueryClient) {
+function renderScreen(
+  options: { queryClient?: QueryClient; route?: { params?: { category?: string } } } = {},
+) {
+  const route = options.route ?? {}
+
   return render(
-    <TestProviders database={createTestDatabase()} queryClient={queryClient}>
-      <DiscoverScreen navigation={navigation} route={route} />
+    <TestProviders database={createTestDatabase()} queryClient={options.queryClient}>
+      <DiscoverScreen navigation={navigation} route={route as any} />
     </TestProviders>,
   )
 }
@@ -57,7 +60,7 @@ beforeEach(() => {
   ;(getSpots as jest.Mock).mockResolvedValue(page([makeSpot()]))
 })
 
-it('renders a grid of spots from the spot index', async () => {
+it('renders a mosaic of spots from the spot index', async () => {
   renderScreen()
 
   await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
@@ -67,12 +70,12 @@ it('renders a grid of spots from the spot index', async () => {
 })
 
 /**
- * The whole point of the card. A grid cell is about 170 points wide; the
+ * The whole point of the tile. A mosaic cell is about 170 points wide; the
  * original is a multi-megabyte photo. Asserting the *source* rather than
  * "an image rendered" is what makes this a real check — both versions draw a
  * picture and only one of them is affordable on a mobile connection.
  */
-it('draws a cell from the thumbnail, not the full-size original', async () => {
+it('draws a tile from the thumbnail, not the full-size original', async () => {
   renderScreen()
 
   await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
@@ -81,15 +84,15 @@ it('draws a cell from the thumbnail, not the full-size original', async () => {
 
   // `expo-image` normalises whatever it is given into an array of sources, so
   // the assertion is against that shape rather than the object handed in.
-  const image = screen.getAllByTestId('spot-card-image')[0]
+  const image = screen.getAllByTestId('mosaic-tile-image')[0]
   expect(image.props.source).toEqual([{ uri: 'https://cdn.test/thumb.jpg' }])
 })
 
 /**
  * A spot whose photo has not been converted yet sends `thumb_url: null`. The
- * tempting fix is `thumb_url ?? url`, which quietly puts the whole grid back on
- * full-size originals the first time a conversion is slow. The placeholder tile
- * is the correct answer, so it is asserted rather than left to a comment.
+ * tempting fix is `thumb_url ?? url`, which quietly puts the whole mosaic back
+ * on full-size originals the first time a conversion is slow. The placeholder
+ * tile is the correct answer, so it is asserted rather than left to a comment.
  */
 it('shows a placeholder rather than falling back to the original when no thumb exists', async () => {
   ;(getSpots as jest.Mock).mockResolvedValue(
@@ -106,17 +109,15 @@ it('shows a placeholder rather than falling back to the original when no thumb e
     timeout: 3000,
   })
 
-  // No sources at all — not one source pointing at the original.
-  const image = screen.getAllByTestId('spot-card-image')[0]
-  expect(image.props.source).toEqual([])
-  expect(JSON.stringify(image.props.source)).not.toContain('original.jpg')
+  // No image at all drawn for the tile — the placeholder view stands in.
+  expect(screen.queryAllByTestId('mosaic-tile-image')).toHaveLength(0)
 })
 
 /**
- * Stourify is used outdoors, so the grid has to behave like a magazine already
- * in your bag: still readable in a tunnel. `queryClient.setQueryData` stands in
- * for the persisted AsyncStorage cache rehydrating at launch, and the rejected
- * fetch stands in for having no signal.
+ * Stourify is used outdoors, so the mosaic has to behave like a magazine
+ * already in your bag: still readable in a tunnel. `queryClient.setQueryData`
+ * stands in for the persisted AsyncStorage cache rehydrating at launch, and
+ * the rejected fetch stands in for having no signal.
  *
  * This is the assertion a well-meaning `if (isError) return <Error/>` early
  * return deletes without anyone noticing, because online it never fires.
@@ -128,25 +129,25 @@ it('keeps showing cached spots when the network refuses', async () => {
   queryClient.setQueryData(EXPLORE_SPOTS_QUERY_KEY(), [makeSpot({ title: 'Cached Cove' })])
   ;(getSpots as jest.Mock).mockRejectedValue(new Error('Network request failed'))
 
-  renderScreen(queryClient)
+  renderScreen({ queryClient })
 
   await waitFor(() => expect(getSpots).toHaveBeenCalled(), { timeout: 3000 })
   expect(screen.getByText('Cached Cove')).toBeTruthy()
 })
 
-it('opens a spot from its cell', async () => {
+it('opens a spot from its tile', async () => {
   renderScreen()
 
   await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
     timeout: 3000,
   })
-  fireEvent.press(screen.getByText('Kalaklan Lighthouse'))
+  fireEvent.press(screen.getByLabelText('Kalaklan Lighthouse'))
 
   expect(navigation.navigate).toHaveBeenCalledWith('SpotDetail', { spotId: 'spot-1' })
 })
 
 /**
- * An empty grid and a grid that has not loaded yet look identical, and the
+ * An empty mosaic and one that has not loaded yet look identical, and the
  * second one is not a statement about the world.
  */
 it('says it is loading rather than claiming there is nothing to explore', async () => {
@@ -189,44 +190,68 @@ it('keeps the search and nearby entry points', async () => {
     timeout: 3000,
   })
 
-  fireEvent.press(screen.getByText('Spots near me'))
+  fireEvent.press(screen.getByText('Near me'))
   expect(navigation.navigate).toHaveBeenCalledWith('Nearby')
+
+  fireEvent.press(screen.getByLabelText('Search spots, cities, people…'))
+  expect(navigation.navigate).toHaveBeenCalledWith('Search')
 })
 
 /**
- * The two entry points sit abreast, each taking half the row, and "Spots near
- * me" is right at the edge of what fits. It used to wrap onto a second line,
- * which left the button beside it a different height and stopped the row
- * reading as a row (STOURIFY-101).
- *
- * The shared button already refuses to wrap. This pins it on the screen that
- * actually reported the fault, because that is the arrangement — half a row,
- * this label — that a future change to the header would break first.
- */
-it('keeps the nearby entry point on one line', async () => {
-  renderScreen()
-
-  await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
-    timeout: 3000,
-  })
-
-  expect(screen.getByText('Spots near me').props.numberOfLines).toBe(1)
-  expect(screen.getByText('Search spots').props.numberOfLines).toBe(1)
-})
-
-/**
- * The grid and the map are two ways of reading the same spots, and until
+ * The mosaic and the map are two ways of reading the same spots, and until
  * STOURIFY-54 the second one had a name in the navigation type and no way in.
  */
-it('opens the map from the grid', async () => {
+it('opens the map from the floating button', async () => {
   renderScreen()
 
   await waitFor(() => expect(screen.getByText('Kalaklan Lighthouse')).toBeTruthy(), {
     timeout: 3000,
   })
 
-  fireEvent.press(screen.getByText('Explore on a map'))
+  fireEvent.press(screen.getByLabelText('Map'))
   expect(navigation.navigate).toHaveBeenCalledWith('Map')
+})
+
+it('labels the section by what it is showing', async () => {
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Spots to explore')).toBeTruthy(), {
+    timeout: 3000,
+  })
+
+  fireEvent.press(screen.getByText('Nature'))
+  await waitFor(() => expect(screen.getByText('Nature spots')).toBeTruthy())
+})
+
+/**
+ * Search's category tiles navigate here with `route.params.category` rather
+ * than a second category screen, so the chip they meant must already be
+ * selected — and stay in step if the param changes again while this screen
+ * stays mounted, since React Navigation reuses the instance (STOURIFY-259).
+ */
+describe('preselecting a category from route params', () => {
+  it('selects the chip a route param names on first render', async () => {
+    renderScreen({ route: { params: { category: 'Nature' } } })
+
+    await waitFor(() => {
+      expect(getSpots).toHaveBeenCalledWith({ category: 'Nature' })
+    })
+    expect(screen.getByText('Nature spots')).toBeTruthy()
+  })
+
+  it('follows the param when it changes while mounted', async () => {
+    const { rerender } = renderScreen({ route: { params: { category: 'Nature' } } })
+
+    await waitFor(() => expect(getSpots).toHaveBeenCalledWith({ category: 'Nature' }))
+
+    rerender(
+      <TestProviders database={createTestDatabase()}>
+        <DiscoverScreen navigation={navigation} route={{ params: { category: 'Coast' } } as any} />
+      </TestProviders>,
+    )
+
+    await waitFor(() => expect(getSpots).toHaveBeenCalledWith({ category: 'Coast' }))
+  })
 })
 
 /**

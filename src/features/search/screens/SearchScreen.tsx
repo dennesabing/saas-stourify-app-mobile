@@ -1,13 +1,23 @@
 import { useCallback, useMemo, useState } from 'react'
+import { Image } from 'expo-image'
 import { Pressable, ScrollView, SectionList, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { DiscoverStackParamList } from '@/shared/navigation/types'
 import { searchDiscover, searchDiscoverType } from '@/shared/api/discover'
-import { EXPLORE_SPOTS_QUERY_KEY } from '@/features/discover/api/exploreSpots'
+import { EXPLORE_SPOTS_QUERY_KEY, ratingFor, thumbFor } from '@/features/discover/api/exploreSpots'
 import { useDebounce } from '@/shared/hooks/useDebounce'
-import { Avatar, Chip, EmptyState, Input, Text } from '@/shared/components/ui'
+import { useRecentSearches } from '@/features/search/recentSearches'
+import {
+  Avatar,
+  EmptyState,
+  Icon,
+  SearchField,
+  SegmentedControl,
+  Text,
+} from '@/shared/components/ui'
+import { SPOT_CATEGORIES } from '@/shared/config/spotCategories'
 import type {
   City,
   DiscoverSearchResults,
@@ -29,16 +39,19 @@ const MIN_QUERY_LENGTH = 2
 type Filter = 'all' | DiscoverSearchType
 
 /**
- * The filter rail. These were six hardcoded category names (`Nature`, `Food`,
- * `History`, …) that no server rule had ever accepted, so pressing one did
- * nothing at all. They are now the endpoint's real `type` selector: `All` is
- * the grouped preview, the rest are one paginated section each (STOURIFY-9).
+ * The segmented switch above results. These were six hardcoded category names
+ * (`Nature`, `Food`, `History`, …) that no server rule had ever accepted, so
+ * pressing one did nothing at all. They are now the endpoint's real `type`
+ * selector: `All` is the grouped preview, the rest are one paginated section
+ * each (STOURIFY-9). Labels and order match the redesign (STOURIFY-259); the
+ * keys and the queries they drive are unchanged — `cities` is the design's
+ * "Places".
  */
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'spots', label: 'Spots' },
-  { key: 'cities', label: 'Cities' },
   { key: 'people', label: 'People' },
+  { key: 'cities', label: 'Places' },
 ]
 
 /**
@@ -89,6 +102,16 @@ function groupOneType(
   }
 }
 
+/** Two-per-row chunks — a manual grid, not `FlatList`'s `numColumns`, because
+ * this section sits inside the same scroll view as Recent and a nested
+ * virtualised list under a plain `ScrollView` is the classic RN footgun for a
+ * grid this small (eight tiles, never paginated). */
+function pairsOf<T>(items: readonly T[]): T[][] {
+  const rows: T[][] = []
+  for (let i = 0; i < items.length; i += 2) rows.push(items.slice(i, i + 2))
+  return rows
+}
+
 /**
  * Discovery search across spots, cities and people.
  *
@@ -97,12 +120,18 @@ function groupOneType(
  * the discoverability rule `SearchApiController` applies to spots was never
  * applied. It now queries `GET /discover/search`, which is the surface those
  * three indexes were made Scout-searchable for.
+ *
+ * Restyled for STOURIFY-259: the field itself is the header (no separate title),
+ * a "before you search" state offers Recent and Browse categories in place of
+ * the old centred prompt, and the chip rail is now a `SegmentedControl`. Every
+ * query, endpoint and empty-state rule below is unchanged.
  */
 export default function SearchScreen({ navigation }: Props) {
   const theme = useTheme()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const debouncedQuery = useDebounce(query.trim(), 300)
+  const recent = useRecentSearches()
 
   const isSearchable = debouncedQuery.length >= MIN_QUERY_LENGTH
 
@@ -153,6 +182,13 @@ export default function SearchScreen({ navigation }: Props) {
     ]
   }, [data])
 
+  /** Committing to a search is what earns it a place under Recent — not every
+   * keystroke, which would fill the list with half-typed words. */
+  const commitSearch = useCallback(() => {
+    const trimmed = query.trim()
+    if (trimmed.length >= MIN_QUERY_LENGTH) recent.record(trimmed)
+  }, [query, recent.record])
+
   const renderRow = useCallback(
     ({ item }: { item: Row }) => {
       const rowStyle = {
@@ -160,27 +196,57 @@ export default function SearchScreen({ navigation }: Props) {
         alignItems: 'center' as const,
         gap: theme.spacing[3],
         paddingHorizontal: theme.gutter,
-        paddingVertical: theme.spacing[3],
+        paddingVertical: theme.spacing[2],
         minHeight: theme.minTouchTarget,
+      }
+      const photoStyle = {
+        width: 56,
+        height: 56,
+        borderRadius: theme.radius.button,
+        backgroundColor: theme.colors.surfaceAlt,
       }
 
       if (item.kind === 'spot') {
         const { spot } = item
-        const meta = [spot.address, spot.categories?.join(' · ')].filter(Boolean).join(' · ')
+        const meta = [spot.categories?.join(' · '), spot.address].filter(Boolean).join(' · ')
+        const thumb = thumbFor(spot)
+        const rating = ratingFor(spot)
 
         return (
           <Pressable
             style={rowStyle}
             accessibilityRole="button"
-            onPress={() => navigation.navigate('SpotDetail', { spotId: spot.uuid })}
+            onPress={() => {
+              commitSearch()
+              navigation.navigate('SpotDetail', { spotId: spot.uuid })
+            }}
           >
-            <Text style={{ fontSize: 20 }}>📍</Text>
+            <Image
+              testID="search-spot-thumb"
+              source={thumb ? { uri: thumb } : undefined}
+              style={photoStyle}
+              contentFit="cover"
+              transition={theme.motion.fast}
+            />
             <View style={{ flex: 1 }}>
               {/* `title` is what `SpotResource` sends; `name` has never been on the wire. */}
-              <Text variant="body">{spot.title}</Text>
-              {meta ? (
+              <Text
+                variant="body"
+                style={{ fontFamily: theme.fontFamily.bodySemiBold, fontSize: 14 }}
+              >
+                {spot.title}
+              </Text>
+              {meta || rating != null ? (
                 <Text variant="caption" color="muted">
                   {meta}
+                  {rating != null ? (
+                    <Text
+                      variant="caption"
+                      style={{ color: theme.colors.accent2, fontFamily: theme.fontFamily.bodyBold }}
+                    >
+                      {meta ? ' · ' : ''}★ {rating.toFixed(1)}
+                    </Text>
+                  ) : null}
                 </Text>
               ) : null}
             </View>
@@ -196,7 +262,9 @@ export default function SearchScreen({ navigation }: Props) {
         // that looks tappable and does nothing is the defect this card is about.
         return (
           <View style={rowStyle}>
-            <Text style={{ fontSize: 20 }}>🏙️</Text>
+            <View style={[photoStyle, { alignItems: 'center', justifyContent: 'center' }]}>
+              <Icon name="pin" color="muted" />
+            </View>
             <View style={{ flex: 1 }}>
               <Text variant="body">{place}</Text>
               {city.country ? (
@@ -216,9 +284,11 @@ export default function SearchScreen({ navigation }: Props) {
           style={rowStyle}
           accessibilityRole="button"
           disabled={!person.user_uuid}
-          onPress={() =>
-            person.user_uuid && navigation.navigate('Profile', { userId: person.user_uuid })
-          }
+          onPress={() => {
+            if (!person.user_uuid) return
+            commitSearch()
+            navigation.navigate('Profile', { userId: person.user_uuid })
+          }}
         >
           <Avatar name={person.name ?? person.username} />
           <View style={{ flex: 1 }}>
@@ -230,7 +300,7 @@ export default function SearchScreen({ navigation }: Props) {
         </Pressable>
       )
     },
-    [navigation, theme],
+    [navigation, theme, commitSearch],
   )
 
   const renderSectionHeader = useCallback(
@@ -254,8 +324,9 @@ export default function SearchScreen({ navigation }: Props) {
   /**
    * Only reached with no rows to show, and the four cases are genuinely
    * different situations with different remedies — so they get different
-   * words: "we have not been asked yet", "we are still asking", "we could not
-   * ask", and "we asked and there is nothing".
+   * words: "we are still asking", "we could not ask", and "we asked and there
+   * is nothing". The fourth — "we have not been asked yet" — is now the Recent
+   * / Browse-categories screen below, not an `EmptyState` here.
    *
    * Before STOURIFY-59 there were three branches and a failed request fell into
    * the last one, so the screen reported that nothing matched when it had never
@@ -264,7 +335,7 @@ export default function SearchScreen({ navigation }: Props) {
    * one move that helps. The 15-second timeout in `shared/api/client.ts` makes
    * that a routine occurrence rather than an exotic one (STOURIFY-61).
    *
-   * Three orderings here are load-bearing:
+   * Two orderings here are still load-bearing:
    *
    * **This lives inside `ListEmptyComponent`**, which renders only when the
    * list has no rows at all — so content always wins over an error. React Query
@@ -274,12 +345,6 @@ export default function SearchScreen({ navigation }: Props) {
    * branch is unreachable while online. `FeedScreen`, `DiscoverScreen` and
    * `NearbyScreen` carry the same warning.
    *
-   * **`isSearchable` is asked first.** The query is switched off below the
-   * server's two-character minimum, so a query that was never sent is not
-   * empty, not loading and not failed — it is unasked, and the prompt is the
-   * only honest thing to say. "Nothing typed" and "one character typed" share
-   * that prompt on purpose: the remedy is the same sentence for both.
-   *
    * **`isFetching` is asked before `isError`**, which differs from `FeedScreen`
    * and `NearbyScreen` and is deliberate. Those two ask `isLoading`, which is
    * false during a retry, so their failure copy stays up while it runs. Here a
@@ -287,13 +352,7 @@ export default function SearchScreen({ navigation }: Props) {
    * button the reader just pressed. Either way the property that matters holds:
    * "No results" never appears during a failed search or its retry.
    */
-  const empty = !isSearchable ? (
-    <EmptyState
-      icon="🔍"
-      title="Search Stourify"
-      subtitle="Find spots, cities and people. Type at least two characters."
-    />
-  ) : isFetching ? (
+  const empty = isFetching ? (
     // A search that is still in flight says so. Rendering nothing left the
     // screen blank for the whole request, which on a slow backend is
     // indistinguishable from a search that returned nothing — found on the
@@ -333,53 +392,169 @@ export default function SearchScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
-      <View style={{ padding: theme.gutter, gap: theme.spacing[3] }}>
-        <Text variant="display">Search</Text>
-        <Input
+      {/* The design's `.bb` row: the field itself is the header, no separate
+          title above it (STOURIFY-259). */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: theme.spacing[3],
+          paddingTop: theme.spacing[1],
+          paddingHorizontal: theme.gutter,
+          paddingBottom: theme.spacing[2],
+        }}
+      >
+        <Pressable
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          hitSlop={(theme.minTouchTarget - 38) / 2}
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 19,
+            backgroundColor: theme.colors.surfaceAlt,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon name="back" size={20} />
+        </Pressable>
+        <SearchField
           placeholder="Search spots, cities, people"
           value={query}
           onChangeText={setQuery}
-          autoCapitalize="none"
+          onSubmitEditing={commitSearch}
+          autoFocus
+          style={{ flex: 1 }}
         />
       </View>
 
-      {/*
-        `flexGrow: 0` and the inner row are both load-bearing. A horizontal
-        ScrollView with no height constraint stretches to fill the space left
-        over by the list below it, so the chips rendered as full-height pills
-        down the screen — visible immediately on device and invisible to every
-        unit test, which asserts on text and not on layout.
-      */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ flexGrow: 0 }}
-        contentContainerStyle={{ paddingHorizontal: theme.gutter, paddingBottom: theme.spacing[3] }}
-      >
-        <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
-          {FILTERS.map(({ key, label }) => (
-            <Chip
-              key={key}
-              label={label}
-              selected={filter === key}
-              onPress={() => setFilter(key)}
-            />
-          ))}
-        </View>
-      </ScrollView>
+      {!isSearchable ? (
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }}>
+          {recent.queries.length > 0 ? (
+            <>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingHorizontal: theme.gutter,
+                  paddingTop: theme.spacing[2],
+                  paddingBottom: theme.spacing[1],
+                }}
+              >
+                <Text variant="micro" color="muted">
+                  Recent
+                </Text>
+                <Pressable onPress={recent.clear} accessibilityRole="button">
+                  <Text variant="micro" color="primary">
+                    Clear
+                  </Text>
+                </Pressable>
+              </View>
 
-      <SectionList
-        sections={sections}
-        keyExtractor={(item) => item.key}
-        renderItem={renderRow}
-        renderSectionHeader={renderSectionHeader}
-        stickySectionHeadersEnabled={false}
-        keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={empty}
-        contentContainerStyle={
-          sections.length === 0 ? { flex: 1 } : { paddingBottom: theme.spacing[4] }
-        }
-      />
+              {recent.queries.map((recentQuery) => (
+                <View
+                  key={recentQuery}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: theme.spacing[3],
+                    paddingHorizontal: theme.gutter,
+                    paddingVertical: theme.spacing[2],
+                    minHeight: theme.minTouchTarget,
+                  }}
+                >
+                  <Icon name="clock" size={18} color="muted" />
+                  <Pressable
+                    style={{ flex: 1 }}
+                    accessibilityRole="button"
+                    onPress={() => setQuery(recentQuery)}
+                  >
+                    <Text variant="body">{recentQuery}</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => recent.remove(recentQuery)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${recentQuery}`}
+                    hitSlop={theme.spacing[2]}
+                  >
+                    <Icon name="close" size={16} color="muted" />
+                  </Pressable>
+                </View>
+              ))}
+            </>
+          ) : null}
+
+          <Text
+            variant="caption"
+            color="muted"
+            style={{ paddingHorizontal: theme.gutter, paddingVertical: theme.spacing[2] }}
+          >
+            Type at least two characters to search spots, cities and people.
+          </Text>
+
+          <Text
+            variant="micro"
+            color="muted"
+            style={{
+              paddingHorizontal: theme.gutter,
+              paddingTop: theme.spacing[1],
+              paddingBottom: theme.spacing[2],
+            }}
+          >
+            Browse categories
+          </Text>
+          <View style={{ paddingHorizontal: theme.gutter, gap: theme.spacing[2] }}>
+            {pairsOf(SPOT_CATEGORIES).map((pair) => (
+              <View key={pair.join('-')} style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
+                {pair.map((category) => (
+                  <Pressable
+                    key={category}
+                    accessibilityRole="button"
+                    onPress={() => navigation.navigate('Discover', { category })}
+                    style={{
+                      flex: 1,
+                      height: 74,
+                      borderRadius: 14,
+                      backgroundColor: theme.colors.badgeBg,
+                      justifyContent: 'flex-end',
+                      padding: theme.spacing[3],
+                    }}
+                  >
+                    <Text
+                      color="badgeInk"
+                      style={{ fontFamily: theme.fontFamily.bodyBold, fontSize: 14 }}
+                    >
+                      {category}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      ) : (
+        <>
+          <View style={{ paddingHorizontal: theme.gutter, paddingBottom: theme.spacing[3] }}>
+            <SegmentedControl options={FILTERS} value={filter} onChange={setFilter} />
+          </View>
+
+          <SectionList
+            sections={sections}
+            keyExtractor={(item) => item.key}
+            renderItem={renderRow}
+            renderSectionHeader={renderSectionHeader}
+            stickySectionHeadersEnabled={false}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={empty}
+            contentContainerStyle={
+              sections.length === 0 ? { flex: 1 } : { paddingBottom: theme.spacing[4] }
+            }
+          />
+        </>
+      )}
     </SafeAreaView>
   )
 }

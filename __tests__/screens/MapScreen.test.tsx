@@ -190,7 +190,23 @@ it('floats a peek card for the pin that was tapped, and opens that spot', async 
 })
 
 /**
- * A peek card draws the same small photo a grid cell does. `thumbFor()` owns
+ * The peek card also carries its own round go button (STOURIFY-259), separate
+ * from tapping the card body — both must open the same spot.
+ */
+it("opens the spot from the peek card's go button", async () => {
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByTestId('map-marker-spot-1')).toBeTruthy(), {
+    timeout: 3000,
+  })
+  fireEvent.press(screen.getByTestId('map-marker-spot-1'))
+
+  fireEvent.press(screen.getByLabelText('Go to Kalaklan Lighthouse'))
+  expect(navigation.navigate).toHaveBeenCalledWith('SpotDetail', { spotId: 'spot-1' })
+})
+
+/**
+ * A peek card draws the same small photo a grid tile does. `thumbFor()` owns
  * that rule; asserting the source here is what stops the peek card quietly
  * becoming the one place the app still downloads multi-megabyte originals.
  */
@@ -202,7 +218,7 @@ it('draws the peek card from the thumbnail', async () => {
   })
   fireEvent.press(screen.getByTestId('map-marker-spot-1'))
 
-  const image = screen.getAllByTestId('spot-card-image')[0]
+  const image = screen.getAllByTestId('peek-card-image')[0]
   expect(image.props.source).toEqual([{ uri: 'https://cdn.test/thumb.jpg' }])
 })
 
@@ -237,4 +253,63 @@ it('draws pins from the cached explore page when the network refuses', async () 
 
   await waitFor(() => expect(getSpots).toHaveBeenCalled(), { timeout: 3000 })
   expect(screen.getByTestId('map-marker-cached-spot')).toBeTruthy()
+})
+
+/**
+ * STOURIFY-259 — the map got its own category rail, reading and writing the
+ * exact cache entries Discover's rail uses (`EXPLORE_SPOTS_QUERY_KEY`), so a
+ * chip pressed here is a chip Discover has already paid the fetch for.
+ */
+describe('the category rail', () => {
+  it('asks the server for one category when a chip is pressed', async () => {
+    renderScreen()
+
+    await waitFor(() => expect(getSpots).toHaveBeenCalled())
+    fireEvent.press(screen.getByText('Nature'))
+
+    await waitFor(() => {
+      expect(getSpots).toHaveBeenCalledWith({ category: 'Nature' })
+    })
+  })
+
+  it('asks for everything while All is selected', async () => {
+    renderScreen()
+
+    await waitFor(() => {
+      expect(getSpots).toHaveBeenCalledWith(undefined)
+    })
+  })
+})
+
+it('opens search from the top search pill', async () => {
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByTestId('vendor-map-view')).toBeTruthy(), {
+    timeout: 3000,
+  })
+
+  fireEvent.press(screen.getByLabelText('Search spots near you…'))
+  expect(navigation.navigate).toHaveBeenCalledWith('Search')
+})
+
+it('goes back from the back disc', async () => {
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByTestId('vendor-map-view')).toBeTruthy(), {
+    timeout: 3000,
+  })
+
+  fireEvent.press(screen.getByLabelText('Back'))
+  expect(navigation.goBack).toHaveBeenCalled()
+})
+
+it('opens the list from the floating list button', async () => {
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByTestId('vendor-map-view')).toBeTruthy(), {
+    timeout: 3000,
+  })
+
+  fireEvent.press(screen.getByLabelText('List'))
+  expect(navigation.navigate).toHaveBeenCalledWith('Nearby')
 })
