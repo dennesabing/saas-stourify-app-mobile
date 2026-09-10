@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-10
+
 ### Added
 
 - **A `stourify://` link can now open a spot directly (STOURIFY-253).** The app's front door has
