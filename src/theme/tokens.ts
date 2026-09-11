@@ -85,6 +85,10 @@ export type Colors = Record<ColorRole, string>
  * The keys match the names registered by `useAppFonts()`. When the Google
  * fonts have not finished loading, `fontFamily: undefined` falls back to the
  * platform default rather than rendering a missing-glyph box.
+ *
+ * On Android each name is also the file name of a font the build ships inside
+ * the APK (android/app/build.gradle → bundledFonts), which is what keeps labels
+ * from being measured in the system font and clipped (STOURIFY-263).
  */
 export const fontFamily = {
   displayMedium: 'Fraunces_500Medium',
