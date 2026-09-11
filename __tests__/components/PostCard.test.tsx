@@ -23,10 +23,16 @@ const mockPost: Post = {
   author: { uuid: 'u1', name: 'Ana Martinez', username: 'ana', avatar_url: null },
 }
 
-test('renders the author name and username from the nested author', () => {
+/**
+ * The Home Feed design's author row is one line beside a 30-point avatar
+ * (STOURIFY-260), so the card names the author and leaves the @handle to the
+ * profile it opens. Asserting the handle's absence as well keeps the row from
+ * quietly growing a second line back.
+ */
+test('renders the author name from the nested author, on one line', () => {
   renderThemed(<PostCard post={mockPost} onPress={() => {}} />)
   expect(screen.getByText('Ana Martinez')).toBeTruthy()
-  expect(screen.getByText('@ana')).toBeTruthy()
+  expect(screen.queryByText('@ana')).toBeNull()
 })
 
 test('renders the caption', () => {

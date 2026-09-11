@@ -100,6 +100,24 @@ it('renders a thread — a top-level comment with its reply indented under it', 
   expect(indentOf('c2')).toBeGreaterThan(indentOf('c1'))
 })
 
+/**
+ * The design's Comments rows print how long ago each comment was written beside
+ * the name — "2h", "45m" (STOURIFY-260). `created_at` was always on the wire;
+ * the row simply never drew it.
+ */
+it('shows how long ago each comment was written, in the short form', async () => {
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60_000 - 5_000).toISOString()
+  ;(getComments as jest.Mock).mockResolvedValue({
+    ...postThread,
+    data: [{ ...postThread.data[0], created_at: twoHoursAgo }],
+  })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Great shot!')).toBeTruthy())
+  expect(screen.getByText('2h')).toBeTruthy()
+})
+
 it('loses a reply entirely when the server names its parent with something no row carries', async () => {
   ;(getComments as jest.Mock).mockResolvedValue({
     ...postThread,
@@ -229,7 +247,7 @@ it('appends the new comment optimistically when posting', async () => {
 
   await waitFor(() => expect(screen.getByText('No comments yet')).toBeTruthy())
 
-  fireEvent.changeText(screen.getByPlaceholderText('Add a comment...'), 'Nice spot')
+  fireEvent.changeText(screen.getByPlaceholderText('Add a comment…'), 'Nice spot')
   fireEvent.press(screen.getByLabelText('Post comment'))
 
   // Appears immediately, before the network call resolves.
@@ -394,7 +412,7 @@ describe('opened on a Spot About entry', () => {
 
     await waitFor(() => expect(screen.getByText('No comments yet')).toBeTruthy())
 
-    fireEvent.changeText(screen.getByPlaceholderText('Add a comment...'), '  Thanks, that helped  ')
+    fireEvent.changeText(screen.getByPlaceholderText('Add a comment…'), '  Thanks, that helped  ')
     fireEvent.press(screen.getByLabelText('Post comment'))
 
     await waitFor(() => expect(screen.getByText('Thanks, that helped')).toBeTruthy())
@@ -434,7 +452,7 @@ describe('opened on a Spot About entry', () => {
 
     await waitFor(() => expect(screen.getByText('No comments yet')).toBeTruthy())
 
-    fireEvent.changeText(screen.getByPlaceholderText('Add a comment...'), 'Thanks')
+    fireEvent.changeText(screen.getByPlaceholderText('Add a comment…'), 'Thanks')
     fireEvent.press(screen.getByLabelText('Post comment'))
 
     await waitFor(() =>
@@ -466,7 +484,7 @@ describe('opened on a Spot About entry', () => {
 
     await waitFor(() => expect(screen.getByText('No comments yet')).toBeTruthy())
 
-    fireEvent.changeText(screen.getByPlaceholderText('Add a comment...'), 'Nice')
+    fireEvent.changeText(screen.getByPlaceholderText('Add a comment…'), 'Nice')
     fireEvent.press(screen.getByLabelText('Post comment'))
 
     await waitFor(() => expect(createComment).toHaveBeenCalled())
@@ -524,7 +542,7 @@ it('puts a new comment at the TOP of a thread that already has comments', async 
 
   await waitFor(() => expect(screen.getByText('Been there last summer')).toBeTruthy())
 
-  fireEvent.changeText(screen.getByPlaceholderText('Add a comment...'), 'Going next month')
+  fireEvent.changeText(screen.getByPlaceholderText('Add a comment…'), 'Going next month')
   fireEvent.press(screen.getByLabelText('Post comment'))
 
   await waitFor(() => expect(screen.getByText('Going next month')).toBeTruthy())
@@ -572,7 +590,7 @@ it('leaves the new comment at the top when the server’s own answer arrives', a
 
   await waitFor(() => expect(screen.getByText('Been there last summer')).toBeTruthy())
 
-  fireEvent.changeText(screen.getByPlaceholderText('Add a comment...'), 'Going next month')
+  fireEvent.changeText(screen.getByPlaceholderText('Add a comment…'), 'Going next month')
   fireEvent.press(screen.getByLabelText('Post comment'))
 
   // Where it lands the instant you press send...
@@ -600,7 +618,7 @@ it('puts a new reply at the TOP of an About entry’s thread too', async () => {
 
   await waitFor(() => expect(screen.getByText('Been there last summer')).toBeTruthy())
 
-  fireEvent.changeText(screen.getByPlaceholderText('Add a comment...'), 'The gate opens at five')
+  fireEvent.changeText(screen.getByPlaceholderText('Add a comment…'), 'The gate opens at five')
   fireEvent.press(screen.getByLabelText('Post comment'))
 
   await waitFor(() => expect(screen.getByText('The gate opens at five')).toBeTruthy())

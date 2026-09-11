@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FlatList, KeyboardAvoidingView, Pressable, View } from 'react-native'
+import { FlatList, KeyboardAvoidingView, Pressable, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { CommentThreadTarget, HomeStackParamList } from '@/shared/navigation/types'
@@ -10,12 +10,25 @@ import {
   getComments,
   getSpotAboutComments,
 } from '@/shared/api/comments'
-import { Avatar, EmptyState, Input, Text } from '@/shared/components/ui'
+import { Avatar, BarHeader, EmptyState, Icon, Text } from '@/shared/components/ui'
 import { useAuthStore } from '@/shared/store/auth'
 import type { Comment, PaginatedResponse } from '@/shared/api/types'
+import { shortRelativeTime } from '@/shared/utils/relativeTime'
 import { useTheme } from '@/theme/ThemeProvider'
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'Comments'>
+
+/**
+ * How far a reply sits in from its parent: exactly one avatar and its gap, so
+ * the reply's avatar lines up under the parent's text — the design's 47 (a
+ * 36-point avatar plus an 11-point gap, STOURIFY-260).
+ */
+const AVATAR_SIZE = 36
+const ROW_GAP = 11
+const REPLY_INDENT = AVATAR_SIZE + ROW_GAP
+
+/** The composer's round send button (artboard 4). */
+const SEND_SIZE = 34
 
 /**
  * One key namespace for both hosts, deliberately.
@@ -94,7 +107,7 @@ function buildThread(comments: Comment[]): ThreadRow[] {
   return rows
 }
 
-export default function CommentsScreen({ route }: Props) {
+export default function CommentsScreen({ route, navigation }: Props) {
   const theme = useTheme()
   const queryClient = useQueryClient()
   const { user } = useAuthStore()
@@ -257,15 +270,18 @@ export default function CommentsScreen({ route }: Props) {
           somewhere that does not know the spot degrades to the same thing
           rather than showing an empty box.
         */}
-        <View style={{ padding: theme.gutter, gap: theme.spacing[1] }}>
-          <Text variant="h1">Comments</Text>
+        <BarHeader title="Comments" onBack={() => navigation.goBack()} />
 
-          {spotTitle ? (
-            <Text testID="comments-context-spot" variant="caption" color="muted">
-              on {spotTitle}
-            </Text>
-          ) : null}
-        </View>
+        {spotTitle ? (
+          <Text
+            testID="comments-context-spot"
+            variant="caption"
+            color="muted"
+            style={{ paddingHorizontal: theme.gutter, marginBottom: theme.spacing[2] }}
+          >
+            on {spotTitle}
+          </Text>
+        ) : null}
 
         {noteBody ? (
           /*
@@ -302,9 +318,7 @@ export default function CommentsScreen({ route }: Props) {
           data={rows}
           keyExtractor={(row) => row.comment.id}
           contentContainerStyle={
-            rows.length === 0
-              ? { flex: 1 }
-              : { paddingHorizontal: theme.gutter, gap: theme.spacing[3] }
+            rows.length === 0 ? { flex: 1 } : { paddingHorizontal: theme.gutter }
           }
           ListEmptyComponent={empty}
           renderItem={({ item }) => (
@@ -318,50 +332,95 @@ export default function CommentsScreen({ route }: Props) {
               testID={`comment-row-${item.comment.id}`}
               style={{
                 flexDirection: 'row',
-                gap: theme.spacing[2],
-                marginLeft: item.depth * theme.spacing[6],
+                gap: ROW_GAP,
+                paddingVertical: theme.spacing[3],
+                marginLeft: item.depth * REPLY_INDENT,
               }}
             >
-              <Avatar name={item.comment.user?.name} size={28} />
+              <Avatar name={item.comment.user?.name} size={AVATAR_SIZE} />
               <View style={{ flex: 1 }}>
-                <Text variant="caption" color="primary">
-                  {item.comment.user?.name ?? 'User'}
+                {/* Name and time on one baseline, as the design draws them.
+                    The artboard's Reply link and per-comment heart are left
+                    out: the app cannot post a reply and comments carry no
+                    likes (STOURIFY-260). */}
+                <View
+                  style={{ flexDirection: 'row', alignItems: 'baseline', gap: theme.spacing[2] }}
+                >
+                  {/* Allowed to wrap rather than held to one line: a
+                      shrink-wrapped one-line name in Inter SemiBold is measured
+                      short on Android and ellipsised early (see `PostCard`'s
+                      `name` style), and `flex: 1` here would push the time to
+                      the far edge. */}
+                  <Text
+                    variant="caption"
+                    style={{ flexShrink: 1, fontFamily: theme.fontFamily.bodySemiBold }}
+                  >
+                    {item.comment.user?.name ?? 'User'}
+                  </Text>
+                  <Text variant="caption" color="muted" style={{ fontSize: 11, lineHeight: 14 }}>
+                    {shortRelativeTime(Date.parse(item.comment.created_at), Date.now())}
+                  </Text>
+                </View>
+                <Text variant="body" style={{ fontSize: 14, lineHeight: 21, marginTop: 2 }}>
+                  {item.comment.body}
                 </Text>
-                <Text variant="body">{item.comment.body}</Text>
               </View>
             </View>
           )}
         />
 
+        {/* The design's docked composer: who is writing, a borderless grey
+            pill, and a round slate send button that stays dim until there is
+            something to send. */}
         <View
           style={{
             flexDirection: 'row',
             alignItems: 'center',
-            gap: theme.spacing[2],
-            padding: theme.gutter,
+            gap: 10,
+            paddingVertical: 10,
+            paddingHorizontal: 14,
             borderTopWidth: 1,
             borderTopColor: theme.colors.hairline,
+            backgroundColor: theme.colors.card,
           }}
         >
-          <View style={{ flex: 1 }}>
-            <Input placeholder="Add a comment..." value={text} onChangeText={setText} />
+          <Avatar uri={user?.avatar} name={user?.name} size={SEND_SIZE} />
+          <View
+            style={{
+              flex: 1,
+              minHeight: theme.minTouchTarget,
+              justifyContent: 'center',
+              paddingHorizontal: 14,
+              borderRadius: theme.radius.chip,
+              backgroundColor: theme.colors.surfaceAlt,
+            }}
+          >
+            <TextInput
+              placeholder="Add a comment…"
+              placeholderTextColor={theme.colors.muted}
+              accessibilityLabel="Add a comment"
+              value={text}
+              onChangeText={setText}
+              style={{ ...theme.typography.body, color: theme.colors.ink, paddingVertical: 10 }}
+            />
           </View>
           <Pressable
             onPress={handlePost}
             disabled={!text.trim()}
             accessibilityRole="button"
             accessibilityLabel="Post comment"
+            hitSlop={(theme.minTouchTarget - SEND_SIZE) / 2}
             style={{
-              minHeight: theme.minTouchTarget,
-              minWidth: theme.minTouchTarget,
+              width: SEND_SIZE,
+              height: SEND_SIZE,
+              borderRadius: SEND_SIZE / 2,
               alignItems: 'center',
               justifyContent: 'center',
-              opacity: text.trim() ? 1 : 0.5,
+              backgroundColor: theme.colors.button,
+              opacity: text.trim() ? 1 : 0.35,
             }}
           >
-            <Text variant="h2" color="primary">
-              ↑
-            </Text>
+            <Icon name="send" size={17} color="onButton" />
           </Pressable>
         </View>
       </KeyboardAvoidingView>

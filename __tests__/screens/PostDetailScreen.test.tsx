@@ -67,6 +67,28 @@ it('renders the post author, caption and comment count', async () => {
   })
 })
 
+/**
+ * The design's "248 likes · tap to see who", minus the half with nothing behind
+ * it: there is no likers list, so the line states the count and is not a button
+ * (STOURIFY-260).
+ */
+it('states the like count in words, and does not offer it as a button', async () => {
+  ;(getPost as jest.Mock).mockResolvedValue(makePost({ likes_count: 3 }))
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('3 likes')).toBeTruthy())
+  expect(screen.queryByText(/tap to see who/i)).toBeNull()
+})
+
+it('says "1 like", not "1 likes"', async () => {
+  ;(getPost as jest.Mock).mockResolvedValue(makePost({ likes_count: 1 }))
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('1 like')).toBeTruthy())
+})
+
 it('navigates to the spot when the spot chip is pressed', async () => {
   ;(getPost as jest.Mock).mockResolvedValue(makePost())
 
