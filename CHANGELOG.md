@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Activity follows the Home Feed design (STOURIFY-262).** The same follow requests with the same
+  Accept and Decline, laid out per artboard 6 of `docs/design/Stourify - Home Feed.dc.html`:
+  - a round-back "Activity" header that goes back to Home
+  - flat rows grouped under "Today", "This week" and "Earlier"
+  - each row has a 44-point avatar with a small blue "+" follow badge, one sentence ("**Name** wants
+    to follow you. 2h"), and Accept and Decline as small round pills
+
+  The loading, failed and empty states read as before. Like and comment rows, spot thumbnails, the
+  unread wash, badge rows and "Follow back" are drawn in the design but not built, because the app
+  has no notifications data behind them. The card lists each one.
+
 - **The Home feed, a post, and its comments follow the Home Feed design (STOURIFY-260).** Same data,
   likes, reporting and offline behaviour as before. The layout now matches artboards 1, 3 and 4 of
   `docs/design/Stourify - Home Feed.dc.html`:

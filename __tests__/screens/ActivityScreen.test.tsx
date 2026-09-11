@@ -36,6 +36,98 @@ function makeRequest(overrides: Partial<any> = {}) {
 
 beforeEach(() => jest.clearAllMocks())
 
+const HOUR = 60 * 60_000
+const DAY = 24 * HOUR
+
+function page(data: any[]) {
+  return { data, links: {}, meta: { current_page: 1, last_page: 1, total: data.length } }
+}
+
+/**
+ * Artboard 6 of the Home Feed design (STOURIFY-262): a round-back "Activity"
+ * header, rows grouped by when they happened, and a sentence with the name,
+ * what they did and a short time.
+ */
+describe('the Activity artboard', () => {
+  it('has a round-back Activity header whose back goes to the Home tab', async () => {
+    ;(getFollowRequests as jest.Mock).mockResolvedValue(page([]))
+
+    renderScreen()
+
+    expect(screen.getByText('Activity')).toBeTruthy()
+    fireEvent.press(screen.getByLabelText('Back'))
+    expect(navigation.navigate).toHaveBeenCalledWith('HomeTab')
+
+    // Let the query settle so nothing updates after the test has ended.
+    await waitFor(() => expect(screen.getByText('Nothing yet')).toBeTruthy())
+  })
+
+  it('writes each request as one sentence with a short time', async () => {
+    ;(getFollowRequests as jest.Mock).mockResolvedValue(
+      page([makeRequest({ created_at: new Date(Date.now() - 2 * HOUR - 60_000).toISOString() })]),
+    )
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Ana Martinez')).toBeTruthy())
+    expect(screen.getByText(/wants to follow you\./)).toBeTruthy()
+    expect(screen.getByText('2h')).toBeTruthy()
+  })
+
+  it('groups requests under one label per period, newest period first', async () => {
+    ;(getFollowRequests as jest.Mock).mockResolvedValue(
+      page([
+        makeRequest({ uuid: 'f-a', created_at: new Date(Date.now() - 60_000).toISOString() }),
+        makeRequest({
+          uuid: 'f-b',
+          follower: { id: 'u2', uuid: 'user-2', name: 'Ben Cruz', email: '' },
+          created_at: new Date(Date.now() - 2 * 60_000).toISOString(),
+        }),
+        makeRequest({
+          uuid: 'f-c',
+          follower: { id: 'u3', uuid: 'user-3', name: 'Cara Diaz', email: '' },
+          created_at: new Date(Date.now() - 3 * DAY).toISOString(),
+        }),
+        makeRequest({
+          uuid: 'f-d',
+          follower: { id: 'u4', uuid: 'user-4', name: 'Dan Esteban', email: '' },
+          created_at: new Date(Date.now() - 30 * DAY).toISOString(),
+        }),
+      ]),
+    )
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Dan Esteban')).toBeTruthy())
+    // Two requests today, one label: a label heads its group, not each row.
+    expect(screen.getAllByText('Today')).toHaveLength(1)
+    expect(screen.getAllByText('This week')).toHaveLength(1)
+    expect(screen.getAllByText('Earlier')).toHaveLength(1)
+
+    // Render order: newest period first, and each label before the rows it
+    // heads. `getAllByTestId` answers in tree order.
+    expect(screen.getAllByTestId(/^activity-(group|row)-/).map((el) => el.props.testID)).toEqual([
+      'activity-group-Today',
+      'activity-row-f-a',
+      'activity-row-f-b',
+      'activity-group-This week',
+      'activity-row-f-c',
+      'activity-group-Earlier',
+      'activity-row-f-d',
+    ])
+  })
+
+  it("opens the requester's profile from their name", async () => {
+    ;(getFollowRequests as jest.Mock).mockResolvedValue(page([makeRequest()]))
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Ana Martinez')).toBeTruthy())
+    fireEvent.press(screen.getByText('Ana Martinez'))
+    expect(navigation.navigate).toHaveBeenCalledWith('Profile', { userId: 'user-1' })
+  })
+})
+
 it("renders pending follow requests with the requester's name", async () => {
   ;(getFollowRequests as jest.Mock).mockResolvedValue({
     data: [
