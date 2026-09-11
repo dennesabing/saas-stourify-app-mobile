@@ -113,11 +113,27 @@ export function describeRequestFailure(error: unknown, subject: string): Request
     // same mistake as saying it to a 403 — the connection worked, the server was
     // just slow. `mobile/src/shared/api/client.ts` gives every screen request 15
     // seconds, and STOURIFY-229 records a feed page measured at about 17.
+    //
+    // On Android that deadline used to arrive here disguised as `ERR_NETWORK`
+    // and got the connection wording; `client.ts` → `ranPastItsDeadline`
+    // relabels it `ETIMEDOUT` before it gets this far (STOURIFY-261).
     if (error.code === AxiosError.ECONNABORTED || error.code === AxiosError.ETIMEDOUT) {
       return {
         icon: '🐢',
         title,
         subtitle: 'Stourify took too long to answer. Give it a moment and try again.',
+      }
+    }
+
+    // Cancelled on purpose — an abort signal fired. Nothing happened to the
+    // connection, so it is not mentioned. React Query's own cancellations
+    // never reach a screen as an error; only an axios cancel can, which is why
+    // this is a plain sentence rather than a reason to hide the panel.
+    if (error.code === AxiosError.ERR_CANCELED) {
+      return {
+        icon: '⏹️',
+        title,
+        subtitle: 'Loading stopped before Stourify answered. Try again.',
       }
     }
 

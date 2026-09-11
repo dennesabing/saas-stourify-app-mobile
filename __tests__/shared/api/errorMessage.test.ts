@@ -1,4 +1,4 @@
-import { AxiosError, type AxiosResponse } from 'axios'
+import { AxiosError, CanceledError, type AxiosResponse } from 'axios'
 import { describeRequestFailure } from '@/shared/api/errorMessage'
 
 /**
@@ -39,6 +39,15 @@ function timeoutError(): AxiosError {
     { headers: {} } as never,
     {},
   )
+}
+
+/**
+ * A request cancelled on purpose — an abort signal fired, somebody navigated
+ * away. Nothing happened to the connection, so nothing may be said about it
+ * (STOURIFY-261).
+ */
+function cancelledError(): AxiosError {
+  return new CanceledError(undefined, undefined, { headers: {} } as never)
 }
 
 describe('the title names the thing that would not load, whatever went wrong', () => {
@@ -83,6 +92,25 @@ describe('what the user is told', () => {
    * The measured case. `403` is the server saying no to a request that reached
    * it perfectly well, so nothing about the connection may appear here.
    */
+  it('says the timeout axios reports as ETIMEDOUT took too long, too', () => {
+    const error = new AxiosError(
+      'timeout of 15000ms exceeded',
+      AxiosError.ETIMEDOUT,
+      { headers: {} } as never,
+      {},
+    )
+
+    expect(describeRequestFailure(error, 'your feed').subtitle).toContain('took too long')
+  })
+
+  it('does not blame the connection for a request that was cancelled', () => {
+    const { subtitle, icon } = describeRequestFailure(cancelledError(), 'your feed')
+
+    expect(subtitle).toContain('stopped')
+    expect(subtitle).not.toMatch(/connection/i)
+    expect(icon).not.toBe('📡')
+  })
+
   it('says it is a permission problem on a 403, and never mentions the connection', () => {
     const { subtitle } = describeRequestFailure(responseError(403), 'your feed')
 
@@ -150,6 +178,7 @@ it('never gives two different failures the same words', () => {
   const cases = [
     networkError(),
     timeoutError(),
+    cancelledError(),
     responseError(401),
     responseError(403),
     responseError(404),

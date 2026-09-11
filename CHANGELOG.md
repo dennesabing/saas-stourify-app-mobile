@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A slow answer no longer shows up as "check your connection" (STOURIFY-261).** On Android, a
+  request that ran past the app's 15-second limit reached the screen as a plain network error, so a
+  person with a working connection was told to check it. The logged cause was `ERR_NETWORK` with no
+  response, at 15023 ms against a 15000 ms limit. React Native passes the limit to OkHttp as a call
+  timeout, and OkHttp's `InterruptedIOException("timeout")` fails React Native's exact
+  `SocketTimeoutException` check. `src/shared/api/client.ts` now checks the request's own clock: a
+  no-response failure that arrives at or after the limit is relabelled `ETIMEDOUT`, and the screens
+  say "Stourify took too long to answer". A fast failure, such as airplane mode, still says to
+  check the connection. A cancelled request (`ERR_CANCELED`) is no longer blamed on the connection
+  either.
+
 ### Changed
 
 - **Activity follows the Home Feed design (STOURIFY-262).** The same follow requests with the same
