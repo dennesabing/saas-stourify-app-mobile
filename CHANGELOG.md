@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The Home feed, a post, and its comments follow the Home Feed design (STOURIFY-260).** Same data,
+  likes, reporting and offline behaviour as before. The layout now matches artboards 1, 3 and 4 of
+  `docs/design/Stourify - Home Feed.dc.html`:
+  - **Feed:** a "Stourify" wordmark with a bell that opens Activity. Each post is the design's card:
+    the photo on top with a soft fade and the spot's name in a white pill (tap it to open the spot),
+    then the author, the spot's category tags, the caption, and a heart and comment row.
+  - **Post:** a round-back "Post" header, the photo edge to edge (the screen never showed it
+    before), the spot as a badge pill, the caption, the actions, a "N likes" line, and "View all N
+    comments".
+  - **Comments:** 36-point rows with the name and how long ago it was written ("2h"), replies
+    indented under their parent, and the design's docked composer with a round send button.
+
+  Adds the icons `bell`, `heart` (drawn solid once liked), `comment`, `more` and `send`, and
+  `shortRelativeTime()`. Stories, Follow on a post, bookmarks, sharing, the likes list, and comment
+  replies and likes are drawn in the design but not built, because nothing backs them yet. The card
+  lists each one. Activity's own redesign is STOURIFY-262.
+
 - **Four spot screens now say what actually went wrong instead of blaming your connection
   (STOURIFY-248).** Opening a spot, its About notes, its photos or its reviews and getting anything
   other than an answer produced the same sentence every time: *"We couldn't reach Stourify just now.

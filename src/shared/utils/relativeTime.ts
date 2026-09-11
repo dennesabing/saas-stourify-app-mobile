@@ -27,3 +27,24 @@ export function formatRelativeTime(at: number | null, now: number): string {
 
   return plural(Math.floor(elapsed / DAY), 'day')
 }
+
+/**
+ * The compact form — "45m", "2h", "3d" — that a comment row prints beside a
+ * name in the Home Feed design's Comments artboard (STOURIFY-260).
+ *
+ * Same buckets and the same future-clamp as `formatRelativeTime`. It takes a
+ * number rather than `null` because its callers parse a server timestamp, and
+ * the failure worth guarding there is an unparseable one: `Date.parse` answers
+ * `NaN`, and a row reading "NaNd" is worse than a row reading nothing.
+ */
+export function shortRelativeTime(at: number, now: number): string {
+  if (!Number.isFinite(at)) return ''
+
+  const elapsed = Math.max(0, now - at)
+
+  if (elapsed < MINUTE) return 'just now'
+  if (elapsed < HOUR) return `${Math.floor(elapsed / MINUTE)}m`
+  if (elapsed < DAY) return `${Math.floor(elapsed / HOUR)}h`
+
+  return `${Math.floor(elapsed / DAY)}d`
+}

@@ -5,21 +5,34 @@ import {
   useQueryClient,
   type InfiniteData,
 } from '@tanstack/react-query'
-import { FlatList, RefreshControl, View } from 'react-native'
+import { FlatList, Pressable, RefreshControl, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
+import type { CompositeScreenProps } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import type { HomeStackParamList } from '@/shared/navigation/types'
+import type { HomeStackParamList, TabParamList } from '@/shared/navigation/types'
 import PostActionsSheet from '@/features/social/components/PostActionsSheet'
-import { EmptyState, PostCard, Skeleton } from '@/shared/components/ui'
+import { EmptyState, Icon, PostCard, Skeleton, Text } from '@/shared/components/ui'
 import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { getFollowingFeed } from '@/shared/api/feed'
 import { setPostLike } from '@/shared/api/posts'
 import type { CursorPaginatedResponse, Post } from '@/shared/api/types'
 import { useTheme } from '@/theme/ThemeProvider'
 
-type Props = NativeStackScreenProps<HomeStackParamList, 'Home'>
+/**
+ * Composite because the header's bell leaves the Home stack: Activity is a
+ * sibling tab, and a `navigate` the stack cannot satisfy bubbles up to the tab
+ * navigator that can (STOURIFY-260).
+ */
+type Props = CompositeScreenProps<
+  NativeStackScreenProps<HomeStackParamList, 'Home'>,
+  BottomTabScreenProps<TabParamList>
+>
 
 const FEED_QUERY_KEY = ['feed', 'following'] as const
+
+/** The design sets feed cards 14 in from the screen edge (artboard 1). */
+const CARD_MARGIN = 14
 
 type FeedData = InfiniteData<CursorPaginatedResponse<Post>, string | undefined>
 
@@ -136,6 +149,11 @@ export default function FeedScreen({ navigation }: Props) {
         }
         onMorePress={() => setReportingPost(item.uuid)}
         onHashtagPress={(slug) => navigation.navigate('Tag', { slug })}
+        onSpotPress={
+          item.spot
+            ? () => navigation.navigate('SpotDetail', { spotId: item.spot!.uuid })
+            : undefined
+        }
       />
     ),
     [navigation, likeMutation],
@@ -181,10 +199,9 @@ export default function FeedScreen({ navigation }: Props) {
   const failure = describeRequestFailure(error, 'your feed')
 
   const empty = isLoading ? (
-    <View style={{ padding: theme.gutter, gap: theme.spacing[4] }}>
-      <Skeleton height={140} />
-      <Skeleton height={140} />
-      <Skeleton height={140} />
+    <View style={{ padding: CARD_MARGIN, gap: theme.spacing[4] }}>
+      <Skeleton height={320} />
+      <Skeleton height={320} />
     </View>
   ) : isError ? (
     <EmptyState
@@ -200,6 +217,42 @@ export default function FeedScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
+      {/* The design's Home header: the wordmark, and the bell that opens your
+          activity. The artboard's paper-plane beside it is left out — there is
+          no messaging to open (STOURIFY-260). */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingLeft: 18,
+          paddingRight: theme.spacing[2],
+          paddingTop: 6,
+        }}
+      >
+        <Text
+          variant="h1"
+          color="primary"
+          accessibilityRole="header"
+          style={{ letterSpacing: -0.4 }}
+        >
+          Stourify
+        </Text>
+        <Pressable
+          onPress={() => navigation.navigate('ActivityTab')}
+          accessibilityRole="button"
+          accessibilityLabel="Activity"
+          style={{
+            minWidth: theme.minTouchTarget,
+            minHeight: theme.minTouchTarget,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon name="bell" size={22} />
+        </Pressable>
+      </View>
+
       <FlatList
         testID="feed-list"
         data={posts}
@@ -208,7 +261,11 @@ export default function FeedScreen({ navigation }: Props) {
         contentContainerStyle={
           posts.length === 0
             ? { flex: 1 }
-            : { paddingHorizontal: theme.gutter, paddingVertical: theme.spacing[4] }
+            : {
+                paddingHorizontal: CARD_MARGIN,
+                paddingTop: theme.spacing[2],
+                paddingBottom: theme.spacing[4],
+              }
         }
         ItemSeparatorComponent={() => <View style={{ height: theme.spacing[4] }} />}
         ListEmptyComponent={empty}
@@ -216,8 +273,8 @@ export default function FeedScreen({ navigation }: Props) {
         onEndReachedThreshold={0.3}
         ListFooterComponent={
           isFetchingNextPage ? (
-            <View style={{ paddingHorizontal: theme.gutter, paddingTop: theme.spacing[4] }}>
-              <Skeleton height={140} />
+            <View style={{ paddingTop: theme.spacing[4] }}>
+              <Skeleton height={320} />
             </View>
           ) : null
         }

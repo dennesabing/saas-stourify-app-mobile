@@ -1,17 +1,22 @@
 import {
   ArrowUpDown,
+  Bell,
   Check,
   ChevronLeft,
   ChevronRight,
   Clock,
+  Ellipsis,
+  Heart,
   List,
   LocateFixed,
   Map,
   MapPin,
+  MessageCircle,
   Navigation,
   Plus,
   RefreshCw,
   Search,
+  Send,
   X,
 } from 'lucide-react-native'
 import { useTheme } from '@/theme/ThemeProvider'
@@ -33,7 +38,17 @@ import type { ColorRole } from '@/theme/tokens'
 const GLYPHS = {
   add: Plus,
   back: ChevronLeft,
+  /** Your activity — the Home header's bell (STOURIFY-260). */
+  bell: Bell,
   check: Check,
+  /** A post's comments. */
+  comment: MessageCircle,
+  /** A like. Pass `fill` to draw it solid once liked. */
+  heart: Heart,
+  /** A per-item overflow menu — Report, today. */
+  more: Ellipsis,
+  /** Send what you typed — the comment composer's button. */
+  send: Send,
   /** A recent search (STOURIFY-259). */
   clock: Clock,
   /** Dismiss or clear — a recent search, a search field. */
@@ -63,6 +78,11 @@ interface Props {
   color?: ColorRole
   /** The design's stroke is 2 almost everywhere; a tick is drawn heavier. */
   strokeWidth?: number
+  /**
+   * Fill the outline with a colour — a liked heart. Omitted, the glyph is the
+   * design's plain outline, which is Lucide's own default.
+   */
+  fill?: ColorRole
   testID?: string
 }
 
@@ -70,7 +90,14 @@ interface Props {
  * A decorative icon. It is hidden from screen readers on purpose: the control
  * around it carries the label, so a reader says "Back", not "chevron left Back".
  */
-export default function Icon({ name, size = 20, color = 'ink', strokeWidth = 2, testID }: Props) {
+export default function Icon({
+  name,
+  size = 20,
+  color = 'ink',
+  strokeWidth = 2,
+  fill,
+  testID,
+}: Props) {
   const theme = useTheme()
   const Glyph = GLYPHS[name]
 
@@ -79,6 +106,7 @@ export default function Icon({ name, size = 20, color = 'ink', strokeWidth = 2, 
       testID={testID}
       size={size}
       color={theme.colors[color]}
+      fill={fill ? theme.colors[fill] : 'none'}
       strokeWidth={strokeWidth}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"

@@ -300,6 +300,49 @@ it('opens the author profile when the feed row identity is tapped', async () => 
   expect(navigation.navigate).toHaveBeenCalledWith('Profile', { userId: 'u1' })
 })
 
+/**
+ * The bell in the design's header (STOURIFY-260). It is the one new control on
+ * this screen, so it has to lead somewhere real: the Activity tab, which is a
+ * sibling of the Home stack — the navigate bubbles up to the tab navigator.
+ */
+it('opens the Activity tab from the bell in the header', async () => {
+  ;(getFollowingFeed as jest.Mock).mockResolvedValue({
+    data: [makePost({ uuid: 'post-1' })],
+    next_cursor: null,
+    prev_cursor: null,
+  })
+
+  renderScreen()
+
+  expect(screen.getByText('Stourify')).toBeTruthy()
+  fireEvent.press(screen.getByLabelText('Activity'))
+
+  expect(navigation.navigate).toHaveBeenCalledWith('ActivityTab')
+})
+
+it('names the spot over the photo and shows its categories as tags', async () => {
+  ;(getFollowingFeed as jest.Mock).mockResolvedValue({
+    data: [
+      makePost({
+        uuid: 'post-1',
+        media: [{ uuid: 'm1', url: 'https://example.test/p.jpg', thumb_url: null }],
+        spot: { uuid: 'spot-1', title: 'Blue Cove', categories: ['Coast'] },
+      }),
+    ],
+    next_cursor: null,
+    prev_cursor: null,
+  })
+
+  renderScreen()
+
+  await waitFor(() => expect(screen.getByText('Blue Cove')).toBeTruthy())
+  expect(screen.getByText('Coast')).toBeTruthy()
+
+  // The pill is the design's "→ Spot" path from a feed card.
+  fireEvent.press(screen.getByLabelText('View Blue Cove'))
+  expect(navigation.navigate).toHaveBeenCalledWith('SpotDetail', { spotId: 'spot-1' })
+})
+
 it('opening the post is still the card tap, not the author tap', async () => {
   ;(getFollowingFeed as jest.Mock).mockResolvedValue({
     data: [makePost({ uuid: 'post-1' })],
