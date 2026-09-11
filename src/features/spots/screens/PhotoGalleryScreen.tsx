@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Dimensions, FlatList, Pressable, View, type ViewToken } from 'react-native'
 import { Image } from 'expo-image'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
@@ -23,6 +23,7 @@ type Props = NativeStackScreenProps<HomeStackParamList, 'PhotoGallery'>
 export default function PhotoGalleryScreen({ route, navigation }: Props) {
   const { spotId } = route.params
   const theme = useTheme()
+  const insets = useSafeAreaInsets()
   const [index, setIndex] = useState(0)
 
   const {
@@ -119,9 +120,15 @@ export default function PhotoGalleryScreen({ route, navigation }: Props) {
         Back and the plaque are one shared component with the spot page, which
         is the whole of "make it consistent with the spot page" — two copies of
         the same layout drift the moment one is touched.
+
+        `topInset` is the status bar's height (STOURIFY-255). The header is
+        absolutely positioned, so this SafeAreaView's top padding does not reach
+        it, and without the inset the Back button sat on the status-bar clock.
+        Only the header moves; the photos keep the layout they had.
       */}
       <OverlayHeader
         testID="gallery-header"
+        topInset={insets.top}
         onBack={() => navigation.goBack()}
         title={spot?.title}
         subtitle={media.length > 0 ? `Photo ${index + 1} of ${media.length}` : null}

@@ -11,6 +11,12 @@ interface Props {
   title?: string | null
   /** Second line, smaller. Used for a position like "2 of 5". */
   subtitle?: string | null
+  /**
+   * Extra distance from the top, added to the usual gap — pass the status
+   * bar's height (`useSafeAreaInsets().top`) when this sits directly in a
+   * screen root. See "Why the caller says how tall the status bar is" below.
+   */
+  topInset?: number
   testID?: string
 }
 
@@ -36,8 +42,18 @@ interface Props {
  * Both sit on the card colour rather than directly on the photo. Text laid
  * straight over a photograph is legible until somebody photographs something
  * pale, and a spot's photos are not ours to choose.
+ *
+ * ## Why the caller says how tall the status bar is
+ *
+ * This is absolutely positioned, and an absolutely placed box is measured from
+ * its parent's outer edge — a `SafeAreaView` parent's top padding does nothing
+ * for it. On the spot page that is harmless: the header sits inside the hero,
+ * which is already below the status bar. On the photo gallery it sits directly
+ * in the screen root, and without `topInset` the Back button was drawn on top
+ * of the status-bar clock (STOURIFY-255). The component cannot add the inset
+ * itself, because the spot page would then be pushed down twice.
  */
-export default function OverlayHeader({ onBack, title, subtitle, testID }: Props) {
+export default function OverlayHeader({ onBack, title, subtitle, topInset = 0, testID }: Props) {
   const theme = useTheme()
 
   return (
@@ -46,7 +62,7 @@ export default function OverlayHeader({ onBack, title, subtitle, testID }: Props
       pointerEvents="box-none"
       style={{
         position: 'absolute',
-        top: theme.spacing[3],
+        top: topInset + theme.spacing[3],
         left: theme.spacing[3],
         right: theme.spacing[3],
         zIndex: 10,

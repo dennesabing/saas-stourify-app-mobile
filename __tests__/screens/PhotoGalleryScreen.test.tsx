@@ -2,7 +2,7 @@ import { AxiosError, type AxiosResponse } from 'axios'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { QueryClient } from '@tanstack/react-query'
 import PhotoGalleryScreen from '@/features/spots/screens/PhotoGalleryScreen'
-import { palette } from '@/theme/tokens'
+import { palette, spacing } from '@/theme/tokens'
 import { createTestDatabase } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
 
@@ -179,16 +179,16 @@ it('keeps showing photos it already has while the refetch is failing', async () 
  * `contentFit="contain"`, so the bars beside a photo that is not the screen's
  * shape showed that near-black too (STOURIFY-102).
  */
-describe('background', () => {
-  /** Flattens RN's array-of-styles into one object. */
-  function styleOf(element: { props: { style?: unknown } }): Record<string, unknown> {
-    const flatten = (input: unknown): Record<string, unknown> =>
-      Array.isArray(input)
-        ? Object.assign({}, ...input.map(flatten))
-        : ((input ?? {}) as Record<string, unknown>)
-    return flatten(element.props.style)
-  }
+/** Flattens RN's array-of-styles into one object. */
+function styleOf(element: { props: { style?: unknown } }): Record<string, unknown> {
+  const flatten = (input: unknown): Record<string, unknown> =>
+    Array.isArray(input)
+      ? Object.assign({}, ...input.map(flatten))
+      : ((input ?? {}) as Record<string, unknown>)
+  return flatten(element.props.style)
+}
 
+describe('background', () => {
   it('uses the theme surface behind the photos', async () => {
     ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
 
@@ -266,6 +266,23 @@ describe('the gallery header', () => {
     renderScreen()
 
     await waitFor(() => expect(screen.getByLabelText('Back')).toBeTruthy())
+  })
+
+  /**
+   * STOURIFY-255. The header sits directly in the screen root, and it is
+   * absolutely positioned, so the root's safe-area padding does nothing for
+   * it — it used to land 12 px from the top of the glass, on the status-bar
+   * clock. It must clear the status bar by exactly the device's top inset.
+   * `TestProviders` fixes that inset at 47, standing in for a real phone's.
+   */
+  it('sits below the status bar, not on it', async () => {
+    ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('gallery-header')).toBeTruthy())
+
+    expect(styleOf(screen.getByTestId('gallery-header')).top).toBe(47 + spacing[3])
   })
 })
 
