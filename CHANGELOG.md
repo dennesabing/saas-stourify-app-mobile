@@ -130,6 +130,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Labels are no longer cut off on Android (STOURIFY-263, same cause as STOURIFY-254).** The tab
+  bar used to read "HOM · DISCOVE · ACTIVIT · PROFIL", category tags lost their last letter
+  ("SHOPPIN"), and the header read "Stouri". The app drew its first screen before its fonts loaded,
+  so labels were measured in the narrower system font and then drawn in Inter or Fraunces. React
+  Native caches those measurements by font name, so they stayed wrong for the whole session. The
+  seven font files now ship inside the APK (`android/app/build.gradle` → `bundledFonts`), so they
+  exist before the first frame. A new test, `__tests__/android/bundledFonts.test.ts`, fails if a
+  theme font is missing from that list. This takes effect only in a newly built APK.
 - **The SpotDetail "navigates to the reviews list" test no longer presses the rating row before it
   works (STOURIFY-251).** The row is on screen from the first frame but stays disabled until the
   spot arrives, and the test waited only for it to exist. Under a loaded run the press sometimes

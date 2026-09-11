@@ -23,6 +23,13 @@ export default function App() {
 
   // Deliberately not gating render on this: a blocked splash on a slow device
   // is worse than one frame of system font. See useAppFonts().
+  //
+  // On Android that "one frame" turned out to cost the whole session: text laid
+  // out before the fonts arrived kept its system-font width and was clipped once
+  // drawn in Inter ("HOM", "DISCOVE" — STOURIFY-263, STOURIFY-254). The fix does
+  // not wait here either: the fonts now ship inside the APK
+  // (android/app/build.gradle → bundledFonts), so they are there before the
+  // first frame and nothing has to wait for them.
   useAppFonts()
 
   // The session handlers wipe the local database on logout; the scheduler owns

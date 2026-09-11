@@ -563,6 +563,54 @@ react {
     autolinkLibrariesWithApp()
 }
 
+// ── The app's fonts ship inside the APK (STOURIFY-263, STOURIFY-254) ─────────
+//
+// The app also loads these from JavaScript (src/theme/useAppFonts.ts), but that
+// happens a moment AFTER the first screen is laid out. Text measured in that
+// moment is sized for the narrower system font and then drawn in Inter or
+// Fraunces, so "HOME" reads "HOM". React Native's Android text engine caches
+// measurements by font NAME, and the name does not change when the real file
+// arrives, so the clipping lasts the whole session — even for a label drawn
+// later.
+//
+// Copying the files to assets/fonts/ removes the race: React Native looks a
+// family up there by file name before any JavaScript runs, so `fontFamily:
+// 'Inter_600SemiBold'` resolves on the very first frame. The files are copied
+// from node_modules at build time rather than committed.
+//
+// Every family in src/theme/tokens.ts → fontFamily must be listed here, under
+// exactly that name. __tests__/android/bundledFonts.test.ts fails if one is not.
+//
+// Rejected: the expo-font config plugin's `fonts` option. It does the same copy,
+// but only through `expo prebuild`, which this project does not run because
+// android/ is committed.
+def bundledFonts = [
+    "@expo-google-fonts/inter/400Regular/Inter_400Regular.ttf",
+    "@expo-google-fonts/inter/500Medium/Inter_500Medium.ttf",
+    "@expo-google-fonts/inter/600SemiBold/Inter_600SemiBold.ttf",
+    "@expo-google-fonts/inter/700Bold/Inter_700Bold.ttf",
+    "@expo-google-fonts/fraunces/500Medium/Fraunces_500Medium.ttf",
+    "@expo-google-fonts/fraunces/600SemiBold/Fraunces_600SemiBold.ttf",
+    "@expo-google-fonts/fraunces/700Bold/Fraunces_700Bold.ttf",
+]
+def bundledFontsDir = "${buildDir}/generated/bundledFonts"
+
+def copyBundledFonts = tasks.register("copyBundledFonts", Copy) {
+    def nodeModules = new File(projectRoot, "node_modules")
+    from(bundledFonts.collect { new File(nodeModules, it) })
+    into "${bundledFontsDir}/fonts"
+    doFirst {
+        def missing = bundledFonts.findAll { !new File(nodeModules, it).exists() }
+        if (!missing.isEmpty()) {
+            throw new GradleException("Font files not found in node_modules: ${missing}. " +
+                "Run npm install in mobile/, or fix the path in bundledFonts.")
+        }
+    }
+}
+
+android.sourceSets.main.assets.srcDirs += bundledFontsDir
+tasks.named("preBuild") { dependsOn copyBundledFonts }
+
 /**
  * Set this to true in release builds to optimize the app using [R8](https://developer.android.com/topic/performance/app-optimization/enable-app-optimization).
  */
