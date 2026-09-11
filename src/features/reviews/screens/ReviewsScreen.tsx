@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
+import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { getSpotReviews } from '@/shared/api/reviews'
 import { getSpot } from '@/shared/api/spots'
 import {
@@ -66,6 +67,7 @@ export default function ReviewsScreen({ route, navigation }: Props) {
 
   const {
     data: serverData,
+    error,
     isLoading,
     isError,
     refetch,
@@ -139,6 +141,18 @@ export default function ReviewsScreen({ route, navigation }: Props) {
    * was the alternative and loses for exactly that reason — a pressed "Try
    * again" would swap the message for skeletons and back.
    */
+  /**
+   * What the failure panel says, chosen from the failure that actually
+   * happened (STOURIFY-248, following STOURIFY-225).
+   *
+   * This used to be one fixed sentence about the connection, shown for every
+   * way a request can go wrong — including the one where the server picked up
+   * and refused. `describeRequestFailure` reads the error this screen was
+   * already holding and picks words to match. Only the wording moved; the
+   * branch above that decides WHETHER to show a failure at all is unchanged.
+   */
+  const failure = describeRequestFailure(error, 'the reviews')
+
   const empty = isLoading ? (
     <View style={{ padding: theme.gutter, gap: theme.spacing[4] }}>
       <Skeleton height={120} />
@@ -147,9 +161,9 @@ export default function ReviewsScreen({ route, navigation }: Props) {
     </View>
   ) : isError ? (
     <EmptyState
-      icon="📡"
-      title="Couldn't load the reviews"
-      subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+      icon={failure.icon}
+      title={failure.title}
+      subtitle={failure.subtitle}
       actionLabel="Try again"
       onAction={() => void refetch()}
     />

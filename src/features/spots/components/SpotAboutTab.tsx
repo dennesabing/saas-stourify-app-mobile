@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Pressable, View } from 'react-native'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { createSpotAbout, getSpotAbouts } from '@/shared/api/spotAbouts'
 import { addReaction, removeReaction } from '@/shared/api/reactions'
 import type { PaginatedResponse, SpotAbout } from '@/shared/api/types'
@@ -62,12 +63,24 @@ export default function SpotAboutTab({ spotUuid, onOpenThread }: Props) {
 
   const queryKey = ABOUTS_QUERY_KEY(spotUuid)
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, error, isLoading, isError, refetch } = useQuery({
     queryKey,
     queryFn: () => getSpotAbouts(spotUuid),
   })
 
   const abouts = data?.data ?? []
+
+  /**
+   * What the failure panel says, chosen from the failure that actually
+   * happened (STOURIFY-248, following STOURIFY-225).
+   *
+   * This used to be one fixed sentence about the connection, shown for every
+   * way a request can go wrong — including the one where the server picked up
+   * and refused. `describeRequestFailure` reads the error this screen was
+   * already holding and picks words to match. Only the wording moved; the
+   * branch above that decides WHETHER to show a failure at all is unchanged.
+   */
+  const failure = describeRequestFailure(error, 'the notes')
 
   /**
    * Rewrite one row inside the cached page, leaving every other row alone.
@@ -196,9 +209,9 @@ export default function SpotAboutTab({ spotUuid, onOpenThread }: Props) {
     if (abouts.length === 0 && isError) {
       return (
         <EmptyState
-          icon="📡"
-          title="Couldn't load the notes"
-          subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+          icon={failure.icon}
+          title={failure.title}
+          subtitle={failure.subtitle}
           actionLabel="Try again"
           onAction={() => void refetch()}
         />

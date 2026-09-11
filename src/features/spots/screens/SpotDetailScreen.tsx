@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useDatabase } from '@nozbe/watermelondb/react'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
+import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { getSpot, getSpotPosts } from '@/shared/api/spots'
 import {
   Card,
@@ -68,6 +69,7 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
 
   const {
     data: spot,
+    error,
     isLoading,
     isError,
     refetch,
@@ -101,6 +103,18 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
    */
   const hasFailed = isError && !spot
   const isWaiting = !hasFailed && (isLoading || !spot)
+
+  /**
+   * What the failure panel says, chosen from the failure that actually
+   * happened (STOURIFY-248, following STOURIFY-225).
+   *
+   * This used to be one fixed sentence about the connection, shown for every
+   * way a request can go wrong — including the one where the server picked up
+   * and refused. `describeRequestFailure` reads the error this screen was
+   * already holding and picks words to match. Only the wording moved; the
+   * branch above that decides WHETHER to show a failure at all is unchanged.
+   */
+  const failure = describeRequestFailure(error, 'this spot')
 
   const posts = postsData?.data ?? []
   const media = spot?.media ?? []
@@ -241,9 +255,9 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               style={{ minHeight: HERO_HEIGHT, backgroundColor: theme.colors.surfaceAlt }}
             >
               <EmptyState
-                icon="📡"
-                title="Couldn't load this spot"
-                subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+                icon={failure.icon}
+                title={failure.title}
+                subtitle={failure.subtitle}
                 actionLabel="Try again"
                 onAction={() => void refetch()}
               />

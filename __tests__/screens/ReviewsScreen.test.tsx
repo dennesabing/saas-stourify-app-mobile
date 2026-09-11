@@ -1,3 +1,4 @@
+import { AxiosError, type AxiosResponse } from 'axios'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { QueryClient } from '@tanstack/react-query'
 import ReviewsScreen from '@/features/reviews/screens/ReviewsScreen'
@@ -310,5 +311,45 @@ describe('the write-a-review button', () => {
     fireEvent.press(screen.getByText('Write a review'))
 
     expect(navigation.navigate).toHaveBeenCalledWith('WriteReview', { spotId: 'spot-77' })
+  })
+})
+
+/**
+ * STOURIFY-248, following STOURIFY-225. The reviews list answered every
+ * failure with one sentence about the connection, including the one where the
+ * server answered and refused. See `SpotDetailScreen.test.tsx` for the full
+ * story; the two halves are asserted here for the same reason.
+ */
+describe('the failure it reports is the failure that happened', () => {
+  function forbidden() {
+    const config = { headers: {} } as never
+    return new AxiosError('Request failed with status code 403', '403', config, {}, {
+      status: 403,
+      statusText: 'Forbidden',
+      data: { message: 'This action is unauthorized.' },
+      headers: {},
+      config,
+    } as AxiosResponse)
+  }
+
+  it('does not blame the connection when the server answered 403', async () => {
+    ;(getSpotReviews as jest.Mock).mockRejectedValue(forbidden())
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText("Couldn't load the reviews")).toBeTruthy())
+
+    expect(screen.queryByText(/check your connection/i)).toBeNull()
+    expect(screen.getByText(/isn't allowed/i)).toBeTruthy()
+  })
+
+  it('still blames the connection when there really was no answer', async () => {
+    ;(getSpotReviews as jest.Mock).mockRejectedValue(
+      new AxiosError('Network Error', AxiosError.ERR_NETWORK, { headers: {} } as never, {}),
+    )
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText("Couldn't load the reviews")).toBeTruthy())
+
+    expect(screen.getByText(/check your connection/i)).toBeTruthy()
   })
 })
