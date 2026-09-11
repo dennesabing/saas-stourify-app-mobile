@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The photo gallery's Back button no longer sits on the status-bar clock (STOURIFY-255).** The
+  shared `OverlayHeader` pins itself 12 px from the top of the box it is in. On the spot page that
+  box is the hero, which is already below the status bar. On the gallery it is the screen root, and
+  an absolutely positioned box ignores its parent's safe-area padding, so the pill landed on the
+  clock. `OverlayHeader` now takes an optional `topInset`, and `PhotoGalleryScreen` passes
+  `useSafeAreaInsets().top`, so the Back pill and the spot's name clear the status bar on every
+  phone, cutout included. The photos and the spot page are unchanged.
 - **The Sync status tests no longer race a stopwatch (STOURIFY-258).** "retry all clears every
   failure and runs a cycle" failed once in a full parallel `npm test` and passed alone. After the
   press it gave one `waitFor` a one-second wall-clock budget for the whole chain: delete the
