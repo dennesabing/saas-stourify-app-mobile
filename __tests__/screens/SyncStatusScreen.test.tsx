@@ -1,9 +1,10 @@
 import type { Database } from '@nozbe/watermelondb'
 import { Alert } from 'react-native'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import type PendingMedia from '@/db/models/PendingMedia'
 import type Spot from '@/db/models/Spot'
 import SyncStatusScreen from '@/features/sync/screens/SyncStatusScreen'
+import type { SyncTrigger } from '@/sync/cycle'
 import { upsertSyncFailure } from '@/sync/pushService'
 import { resetSyncStatus, useSyncStatusStore } from '@/sync/status'
 import { syncNow } from '@/sync/scheduler'
@@ -74,8 +75,51 @@ async function seedPendingMedia(
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 const route = {} as any
 
+/** Resolves the moment the screen asks the (mocked) scheduler for a `trigger` cycle. */
+function whenSyncRequested(trigger: SyncTrigger): Promise<void> {
+  return new Promise((resolve) => {
+    jest.mocked(syncNow).mockImplementation(async (_database, requested) => {
+      if (requested === trigger) resolve()
+      return undefined as never
+    })
+  })
+}
+
+/**
+ * Presses a control, then waits until the press has FINISHED — on the handler's
+ * own last step, never on a clock (STOURIFY-258).
+ *
+ * A relay race: "delete the row" hands over to "re-read the lists", which hands
+ * over to "draw them". These tests used to start `waitFor`'s one-second
+ * stopwatch at the press and hope all three legs ran inside it. They take about
+ * five milliseconds — but a jest worker starved by a full parallel run can
+ * freeze for longer than a second, and that stopwatch is a real `setTimeout`
+ * that keeps running while the worker is frozen.
+ *
+ * So wait for the finish line instead. Every handler on this screen asks for a
+ * sync cycle as its LAST step, after its write has committed. Then one read of
+ * our own: the database answers one request at a time, in the order asked, and
+ * the screen asked for its fresh lists the moment the write landed — so when
+ * this read returns, the screen has its answers too, and `act` draws them.
+ * Nothing here is timed. If a handler never gets that far, jest's own per-test
+ * limit reports the test by name.
+ */
+async function pressAndSettle(
+  database: Database,
+  target: Parameters<typeof fireEvent.press>[0],
+): Promise<void> {
+  const requested = whenSyncRequested('manual')
+  fireEvent.press(target)
+  await act(async () => {
+    await requested
+    await database.get('sync_failures').query().fetchCount()
+  })
+}
+
 beforeEach(() => {
   jest.clearAllMocks()
+  // `clearAllMocks` keeps implementations, and `whenSyncRequested` swaps one in.
+  jest.mocked(syncNow).mockImplementation(async () => undefined as never)
   resetSyncStatus()
   // The open-on-mount cooling-off window is module-level state, so without
   // this every test after the first would render inside the previous test's
@@ -146,13 +190,12 @@ it('retrying a row clears its failure and runs a cycle', async () => {
     </TestProviders>,
   )
 
-  await waitFor(() => expect(screen.getByText('Retry')).toBeTruthy())
-  fireEvent.press(screen.getByText('Retry'))
+  await waitFor(() => expect(screen.getByText('Needs your attention')).toBeTruthy())
+  await pressAndSettle(database, screen.getByText('Retry'))
 
-  await waitFor(() => {
-    expect(screen.queryByText('Needs your attention')).toBeNull()
-    expect(syncNow).toHaveBeenCalledWith(database, 'manual')
-  })
+  expect(syncNow).toHaveBeenCalledWith(database, 'manual')
+  expect(await database.get('sync_failures').query().fetchCount()).toBe(0)
+  expect(screen.queryByText('Needs your attention')).toBeNull()
 })
 
 it('discarding asks first, then destroys the row permanently', async () => {
@@ -177,12 +220,9 @@ it('discarding asks first, then destroys the row permanently', async () => {
   )
 
   await waitFor(() => expect(screen.getByText('Discard')).toBeTruthy())
-  fireEvent.press(screen.getByText('Discard'))
+  await pressAndSettle(database, screen.getByText('Discard'))
 
-  await waitFor(async () => {
-    expect(await database.get<Spot>('sto_spots').query().fetchCount()).toBe(0)
-  })
-
+  expect(await database.get<Spot>('sto_spots').query().fetchCount()).toBe(0)
   expect(alertSpy).toHaveBeenCalled()
   expect(await database.adapter.getDeletedRecords('sto_spots')).toHaveLength(0)
 
@@ -205,13 +245,16 @@ it('retry all clears every failure and runs a cycle', async () => {
     </TestProviders>,
   )
 
-  await waitFor(() => expect(screen.getByText('Retry all now')).toBeTruthy())
-  fireEvent.press(screen.getByText('Retry all now'))
+  // The failure has to be on screen first, or "gone" afterwards proves nothing.
+  await waitFor(() => expect(screen.getByText('Needs your attention')).toBeTruthy())
+  const retryAll = screen.getByRole('button', { name: 'Retry all now' })
+  // Inert while a cycle runs (`phase !== 'idle'`), and a press on it then does nothing.
+  expect(retryAll).toBeEnabled()
+  await pressAndSettle(database, retryAll)
 
-  await waitFor(() => {
-    expect(screen.queryByText('Needs your attention')).toBeNull()
-    expect(syncNow).toHaveBeenCalledWith(database, 'manual')
-  })
+  expect(syncNow).toHaveBeenCalledWith(database, 'manual')
+  expect(await database.get('sync_failures').query().fetchCount()).toBe(0)
+  expect(screen.queryByText('Needs your attention')).toBeNull()
 })
 
 it('hides retry-all when there is nothing queued', async () => {
@@ -280,11 +323,9 @@ it('discarding a photo deletes the local file as well as the row', async () => {
   )
 
   await waitFor(() => expect(screen.getByText('Photo · cove.png')).toBeTruthy())
-  fireEvent.press(screen.getByLabelText('Discard Photo · cove.png'))
+  await pressAndSettle(database, screen.getByLabelText('Discard Photo · cove.png'))
 
-  await waitFor(() => {
-    expect(fsDeletes).toContain('file:///document-dir/media-outbox/media-1.jpg')
-  })
+  expect(fsDeletes).toContain('file:///document-dir/media-outbox/media-1.jpg')
   await expect(database.get<PendingMedia>('pending_media').find('media-1')).rejects.toThrow()
 
   alertSpy.mockRestore()
@@ -306,12 +347,10 @@ it('retrying a failed photo resets it to pending and runs a cycle', async () => 
   )
 
   await waitFor(() => expect(screen.getByLabelText('Retry Photo · cove.png')).toBeTruthy())
-  fireEvent.press(screen.getByLabelText('Retry Photo · cove.png'))
+  await pressAndSettle(database, screen.getByLabelText('Retry Photo · cove.png'))
 
-  await waitFor(async () => {
-    const row = await database.get<PendingMedia>('pending_media').find('media-1')
-    expect(row.state).toBe('pending')
-  })
+  const row = await database.get<PendingMedia>('pending_media').find('media-1')
+  expect(row.state).toBe('pending')
   expect(syncNow).toHaveBeenCalledWith(database, 'manual')
 })
 
@@ -419,12 +458,10 @@ it('retrying a refused post puts it back in the queue and runs a cycle', async (
   )
 
   await waitFor(() => expect(screen.getByLabelText('Retry New post · Refused')).toBeTruthy())
-  fireEvent.press(screen.getByLabelText('Retry New post · Refused'))
+  await pressAndSettle(database, screen.getByLabelText('Retry New post · Refused'))
 
-  await waitFor(async () => {
-    const row: any = await database.get('post_outbox').find('outbox-1')
-    expect(row.state).toBe('queued')
-  })
+  const row: any = await database.get('post_outbox').find('outbox-1')
+  expect(row.state).toBe('queued')
   expect(syncNow).toHaveBeenCalledWith(database, 'manual')
 })
 
@@ -450,11 +487,9 @@ it('discarding a queued post deletes its photo copies as well as the row', async
   )
 
   await waitFor(() => expect(screen.getByText('New post · Never mind')).toBeTruthy())
-  fireEvent.press(screen.getByLabelText('Discard New post · Never mind'))
+  await pressAndSettle(database, screen.getByLabelText('Discard New post · Never mind'))
 
-  await waitFor(() => {
-    expect(fsDeletes).toContain('file:///document-dir/post-drafts/outbox-1-0.jpg')
-  })
+  expect(fsDeletes).toContain('file:///document-dir/post-drafts/outbox-1-0.jpg')
   await expect(database.get('post_outbox').find('outbox-1')).rejects.toThrow()
 
   alertSpy.mockRestore()
@@ -509,11 +544,9 @@ it('lets you throw away a post that is still waiting, before it goes out', async
   await waitFor(() =>
     expect(screen.getByLabelText('Discard New post · Second thoughts')).toBeTruthy(),
   )
-  fireEvent.press(screen.getByLabelText('Discard New post · Second thoughts'))
+  await pressAndSettle(database, screen.getByLabelText('Discard New post · Second thoughts'))
 
-  await waitFor(() => {
-    expect(fsDeletes).toContain('file:///document-dir/post-drafts/outbox-1-0.jpg')
-  })
+  expect(fsDeletes).toContain('file:///document-dir/post-drafts/outbox-1-0.jpg')
   await expect(database.get('post_outbox').find('outbox-1')).rejects.toThrow()
 
   alertSpy.mockRestore()
