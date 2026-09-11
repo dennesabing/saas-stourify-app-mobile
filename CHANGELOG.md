@@ -130,6 +130,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The SpotDetail "navigates to the reviews list" test no longer presses the rating row before it
+  works (STOURIFY-251).** The row is on screen from the first frame but stays disabled until the
+  spot arrives, and the test waited only for it to exist. Under a loaded run the press sometimes
+  landed on the disabled row and did nothing. The test now waits for the row to be enabled, and so
+  does "offers no review buttons at all", which had the same weak wait. Test-only; the screen is
+  unchanged.
 - **The New Spot form's red error line now clears as soon as you edit the field it's about**
   (STOURIFY-257). It used to stay until the next press of Next, so "A spot needs a name…" sat under
   a form that already had a valid title. Typing in Title or Description, toggling a category, or a
