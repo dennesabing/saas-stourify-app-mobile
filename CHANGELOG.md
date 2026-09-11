@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The Sync status tests no longer race a stopwatch (STOURIFY-258).** "retry all clears every
+  failure and runs a cycle" failed once in a full parallel `npm test` and passed alone. After the
+  press it gave one `waitFor` a one-second wall-clock budget for the whole chain: delete the
+  failures, re-read six lists, re-draw. That work takes about 5 ms, but a jest worker starved by a
+  full run can freeze for over a second, and `waitFor`'s timer keeps running while it is frozen. The
+  new `pressAndSettle` helper in `__tests__/screens/SyncStatusScreen.test.tsx` waits for the
+  handler's last step instead: the mocked `syncNow('manual')` call, which every handler makes only
+  after its write has committed. It then does one database read that queues behind the screen's own
+  re-queries. No timer decides the result. All eight press-then-check tests in the file use it. The
+  retry-all test also now checks that the failure is on screen and the button is enabled before it
+  presses. Test-only; the screen is unchanged.
 - **A slow answer no longer shows up as "check your connection" (STOURIFY-261).** On Android, a
   request that ran past the app's 15-second limit reached the screen as a plain network error, so a
   person with a working connection was told to check it. The logged cause was `ERR_NETWORK` with no
