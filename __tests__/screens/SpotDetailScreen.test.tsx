@@ -470,7 +470,14 @@ it('navigates to the reviews list', async () => {
 
   // The rating row IS the way to the reviews now. Pressing the row rather than
   // a button below it is the whole of direction A's saving here (STOURIFY-197).
-  await waitFor(() => expect(screen.getByLabelText('See all reviews')).toBeTruthy())
+  //
+  // Wait for the row to be ENABLED, not merely present. The row and its name
+  // are on screen from the first frame, but it is `disabled` until the spot
+  // arrives — so waiting for the name returns during the loading state, and the
+  // press lands on a disabled row and does nothing. Green on an idle machine,
+  // "Number of calls: 0" under load (STOURIFY-251; the hero had the same race,
+  // STOURIFY-62).
+  await waitFor(() => expect(screen.getByTestId('spot-rating-row')).toBeEnabled())
   fireEvent.press(screen.getByLabelText('See all reviews'))
   expect(navigation.navigate).toHaveBeenCalledWith('Reviews', { spotId: 'spot-1' })
 })
@@ -531,7 +538,10 @@ it('offers no review buttons at all — both moved or merged into the rating row
 
   renderScreen()
 
-  await waitFor(() => expect(screen.getByLabelText('See all reviews')).toBeTruthy())
+  // Wait for the spot to have arrived — the row turns enabled only then. Its
+  // name exists from the first frame, and the two absences below are also true
+  // of a screen that is still loading, which would prove nothing (STOURIFY-251).
+  await waitFor(() => expect(screen.getByTestId('spot-rating-row')).toBeEnabled())
 
   // Both gone as LABELS. Asserting on the text rather than the accessible name
   // is deliberate for the first one: that name still exists, on the rating row.
