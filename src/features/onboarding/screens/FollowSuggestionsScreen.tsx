@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { OnboardingStackParamList } from '@/shared/navigation/types'
 import { searchPeople } from '@/shared/api/discover'
+import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { follow } from '@/shared/api/follows'
 import { Avatar, Button, Card, EmptyState, Input, Text } from '@/shared/components/ui'
 import { useOnboardingStore } from '@/shared/store/onboarding'
@@ -36,13 +37,25 @@ export default function FollowSuggestionsScreen({ navigation: _navigation }: Pro
 
   const isSearchable = debouncedQuery.trim().length >= 2
 
-  const { data, isFetching, isError, refetch } = useQuery({
+  const { data, error, isFetching, isError, refetch } = useQuery({
     queryKey: ['discover-people', debouncedQuery],
     queryFn: () => searchPeople(debouncedQuery),
     enabled: isSearchable,
   })
 
   const people = data?.data ?? []
+
+  /**
+   * What the failure panel says under its headline, chosen from the failure
+   * that actually happened (STOURIFY-249, following STOURIFY-225).
+   *
+   * This used to be one fixed sentence about the connection, shown for every
+   * way a request can go wrong — including the one where the server picked up
+   * and refused. The headline stays this screen's own, "Couldn't search for
+   * people": a search is not a load, and the helper's `Couldn't load …` would
+   * say the wrong verb. Only the icon and the explanation move.
+   */
+  const failure = describeRequestFailure(error, 'people')
 
   const followMutation = useMutation({
     mutationFn: (userUuid: string) => follow(userUuid),
@@ -129,9 +142,9 @@ export default function FollowSuggestionsScreen({ navigation: _navigation }: Pro
     <EmptyState icon="⏳" title="Searching…" subtitle={`Looking for "${debouncedQuery}"`} />
   ) : isError ? (
     <EmptyState
-      icon="📡"
+      icon={failure.icon}
       title="Couldn't search for people"
-      subtitle="We couldn't reach Stourify just now. Check your connection and try the same search again."
+      subtitle={failure.subtitle}
       actionLabel="Try again"
       onAction={() => void refetch()}
     />

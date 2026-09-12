@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { Dimensions, FlatList, Image, Pressable, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { describeRequestFailure } from '@/shared/api/errorMessage'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { ProfileStackParamList } from '@/shared/navigation/types'
 import { getMyProfile, getProfile, type ExplorerProfile } from '@/shared/api/profiles'
@@ -256,11 +257,23 @@ export default function ProfileScreen({ route, navigation }: Props) {
     // the only control, which is not a way out of anything. A read that failed
     // is worth retrying; a profile that is not there is not.
     if (isOwn) {
+      /**
+       * The explanation under the headline comes from the failure that actually
+       * happened (STOURIFY-249, following STOURIFY-225). It used to tell
+       * everybody to check their connection, including somebody the server had
+       * answered with a 403.
+       *
+       * The headline stays this screen's own rather than the helper's
+       * "Couldn't load your profile": it is true whatever went wrong, and the
+       * tests assert its absence by this exact wording elsewhere.
+       */
+      const failure = describeRequestFailure(profileQuery.error, 'your profile')
+
       return renderFrame(
         <EmptyState
-          icon="🧭"
+          icon={failure.icon}
           title="We could not load your profile"
-          subtitle="Check your connection and try again."
+          subtitle={failure.subtitle}
           actionLabel="Try again"
           onAction={() => void profileQuery.refetch()}
           // The way out when there is genuinely nothing saved to show — a first
@@ -339,12 +352,18 @@ export default function ProfileScreen({ route, navigation }: Props) {
    * it, which is quieter than skeleton tiles and is what this screen has always
    * done. `isError` then stays true through a retry until one succeeds, holding
    * the failure message up rather than flickering to the empty message.
+   *
+   * **The words come from the failure that actually happened** (STOURIFY-249,
+   * following STOURIFY-225). The grid used to tell everybody to check their
+   * connection, including somebody the server had answered with a 403. Only the
+   * wording moved; the branch deciding WHETHER to show a failure is unchanged.
    */
+  const postsFailure = describeRequestFailure(postsQuery.error, 'the posts')
   const emptyGrid = postsQuery.isLoading ? null : postsQuery.isError ? (
     <EmptyState
-      icon="📡"
-      title="Couldn't load the posts"
-      subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+      icon={postsFailure.icon}
+      title={postsFailure.title}
+      subtitle={postsFailure.subtitle}
       actionLabel="Try again"
       onAction={() => void postsQuery.refetch()}
     />

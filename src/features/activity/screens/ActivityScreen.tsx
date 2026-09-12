@@ -6,6 +6,7 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
 import type { CompositeScreenProps } from '@react-navigation/native'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { ActivityStackParamList, TabParamList } from '@/shared/navigation/types'
+import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { acceptFollowRequest, declineFollowRequest, getFollowRequests } from '@/shared/api/follows'
 import { Avatar, BarHeader, EmptyState, Icon, Skeleton, Text } from '@/shared/components/ui'
 import type { Follow, PaginatedResponse } from '@/shared/api/types'
@@ -76,10 +77,21 @@ export default function ActivityScreen({ navigation }: Props) {
   const theme = useTheme()
   const queryClient = useQueryClient()
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, error, isLoading, isError, refetch } = useQuery({
     queryKey: FOLLOW_REQUESTS_QUERY_KEY,
     queryFn: getFollowRequests,
   })
+
+  /**
+   * What the failure panel says, chosen from the failure that actually
+   * happened (STOURIFY-249, following STOURIFY-225).
+   *
+   * This used to be one fixed sentence about the connection, shown for every
+   * way a request can go wrong — including the one where the server picked up
+   * and refused. Only the wording moved; the branch below that decides WHETHER
+   * to show a failure at all is unchanged.
+   */
+  const failure = describeRequestFailure(error, 'your requests')
 
   const requests = useMemo(() => data?.data ?? [], [data])
   const rows = useMemo(() => buildRows(requests, Date.now()), [requests])
@@ -244,9 +256,9 @@ export default function ActivityScreen({ navigation }: Props) {
     </View>
   ) : isError ? (
     <EmptyState
-      icon="📡"
-      title="Couldn't load your requests"
-      subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+      icon={failure.icon}
+      title={failure.title}
+      subtitle={failure.subtitle}
       actionLabel="Try again"
       onAction={() => void refetch()}
     />

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { ProfileStackParamList } from '@/shared/navigation/types'
 import { getBlocks, unblockUser, type Block } from '@/shared/api/blocks'
+import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { Avatar, Divider, EmptyState, Skeleton, Text } from '@/shared/components/ui'
 import { useTheme } from '@/theme/ThemeProvider'
 
@@ -34,10 +35,21 @@ export default function BlockedAccountsScreen({ navigation }: Props) {
   const theme = useTheme()
   const queryClient = useQueryClient()
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, error, isLoading, isError, refetch } = useQuery({
     queryKey: BLOCKS_QUERY_KEY,
     queryFn: getBlocks,
   })
+
+  /**
+   * What the failure panel says, chosen from the failure that actually
+   * happened (STOURIFY-249, following STOURIFY-225).
+   *
+   * This used to be one fixed sentence about the connection, shown for every
+   * way a request can go wrong — including the one where the server picked up
+   * and refused. Only the wording moved; the branch below that decides WHETHER
+   * to show a failure at all is unchanged.
+   */
+  const failure = describeRequestFailure(error, 'your blocked list')
 
   const unblockMutation = useMutation({
     // The BLOCK row's uuid, not the explorer's. `DELETE /blocks` addresses the
@@ -151,9 +163,9 @@ export default function BlockedAccountsScreen({ navigation }: Props) {
     </View>
   ) : isError ? (
     <EmptyState
-      icon="📡"
-      title="Couldn't load your blocked list"
-      subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+      icon={failure.icon}
+      title={failure.title}
+      subtitle={failure.subtitle}
       actionLabel="Try again"
       onAction={() => void refetch()}
     />
