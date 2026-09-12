@@ -1,14 +1,20 @@
 import {
   ArrowUpDown,
+  Ban,
   Bell,
   Check,
   ChevronLeft,
   ChevronRight,
   Clock,
+  Contrast,
   Ellipsis,
+  EyeOff,
+  FileText,
   Heart,
   List,
   LocateFixed,
+  Lock,
+  LogOut,
   Map,
   MapPin,
   MessageCircle,
@@ -17,6 +23,8 @@ import {
   RefreshCw,
   Search,
   Send,
+  Trash2,
+  User,
   X,
 } from 'lucide-react-native'
 import { useTheme } from '@/theme/ThemeProvider'
@@ -67,6 +75,22 @@ const GLYPHS = {
   /** Change how a list is ordered or bounded — Nearby's radius chip. */
   sort: ArrowUpDown,
   sync: RefreshCw,
+  /** You — Settings → Edit profile (STOURIFY-290). */
+  account: User,
+  /** Light or dark — Settings → Appearance. The design's half-filled circle. */
+  appearance: Contrast,
+  /** Somebody you have blocked. */
+  block: Ban,
+  /** A published document — Terms & privacy policy. */
+  document: FileText,
+  /** Privacy & security. */
+  lock: Lock,
+  /** Leave the account on this phone — Log out. */
+  logout: LogOut,
+  /** An account only approved followers can see. */
+  private: EyeOff,
+  /** Delete for good — Delete account. */
+  trash: Trash2,
 } as const
 
 export type IconName = keyof typeof GLYPHS

@@ -31,6 +31,15 @@ export const palette = {
     badgeBg: 'rgba(28,111,176,0.10)',
     success: '#2E9E6B',
     danger: '#C0492F',
+    /**
+     * The tint behind a destructive row's icon — Log out, Delete account.
+     *
+     * **Not in the handoff's token list**: the Settings canvas writes it inline
+     * as `.row.danger .ic { background: rgba(192,73,47,.12) }`, which is
+     * `danger` at 12%. It is named here so a screen never has to write it
+     * (STOURIFY-290).
+     */
+    dangerBg: 'rgba(192,73,47,0.12)',
     /** 1px dividers and borders. */
     hairline: 'rgba(21,34,48,0.12)',
     /**
@@ -63,6 +72,8 @@ export const palette = {
     badgeBg: 'rgba(76,155,214,0.16)',
     success: '#47B784',
     danger: '#E06A5A',
+    /** See the light palette's note. The dark `danger` at 16%, matching `badgeBg`'s weight here. */
+    dangerBg: 'rgba(224,106,90,0.16)',
     hairline: 'rgba(255,255,255,0.10)',
     /** See the light palette's note. Darker, because the sheet above it is dark. */
     scrim: 'rgba(3,8,14,0.70)',

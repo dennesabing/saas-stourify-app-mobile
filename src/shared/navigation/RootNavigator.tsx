@@ -12,6 +12,7 @@ import RegisterScreen from '@/features/auth/screens/RegisterScreen'
 import ResetPasswordScreen from '@/features/auth/screens/ResetPasswordScreen'
 import WelcomeScreen from '@/features/auth/screens/WelcomeScreen'
 import OnboardingNavigator from '@/features/onboarding/OnboardingNavigator'
+import { useAppearanceStore } from '@/theme/appearance'
 import { useTheme } from '@/theme/ThemeProvider'
 import TabNavigator from './TabNavigator'
 import type { RootStackParamList } from './types'
@@ -19,11 +20,15 @@ import type { RootStackParamList } from './types'
 const Stack = createNativeStackNavigator<RootStackParamList>()
 
 /**
- * Held until the stored token has been read.
+ * Held until the stored token, the onboarding flag and the saved appearance
+ * have been read.
  *
  * Without this gate the navigator renders on a `token` that is still null for
  * one frame, so every cold start of a signed-in app flashes the Login screen
- * before replacing it — the single most visible polish defect in the app.
+ * before replacing it — the single most visible polish defect in the app. The
+ * appearance joined the gate for the same reason (STOURIFY-290): read later,
+ * an app set to Light on a dark phone would draw its first screen dark and then
+ * flip.
  */
 function Splash() {
   const theme = useTheme()
@@ -49,19 +54,22 @@ export default function RootNavigator() {
   const shouldOnboard = useOnboardingStore((state) => state.shouldOnboard)
   const onboardingCompleted = useOnboardingStore((state) => state.completed)
   const loadOnboardingFromStorage = useOnboardingStore((state) => state.loadFromStorage)
+  const loadAppearance = useAppearanceStore((state) => state.loadFromStorage)
   const [rehydrated, setRehydrated] = useState(false)
 
   useEffect(() => {
     let cancelled = false
 
-    void Promise.all([loadFromStorage(), loadOnboardingFromStorage()]).finally(() => {
-      if (!cancelled) setRehydrated(true)
-    })
+    void Promise.all([loadFromStorage(), loadOnboardingFromStorage(), loadAppearance()]).finally(
+      () => {
+        if (!cancelled) setRehydrated(true)
+      },
+    )
 
     return () => {
       cancelled = true
     }
-  }, [loadFromStorage, loadOnboardingFromStorage])
+  }, [loadFromStorage, loadOnboardingFromStorage, loadAppearance])
 
   if (!rehydrated) return <Splash />
 

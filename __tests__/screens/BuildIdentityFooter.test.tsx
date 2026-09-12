@@ -1,5 +1,6 @@
 import { render } from '@testing-library/react-native'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { SafeAreaProvider, type Metrics } from 'react-native-safe-area-context'
 import LoginScreen from '@/features/auth/screens/LoginScreen'
 import WelcomeScreen from '@/features/auth/screens/WelcomeScreen'
 import SettingsScreen from '@/features/profile/screens/SettingsScreen'
@@ -44,10 +45,18 @@ describe('build identity footer', () => {
     const qc = trackQueryClient(
       new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
     )
+    // Settings hosts sheets since STOURIFY-290, and a sheet reads the safe-area
+    // insets, so it needs the provider the app itself always renders.
+    const metrics: Metrics = {
+      frame: { x: 0, y: 0, width: 390, height: 844 },
+      insets: { top: 47, left: 0, right: 0, bottom: 34 },
+    }
     const { getByTestId } = render(
-      <QueryClientProvider client={qc}>
-        <SettingsScreen navigation={navigation} route={route} />
-      </QueryClientProvider>,
+      <SafeAreaProvider initialMetrics={metrics}>
+        <QueryClientProvider client={qc}>
+          <SettingsScreen navigation={navigation} route={route} />
+        </QueryClientProvider>
+      </SafeAreaProvider>,
     )
     expect(getByTestId('build-identity').props.children).toBe(BUILD_IDENTITY)
   })

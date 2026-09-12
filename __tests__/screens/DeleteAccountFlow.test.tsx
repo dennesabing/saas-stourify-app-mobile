@@ -1,14 +1,20 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, fireEvent, waitFor } from '@testing-library/react-native'
-import SettingsScreen from '@/features/profile/screens/SettingsScreen'
+import { act, render, fireEvent, waitFor } from '@testing-library/react-native'
+import { SafeAreaProvider, type Metrics } from 'react-native-safe-area-context'
+import PrivacySecurityScreen from '@/features/profile/screens/PrivacySecurityScreen'
 
-jest.mock('@/shared/api/auth', () => ({
-  logout: jest.fn(() => Promise.resolve()),
-}))
+// Delete account lives on Privacy & security since STOURIFY-290, where the
+// design's artboard 3 draws it. Every behaviour below is unchanged by the move.
 
 jest.mock('@/shared/api/profiles', () => ({
   getMyProfile: jest.fn(() => Promise.resolve({ uuid: 'p1', username: 'ziv', is_private: false })),
   updateMyProfile: jest.fn(),
+}))
+
+jest.mock('@/shared/api/blocks', () => ({
+  getBlocks: jest.fn(() =>
+    Promise.resolve({ data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } }),
+  ),
 }))
 
 jest.mock('@/shared/api/account', () => ({
@@ -30,34 +36,47 @@ import * as accountApi from '@/shared/api/account'
 import { signOut } from '@/sync/session'
 import { trackQueryClient } from '../support/queryClients'
 
-const mockNavigation = { goBack: jest.fn() } as any
+const mockNavigation = { goBack: jest.fn(), navigate: jest.fn() } as any
 
-function renderSettings() {
+const SAFE_AREA_METRICS: Metrics = {
+  frame: { x: 0, y: 0, width: 390, height: 844 },
+  insets: { top: 47, left: 0, right: 0, bottom: 34 },
+}
+
+async function renderSettings() {
   const qc = trackQueryClient(
     new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
   )
-  return render(
-    <QueryClientProvider client={qc}>
-      <SettingsScreen navigation={mockNavigation} route={{} as any} />
-    </QueryClientProvider>,
+  const utils = render(
+    <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
+      <QueryClientProvider client={qc}>
+        <PrivacySecurityScreen navigation={mockNavigation} route={{} as any} />
+      </QueryClientProvider>
+    </SafeAreaProvider>,
   )
+  // Let the screen's first requests land inside act(): React Query hands
+  // results to a screen on a timer, so a test that ended before then would get
+  // a state update after it finished, which is what the act() warning reports.
+  await waitFor(() => expect(qc.isFetching()).toBe(0))
+  await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+  return utils
 }
 
 beforeEach(() => {
   jest.clearAllMocks()
 })
 
-test('Delete account is reachable from Settings', () => {
+test('Delete account is reachable from Settings → Privacy & security', async () => {
   // Play requires the deletion path to exist IN the app. A web-only deletion
   // form does not satisfy it, so the affordance being present is itself the
   // requirement, not a detail of it.
-  const { getByText } = renderSettings()
+  const { getByText } = await renderSettings()
 
   expect(getByText('Delete account')).toBeTruthy()
 })
 
 test('tapping Delete account does not delete anything on its own', async () => {
-  const { getByText } = renderSettings()
+  const { getByText } = await renderSettings()
 
   fireEvent.press(getByText('Delete account'))
 
@@ -68,7 +87,7 @@ test('tapping Delete account does not delete anything on its own', async () => {
 })
 
 test('confirming without credentials still does not call the API', async () => {
-  const { getByText } = renderSettings()
+  const { getByText } = await renderSettings()
 
   fireEvent.press(getByText('Delete account'))
   fireEvent.press(getByText('Delete my account'))
@@ -79,7 +98,7 @@ test('confirming without credentials still does not call the API', async () => {
 })
 
 test('confirming with email and password deletes, then tears the session down', async () => {
-  const { getByText, getByPlaceholderText } = renderSettings()
+  const { getByText, getByPlaceholderText } = await renderSettings()
 
   fireEvent.press(getByText('Delete account'))
   fireEvent.changeText(getByPlaceholderText('Your email address'), 'me@example.com')
@@ -97,7 +116,7 @@ test('a rejected deletion surfaces the error and leaves the session intact', asy
     response: { data: { message: 'The password is incorrect.' } },
   })
 
-  const { getByText, getByPlaceholderText } = renderSettings()
+  const { getByText, getByPlaceholderText } = await renderSettings()
 
   fireEvent.press(getByText('Delete account'))
   fireEvent.changeText(getByPlaceholderText('Your email address'), 'me@example.com')
@@ -125,7 +144,7 @@ test('a timed-out deletion signs out rather than claiming failure', async () => 
     Object.assign(new Error('timeout of 60000ms exceeded'), { code: 'ECONNABORTED' }),
   )
 
-  const { getByText, getByPlaceholderText, queryByText } = renderSettings()
+  const { getByText, getByPlaceholderText, queryByText } = await renderSettings()
 
   fireEvent.press(getByText('Delete account'))
   fireEvent.changeText(getByPlaceholderText('Your email address'), 'me@example.com')
@@ -154,16 +173,16 @@ test('a timed-out deletion signs out rather than claiming failure', async () => 
 // cannot prove is that this screen uses it, and that is the entire bug.
 // ---------------------------------------------------------------------------
 
-test('the delete-account password field offers a reveal button', () => {
-  const { getByText, getByLabelText } = renderSettings()
+test('the delete-account password field offers a reveal button', async () => {
+  const { getByText, getByLabelText } = await renderSettings()
 
   fireEvent.press(getByText('Delete account'))
 
   expect(getByLabelText('Show password')).toBeTruthy()
 })
 
-test('the delete-account password starts masked and reveals on Show', () => {
-  const { getByText, getByPlaceholderText, getByLabelText } = renderSettings()
+test('the delete-account password starts masked and reveals on Show', async () => {
+  const { getByText, getByPlaceholderText, getByLabelText } = await renderSettings()
 
   fireEvent.press(getByText('Delete account'))
   const field = getByPlaceholderText('Your password')
@@ -180,11 +199,11 @@ test('the delete-account password starts masked and reveals on Show', () => {
   expect(getByPlaceholderText('Your password').props.secureTextEntry).toBe(true)
 })
 
-test('the reveal survives carrying on typing', () => {
+test('the reveal survives carrying on typing', async () => {
   // The property a naive implementation breaks: this screen re-renders on every
   // keystroke, so a reveal reset on change would flick back to dots during the
   // exact activity it exists for.
-  const { getByText, getByPlaceholderText, getByLabelText } = renderSettings()
+  const { getByText, getByPlaceholderText, getByLabelText } = await renderSettings()
 
   fireEvent.press(getByText('Delete account'))
   fireEvent.changeText(getByPlaceholderText('Your password'), 'hunt')
@@ -194,21 +213,21 @@ test('the reveal survives carrying on typing', () => {
   expect(getByPlaceholderText('Your password').props.secureTextEntry).toBe(false)
 })
 
-test('the email field is not given a password toggle', () => {
+test('the email field is not given a password toggle', async () => {
   // The reveal belongs to the password field alone. A component swap that put
   // one on both would be a different bug wearing this fix's clothes.
-  const { getByText, getAllByLabelText } = renderSettings()
+  const { getByText, getAllByLabelText } = await renderSettings()
 
   fireEvent.press(getByText('Delete account'))
 
   expect(getAllByLabelText('Show password')).toHaveLength(1)
 })
 
-test('both confirmation fields carry a name a screen reader can announce', () => {
+test('both confirmation fields carry a name a screen reader can announce', async () => {
   // They never did. The only text on either node was the placeholder, and a
   // placeholder disappears the moment the field has content -- so once you had
   // typed, there was nothing left to identify the field by.
-  const { getByText, getByLabelText } = renderSettings()
+  const { getByText, getByLabelText } = await renderSettings()
 
   fireEvent.press(getByText('Delete account'))
 

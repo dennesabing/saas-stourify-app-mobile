@@ -260,7 +260,13 @@ export type ProfileStackParamList = {
   Wishlist: undefined
   Settings: undefined
   /**
-   * The list of explorers I have blocked, reached from Settings.
+   * Private account, Show location on spots, Blocked accounts and Delete
+   * account — reached from Settings, where the design's artboard 3 puts them
+   * (STOURIFY-290). They lived on the Settings hub until then.
+   */
+  PrivacySecurity: undefined
+  /**
+   * The list of explorers I have blocked, reached from Privacy & security.
    *
    * It is here and not on the other-user profile because a block hides that
    * profile from the blocker too — `GET /profiles/{user}` answers 403 in both
