@@ -1,6 +1,6 @@
 import { AxiosError, type AxiosResponse } from 'axios'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { SafeAreaProvider, type Metrics } from 'react-native-safe-area-context'
 import ProfileScreen from '@/features/profile/screens/ProfileScreen'
 import { ThemeProvider } from '@/theme/ThemeProvider'
@@ -417,6 +417,55 @@ describe('the Wishlist tab on my own profile', () => {
     fireEvent.press(await screen.findByLabelText('Wishlist'))
 
     expect(await screen.findByText('Nothing saved yet')).toBeTruthy()
+  })
+
+  /**
+   * The live run's third finding (STOURIFY-288). A spot saved on its own page
+   * did not appear here on the way back: this screen stays mounted between
+   * visits, and a tab that was already open never asked the server again. The
+   * Saved spots screen fixed exactly this in STOURIFY-200, and the tab now
+   * refetches on focus the same way.
+   */
+  test('a spot saved elsewhere appears when I come back to my profile', async () => {
+    const focusListeners: Array<() => void> = []
+    navigation.addListener = jest.fn((event: string, callback: () => void) => {
+      if (event === 'focus') focusListeners.push(callback)
+      return () => {}
+    })
+    const focus = () => act(() => focusListeners.forEach((callback) => callback()))
+    ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
+
+    try {
+      renderProfile()
+      // The screen's first focus, on arrival — the hook deliberately skips it.
+      focus()
+
+      fireEvent.press(await screen.findByLabelText('Wishlist'))
+      expect(await screen.findByText('Nothing saved yet')).toBeTruthy()
+
+      // Away to a spot page, the heart tapped there, and back again.
+      ;(getWishlist as jest.Mock).mockResolvedValue(saved)
+      focus()
+
+      expect(await screen.findByText('Gumasa Beach')).toBeTruthy()
+    } finally {
+      delete navigation.addListener
+    }
+  })
+
+  test('switching back to the Wishlist tab asks for the list again', async () => {
+    ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
+
+    renderProfile()
+
+    fireEvent.press(await screen.findByLabelText('Wishlist'))
+    expect(await screen.findByText('Nothing saved yet')).toBeTruthy()
+
+    fireEvent.press(screen.getByLabelText('Spots'))
+    ;(getWishlist as jest.Mock).mockResolvedValue(saved)
+    fireEvent.press(screen.getByLabelText('Wishlist'))
+
+    expect(await screen.findByText('Gumasa Beach')).toBeTruthy()
   })
 
   test("somebody else's profile has a Spots tab and no Wishlist tab", async () => {

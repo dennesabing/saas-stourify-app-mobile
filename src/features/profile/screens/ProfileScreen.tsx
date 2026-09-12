@@ -26,6 +26,7 @@ import {
   Text,
   type IconName,
 } from '@/shared/components/ui'
+import { useRefetchOnFocus } from '@/shared/hooks/useRefetchOnFocus'
 import { useAuthStore } from '@/shared/store/auth'
 import type { Post } from '@/shared/api/types'
 import { useTheme } from '@/theme/ThemeProvider'
@@ -154,6 +155,17 @@ export default function ProfileScreen({ route, navigation }: Props) {
     queryKey: WISHLIST_QUERY_KEY,
     queryFn: getWishlist,
     enabled: isOwn && activeTab === 'wishlist',
+  })
+
+  /**
+   * A save made on a spot page has to be here when you come back, and this
+   * screen stays mounted between visits — the Saved spots screen's own rule
+   * (STOURIFY-200), which the emulator showed this tab needed too: a spot
+   * saved and reading "Saved" came back to "Nothing saved yet". Only while
+   * the tab is showing; nobody pays for a list they are not looking at.
+   */
+  useRefetchOnFocus(navigation, () => {
+    if (isOwn && activeTab === 'wishlist') void wishlistQuery.refetch()
   })
 
   const profile = profileQuery.data ?? null
