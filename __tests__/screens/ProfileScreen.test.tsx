@@ -907,3 +907,128 @@ describe('the failure it reports is the failure that happened', () => {
     })
   })
 })
+
+/**
+ * STOURIFY-278. Somebody else's profile had two failure outcomes: a 403 got the
+ * block wording, and EVERYTHING else got the 404's "No profile found — This
+ * explorer has not set up their profile yet." A dropped connection was reported
+ * as a fact about the other person that nobody had checked.
+ *
+ * Three outcomes now, and each is pinned with a real `AxiosError` so the shared
+ * helper reads it exactly as it reads a live failure:
+ *
+ * - **404** is the server saying the profile does not exist. Unchanged.
+ * - **403** is a block, worded identically from both sides (STOURIFY-36). It
+ *   must NOT pick up the helper's refusal sentence, which is a different claim.
+ * - **anything else** says what happened, via `describeRequestFailure`, and
+ *   offers Try again — a request that failed is worth retrying.
+ */
+describe("somebody else's profile tells a failed request apart from an absent one", () => {
+  const config = { headers: {} } as never
+
+  function answered(status: number, data: unknown = {}) {
+    return new AxiosError(`Request failed with status code ${status}`, String(status), config, {}, {
+      status,
+      statusText: '',
+      data,
+      headers: {},
+      config,
+    } as AxiosResponse)
+  }
+
+  function unreachable() {
+    return new AxiosError('Network Error', AxiosError.ERR_NETWORK, config, {})
+  }
+
+  function timedOut() {
+    return new AxiosError('timeout of 15000ms exceeded', AxiosError.ECONNABORTED, config, {})
+  }
+
+  test('a 404 still says the explorer has no profile, with only Go back', async () => {
+    ;(getProfile as jest.Mock).mockRejectedValue(answered(404))
+
+    renderProfile(OTHER_UUID)
+
+    expect(await screen.findByText('No profile found')).toBeTruthy()
+    expect(screen.getByText('This explorer has not set up their profile yet.')).toBeTruthy()
+    expect(screen.getByText('Go back')).toBeTruthy()
+    expect(screen.queryByText('Try again')).toBeNull()
+  })
+
+  test('a 403 keeps the block wording byte for byte, not the shared refusal sentence', async () => {
+    ;(getProfile as jest.Mock).mockRejectedValue(
+      answered(403, { message: 'This profile is not available.' }),
+    )
+
+    renderProfile(OTHER_UUID)
+
+    expect(await screen.findByText('This profile is not available.')).toBeTruthy()
+    expect(screen.getByText('You cannot view this explorer right now.')).toBeTruthy()
+    expect(screen.queryByText(/isn't allowed/i)).toBeNull()
+    expect(screen.queryByText('Try again')).toBeNull()
+  })
+
+  test('no answer at all says so, and never claims the explorer has no profile', async () => {
+    ;(getProfile as jest.Mock).mockRejectedValue(unreachable())
+
+    renderProfile(OTHER_UUID)
+
+    expect(await screen.findByText("Couldn't load this profile")).toBeTruthy()
+    expect(screen.getByText(/check your connection/i)).toBeTruthy()
+    expect(screen.queryByText(/no profile found/i)).toBeNull()
+    expect(screen.queryByText(/not set up their profile/i)).toBeNull()
+    // The way out survives beside the retry.
+    expect(screen.getByText('Go back')).toBeTruthy()
+  })
+
+  test('offers Try again, which re-runs the request and shows the profile when it answers', async () => {
+    ;(getProfile as jest.Mock).mockRejectedValue(unreachable())
+
+    renderProfile(OTHER_UUID)
+
+    const retry = await screen.findByText('Try again')
+    ;(getProfile as jest.Mock).mockResolvedValue(profileFixture())
+
+    fireEvent.press(retry)
+
+    expect(await screen.findByText('@santos_grace')).toBeTruthy()
+    expect(getProfile).toHaveBeenCalledTimes(2)
+  })
+
+  test('a timeout says the server was slow, not that the explorer is missing', async () => {
+    ;(getProfile as jest.Mock).mockRejectedValue(timedOut())
+
+    renderProfile(OTHER_UUID)
+
+    expect(await screen.findByText("Couldn't load this profile")).toBeTruthy()
+    expect(screen.getByText(/took too long/i)).toBeTruthy()
+    expect(screen.queryByText(/no profile found/i)).toBeNull()
+  })
+
+  test("a 500 says it went wrong on Stourify's end", async () => {
+    ;(getProfile as jest.Mock).mockRejectedValue(answered(500))
+
+    renderProfile(OTHER_UUID)
+
+    expect(await screen.findByText("Couldn't load this profile")).toBeTruthy()
+    expect(screen.getByText(/on Stourify's end/i)).toBeTruthy()
+    expect(screen.queryByText(/no profile found/i)).toBeNull()
+  })
+
+  test('a profile already on screen stays there when a refresh gets no answer', async () => {
+    // Content beats an error (STOURIFY-120, STOURIFY-279): only the server's
+    // own verdict — a 403 or a 404 — may clear a profile already in hand.
+    const key = ['explorer-profile', OTHER_UUID]
+    const qc = trackQueryClient(
+      new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+    )
+    qc.setQueryData(key, profileFixture())
+    ;(getProfile as jest.Mock).mockRejectedValue(unreachable())
+
+    renderProfile(OTHER_UUID, qc)
+    await waitFor(() => expect(qc.getQueryState(key)?.status).toBe('error'))
+
+    expect(screen.getByText('@santos_grace')).toBeTruthy()
+    expect(screen.queryByText("Couldn't load this profile")).toBeNull()
+  })
+})

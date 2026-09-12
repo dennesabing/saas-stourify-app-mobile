@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Somebody else's profile no longer says they never set one up when the request failed
+  (STOURIFY-278).** On `ProfileScreen`, every failure other than a 403 used to show the 404's "No
+  profile found — This explorer has not set up their profile yet.", so a dropped connection, a
+  timeout or a server fault became a claim about the other person. Those failures now take their
+  words from `describeRequestFailure()` ("Couldn't load this profile", then what actually went
+  wrong) and offer Try again, with Go back beside it. A 404 still says "No profile found", and a
+  403 keeps its block wording byte for byte (STOURIFY-36). A profile already on screen still stays
+  there when a refresh fails.
 - **The Drafts delete test no longer times out on a busy machine (STOURIFY-282).** "throws one
   away" failed in 3 of 4 full runs and passed alone. The delete takes about 5 ms; what used up
   `waitFor`'s one-second budget was the test's own check. Every poll that landed before the re-draw
