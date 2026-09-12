@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Saved spots now says what actually went wrong (STOURIFY-280).** When the list of saved spots
+  failed to load, the screen said "Can't reach Stourify … try again once you have signal" for every
+  failure, even when the server had answered and refused. Its words now come from
+  `describeRequestFailure()`, like the other read screens. The headline reads "Couldn't load your
+  saved spots"; a refusal says the account isn't allowed to see this, and a genuine lost connection
+  still says to check it. "Your saves are safe" was dropped rather than kept as a suffix: after a
+  `404` it would contradict the helper's "It may have been removed", and the headline already says
+  the loading failed, not the saves. When the panel appears is unchanged.
 - **A note that doesn't post now says why (STOURIFY-252).** The note box on a spot's About tab said
   "That didn't send. Check your connection and try again." for every failure, even when the server
   had answered and refused. Its words now come from a new `describeSendFailure()` in
