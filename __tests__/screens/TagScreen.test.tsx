@@ -1,3 +1,4 @@
+import { AxiosError, type AxiosResponse } from 'axios'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import TagScreen from '@/features/tags/screens/TagScreen'
 import { createTestDatabase } from '../support/testDatabase'
@@ -175,6 +176,87 @@ describe('TagScreen', () => {
 
     await waitFor(() => expect(screen.getByText(/Couldn't load/i)).toBeTruthy())
     expect(screen.queryByText(/Nothing tagged/i)).toBeNull()
+  })
+
+  /**
+   * STOURIFY-250, following STOURIFY-225, -248 and -249. The failure panel
+   * said "check your connection" for every failure, including a refusal the
+   * server answered. The pair is the point: the first test alone would pass if
+   * the connection sentence were deleted everywhere, which would break the one
+   * case where it is true.
+   */
+  describe('the failure it reports is the failure that happened', () => {
+    function forbidden() {
+      const config = { headers: {} } as never
+      return new AxiosError('Request failed with status code 403', '403', config, {}, {
+        status: 403,
+        statusText: 'Forbidden',
+        data: { message: 'This action is unauthorized.' },
+        headers: {},
+        config,
+      } as AxiosResponse)
+    }
+
+    function networkDown() {
+      return new AxiosError('Network Error', AxiosError.ERR_NETWORK, { headers: {} } as never, {})
+    }
+
+    it('does not blame the connection when the server answered 403', async () => {
+      ;(getTag as jest.Mock).mockResolvedValue(TAG)
+      ;(getPostsByTag as jest.Mock).mockRejectedValue(forbidden())
+      ;(getSpotsByTag as jest.Mock).mockRejectedValue(forbidden())
+
+      renderScreen()
+
+      await waitFor(() => expect(screen.getByText("Couldn't load this tag")).toBeTruthy())
+      expect(screen.queryByText(/check your connection/i)).toBeNull()
+      expect(screen.getByText(/isn't allowed/i)).toBeTruthy()
+    })
+
+    it('still blames the connection when there really was no answer', async () => {
+      ;(getTag as jest.Mock).mockResolvedValue(TAG)
+      ;(getPostsByTag as jest.Mock).mockRejectedValue(networkDown())
+      ;(getSpotsByTag as jest.Mock).mockRejectedValue(networkDown())
+
+      renderScreen()
+
+      await waitFor(() => expect(screen.getByText("Couldn't load this tag")).toBeTruthy())
+      expect(screen.getByText(/check your connection/i)).toBeTruthy()
+    })
+
+    /**
+     * The half-failure case. The content query fetches posts and spots with
+     * `allSettled`, so a refused half does not fail the query — it is folded
+     * into `halfFailed` and its error would otherwise never reach the words.
+     */
+    it('describes the refused half when the other half arrived empty', async () => {
+      ;(getTag as jest.Mock).mockResolvedValue(TAG)
+      ;(getPostsByTag as jest.Mock).mockResolvedValue(page([]))
+      ;(getSpotsByTag as jest.Mock).mockRejectedValue(forbidden())
+
+      renderScreen()
+
+      await waitFor(() => expect(screen.getByText("Couldn't load this tag")).toBeTruthy())
+      expect(screen.queryByText(/check your connection/i)).toBeNull()
+      expect(screen.getByText(/isn't allowed/i)).toBeTruthy()
+    })
+
+    it('describes a refused tag lookup, which is not a missing tag', async () => {
+      ;(getTag as jest.Mock).mockRejectedValue(forbidden())
+      ;(getPostsByTag as jest.Mock).mockResolvedValue(page([]))
+      ;(getSpotsByTag as jest.Mock).mockResolvedValue(page([]))
+
+      renderScreen()
+
+      // The lookup retries once on anything but a 404, after a backoff of about
+      // a second — the same wait the 500 test above allows for.
+      await waitFor(() => expect(screen.getByText("Couldn't load this tag")).toBeTruthy(), {
+        timeout: 4000,
+      })
+      expect(screen.queryByText(/No such tag/i)).toBeNull()
+      expect(screen.queryByText(/check your connection/i)).toBeNull()
+      expect(screen.getByText(/isn't allowed/i)).toBeTruthy()
+    })
   })
 
   it('opens a post when its row is pressed', async () => {

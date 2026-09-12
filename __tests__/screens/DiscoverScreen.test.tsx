@@ -1,3 +1,4 @@
+import { AxiosError, type AxiosResponse } from 'axios'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { QueryClient } from '@tanstack/react-query'
 import DiscoverScreen from '@/features/discover/screens/DiscoverScreen'
@@ -178,8 +179,66 @@ it('offers a retry when there is neither a network nor a cache', async () => {
 
   renderScreen()
 
-  await waitFor(() => expect(screen.getByText("Can't reach Stourify")).toBeTruthy(), {
+  await waitFor(() => expect(screen.getByText("Couldn't load spots to explore")).toBeTruthy(), {
     timeout: 3000,
+  })
+  expect(screen.getByText('Try again')).toBeTruthy()
+})
+
+/**
+ * STOURIFY-250, following STOURIFY-225, -248 and -249. This panel was headed
+ * "Can't reach Stourify" over "No connection and nothing saved from last time"
+ * for every failure, including a refusal the server answered — so here the
+ * headline was part of the lie, and the refusal test forbids any wording about
+ * reaching, connection or signal, not just the one sentence. The pair is the
+ * point: the first test alone would pass if the connection wording were deleted
+ * everywhere, which would break the one case where it is true.
+ */
+describe('the failure it reports is the failure that happened', () => {
+  function forbidden() {
+    const config = { headers: {} } as never
+    return new AxiosError('Request failed with status code 403', '403', config, {}, {
+      status: 403,
+      statusText: 'Forbidden',
+      data: { message: 'This action is unauthorized.' },
+      headers: {},
+      config,
+    } as AxiosResponse)
+  }
+
+  it('does not blame the connection at all when the server answered 403', async () => {
+    ;(getSpots as jest.Mock).mockRejectedValue(forbidden())
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText("Couldn't load spots to explore")).toBeTruthy(), {
+      timeout: 3000,
+    })
+    expect(screen.queryByText(/can't reach|connection|signal|nothing saved/i)).toBeNull()
+    expect(screen.getByText(/isn't allowed/i)).toBeTruthy()
+  })
+
+  it('still blames the connection when there really was no answer', async () => {
+    ;(getSpots as jest.Mock).mockRejectedValue(
+      new AxiosError('Network Error', AxiosError.ERR_NETWORK, { headers: {} } as never, {}),
+    )
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText("Couldn't load spots to explore")).toBeTruthy(), {
+      timeout: 3000,
+    })
+    expect(screen.getByText(/check your connection/i)).toBeTruthy()
+  })
+
+  it('names the category that would not load when a chip is selected', async () => {
+    ;(getSpots as jest.Mock).mockRejectedValue(forbidden())
+
+    renderScreen({ route: { params: { category: 'Nature' } } })
+
+    await waitFor(() => expect(screen.getByText("Couldn't load nature spots")).toBeTruthy(), {
+      timeout: 3000,
+    })
   })
 })
 

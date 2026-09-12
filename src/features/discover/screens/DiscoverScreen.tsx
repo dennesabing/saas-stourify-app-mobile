@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { Chip, EmptyState, Icon, SearchField, Text } from '@/shared/components/ui'
 import type { DiscoverStackParamList } from '@/shared/navigation/types'
+import { describeRequestFailure } from '@/shared/api/errorMessage'
 import type { Spot } from '@/shared/api/types'
 import { useRefetchOnFocus } from '@/shared/hooks/useRefetchOnFocus'
 import { useTheme } from '@/theme/ThemeProvider'
@@ -88,7 +89,7 @@ export default function DiscoverScreen({ navigation, route }: Props) {
     if (route.params?.category) setFilter(route.params.category)
   }, [route.params?.category])
 
-  const { data, isPending, isError, refetch } = useQuery({
+  const { data, error, isPending, isError, refetch } = useQuery({
     // The category is part of the key, so each rail selection caches its own
     // page rather than overwriting the last one. It is also what the on-disk
     // cache files the answer under, which is what lets a chip you pressed
@@ -96,6 +97,23 @@ export default function DiscoverScreen({ navigation, route }: Props) {
     queryKey: EXPLORE_SPOTS_QUERY_KEY(category),
     queryFn: () => fetchExploreSpots(category),
   })
+
+  /**
+   * What the failure panel says, chosen from the failure that actually
+   * happened (STOURIFY-250, following STOURIFY-225).
+   *
+   * It used to read "Can't reach Stourify" over "No connection and nothing
+   * saved from last time" for every failure, including a refusal the server
+   * answered — so here the headline was part of the lie, and all three fields
+   * come from the helper. The "nothing saved" half was dropped rather than
+   * glued on as a suffix: the panel only appears when nothing was saved (see
+   * the ordering note on this component), and after a refusal it would imply a
+   * saved copy could have helped. The decision is recorded on STOURIFY-250.
+   */
+  const failure = describeRequestFailure(
+    error,
+    category ? `${category.toLowerCase()} spots` : 'spots to explore',
+  )
 
   // Same reason as NearbyScreen: this screen stays mounted, so a spot added
   // since you last looked would not appear until something else forced a
@@ -193,9 +211,9 @@ export default function DiscoverScreen({ navigation, route }: Props) {
     <EmptyState icon="🧭" title="Finding spots…" subtitle="Loading places to explore." />
   ) : isError ? (
     <EmptyState
-      icon="📡"
-      title="Can't reach Stourify"
-      subtitle="No connection and nothing saved from last time. Try again once you have signal."
+      icon={failure.icon}
+      title={failure.title}
+      subtitle={failure.subtitle}
       actionLabel="Try again"
       onAction={() => void refetch()}
     />

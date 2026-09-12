@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { DiscoverStackParamList } from '@/shared/navigation/types'
 import { searchDiscover, searchDiscoverType } from '@/shared/api/discover'
+import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { EXPLORE_SPOTS_QUERY_KEY, ratingFor, thumbFor } from '@/features/discover/api/exploreSpots'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 import { useRecentSearches } from '@/features/search/recentSearches'
@@ -135,7 +136,7 @@ export default function SearchScreen({ navigation }: Props) {
 
   const isSearchable = debouncedQuery.length >= MIN_QUERY_LENGTH
 
-  const { data, isFetching, isError, refetch } = useQuery({
+  const { data, error, isFetching, isError, refetch } = useQuery({
     queryKey: ['discover-search', filter, debouncedQuery],
     // Both branches resolve to the same grouped shape, so exactly one type
     // flows out of the query and the render path needs no cast to read it.
@@ -145,6 +146,18 @@ export default function SearchScreen({ navigation }: Props) {
         : groupOneType(await searchDiscoverType(debouncedQuery, filter), filter),
     enabled: isSearchable,
   })
+
+  /**
+   * What the failure panel says under its headline, chosen from the failure
+   * that actually happened (STOURIFY-250, following STOURIFY-225).
+   *
+   * This used to be one fixed sentence about the connection, shown for every
+   * way a request can go wrong — including the one where the server picked up
+   * and refused. The headline stays this screen's own, "Couldn't run your
+   * search": a search is not a load, and the helper's `Couldn't load …` would
+   * say the wrong verb. Only the icon and the explanation move.
+   */
+  const failure = describeRequestFailure(error, 'your search')
 
   /**
    * Whether the catalogue itself is empty, rather than this search.
@@ -360,9 +373,9 @@ export default function SearchScreen({ navigation }: Props) {
     <EmptyState icon="⏳" title="Searching…" subtitle={`Looking for "${debouncedQuery}"`} />
   ) : isError ? (
     <EmptyState
-      icon="📡"
+      icon={failure.icon}
       title="Couldn't run your search"
-      subtitle="We couldn't reach Stourify just now. Check your connection and try the same search again."
+      subtitle={failure.subtitle}
       actionLabel="Try again"
       onAction={() => void refetch()}
     />
