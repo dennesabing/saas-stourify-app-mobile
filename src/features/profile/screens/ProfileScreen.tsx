@@ -104,10 +104,20 @@ export default function ProfileScreen({ route, navigation }: Props) {
   const routeNames: string[] = navigation.getState?.()?.routeNames ?? []
   const canOpen = useCallback((name: string) => routeNames.includes(name), [routeNames])
 
-  // A profile pushed from the feed, a search or a follower list has somewhere
-  // to go back to, and artboard 6 draws the button for it. The Profile tab's
-  // own root does not, so it gets none rather than one that does nothing.
-  const canGoBack = navigation.canGoBack?.() ?? false
+  /**
+   * A profile pushed from the feed, a search or a follower list has somewhere
+   * to go back to, and artboard 6 draws the button for it. The Profile tab's
+   * own root does not, so it gets none.
+   *
+   * **Asked of this screen's own stack, not of `navigation.canGoBack()`** —
+   * and the emulator is why. `canGoBack()` also asks the tab bar above the
+   * stack, and a tab bar that remembers you came from Home answers yes, so the
+   * Profile tab's root drew a Back button that switched tabs instead of going
+   * anywhere back (STOURIFY-288's live run). A stack index above 0 means this
+   * screen was pushed onto something inside its own stack, which is the one
+   * case the button is for.
+   */
+  const canGoBack = (navigation.getState?.()?.index ?? 0) > 0
 
   const [tab, setTab] = useState<ProfileTab>('spots')
   // Only your own profile has a Wishlist; a stale 'wishlist' can never show on

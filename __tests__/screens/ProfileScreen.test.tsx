@@ -114,17 +114,22 @@ const PROFILE_STACK_ROUTES = [
 let routeNames = PROFILE_STACK_ROUTES
 
 /**
- * `canGoBack` decides whether the round back button is drawn: a profile pushed
- * from the feed has somewhere to go back to, the Profile tab's own root does
- * not. False by default, which is the Profile tab.
+ * `stackIndex` decides whether the round back button is drawn: a profile
+ * pushed from the feed sits above something in its own stack (index 1+), the
+ * Profile tab's own root does not (index 0, the default).
+ *
+ * `canGoBack` is here to prove the screen does NOT ask it. On the emulator the
+ * tab bar above the Profile stack answered yes — it remembered the Home tab —
+ * and the Profile tab's root drew a Back button (STOURIFY-288).
  */
+let stackIndex = 0
 let canGoBack = false
 
 const navigation = {
   navigate: jest.fn(),
   goBack: jest.fn(),
   canGoBack: () => canGoBack,
-  getState: () => ({ routeNames }),
+  getState: () => ({ routeNames, index: stackIndex }),
 } as any
 
 /**
@@ -163,6 +168,7 @@ function renderProfile(userId?: string, queryClient?: QueryClient) {
 beforeEach(() => {
   jest.clearAllMocks()
   routeNames = PROFILE_STACK_ROUTES
+  stackIndex = 0
   canGoBack = false
   ;(getWishlist as jest.Mock).mockResolvedValue([])
   useAuthStore.setState({
@@ -329,6 +335,8 @@ test('the website is a link, and tapping it opens the address', async () => {
 })
 
 test('a profile pushed from elsewhere has a back button', async () => {
+  // Pushed onto the Home stack from the feed: one route below it.
+  stackIndex = 1
   canGoBack = true
   ;(getProfile as jest.Mock).mockResolvedValue(profileFixture())
 
@@ -339,7 +347,12 @@ test('a profile pushed from elsewhere has a back button', async () => {
   expect(navigation.goBack).toHaveBeenCalled()
 })
 
-test('the Profile tab itself has no back button, because it has nowhere to go back to', async () => {
+test('the Profile tab itself has no back button, even when the tab bar could go back', async () => {
+  // Exactly what the emulator showed: arriving from the Home tab, the tab bar
+  // answers canGoBack() with yes. The Profile stack's own root still has
+  // nothing below it, and a Back button there would only switch tabs.
+  stackIndex = 0
+  canGoBack = true
   ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
 
   renderProfile()
