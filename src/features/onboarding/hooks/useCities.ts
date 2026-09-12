@@ -15,6 +15,20 @@ export interface CityRow {
   name: string
   region: string | null
   country: string | null
+  /** A city the team picked to show first — onboarding's "Suggested" list leads with these. */
+  isFeatured: boolean
+}
+
+function toRow(row: City): CityRow {
+  return {
+    id: row.id,
+    uuid: row.uuid,
+    serverId: row.serverId,
+    name: row.name,
+    region: row.region,
+    country: row.country,
+    isFeatured: row.isFeatured === true,
+  }
 }
 
 /**
@@ -32,37 +46,15 @@ export function useCities(): CityRow[] {
 
     const query = database.get<City>('sto_cities').query()
 
-    const subscription = database.withChangesForTables(['sto_cities']).subscribe(() => {
+    function load(): void {
       void query.fetch().then((rows) => {
-        if (cancelled) return
-
-        setCities(
-          rows.map((row) => ({
-            id: row.id,
-            uuid: row.uuid,
-            serverId: row.serverId,
-            name: row.name,
-            region: row.region,
-            country: row.country,
-          })),
-        )
+        if (!cancelled) setCities(rows.map(toRow))
       })
-    })
+    }
 
-    void query.fetch().then((rows) => {
-      if (cancelled) return
+    const subscription = database.withChangesForTables(['sto_cities']).subscribe(load)
 
-      setCities(
-        rows.map((row) => ({
-          id: row.id,
-          uuid: row.uuid,
-          serverId: row.serverId,
-          name: row.name,
-          region: row.region,
-          country: row.country,
-        })),
-      )
-    })
+    load()
 
     return () => {
       cancelled = true

@@ -20,6 +20,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **First-run onboarding matches the Onboarding design (STOURIFY-287).** The four screens after
+  sign-up now share one frame (`src/features/onboarding/components/OnboardingFrame.tsx`): a
+  four-part progress bar with Skip at its right, the Fraunces heading, and the main button pinned
+  to the bottom. The frame also owns the safe-area rule from STOURIFY-81.
+  - **Permissions** has a Location row and a Camera row, each with an "Allow" pill that becomes a
+    green "Allowed". Continue no longer asks for anything by itself. Once the phone has refused
+    for good, Allow opens the app's system settings.
+  - **Interests** counts your picks on its button ("Continue · 2 selected").
+  - **Home city** gets a search field that filters the cities already on the phone, and a
+    "Suggested" list with featured cities first. Each row shows "region · country".
+  - **Follow explorers** has round Follow / Following pills and a "Start exploring" button.
+
+  What gets saved, and when onboarding appears, are unchanged. The Notifications row, "Use my
+  current location", the ready-made suggestion list, "Follow all" and the interest photos are
+  drawn but not built: `docs/what-onboarding-leaves-out.md` says why. New pieces: the `camera`
+  icon, `PermissionRow`, `FollowPill`, and `useCities`' `isFeatured`.
 - **The sign-in screens match the Auth & Entry design (STOURIFY-286).**
   - **Splash** is now the compass, the wordmark and "Your local adventure starts here" on the
     brand gradient, still only for as long as the stored sign-in takes to read.

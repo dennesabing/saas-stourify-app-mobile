@@ -92,6 +92,9 @@ export interface CitySeed {
    *  coordinates is a real row, not a broken one. */
   latitude: number | null
   longitude: number | null
+  region: string | null
+  country: string | null
+  isFeatured: boolean
 }
 
 const CITY_DEFAULTS: CitySeed = {
@@ -101,6 +104,9 @@ const CITY_DEFAULTS: CitySeed = {
   slug: 'general-santos',
   latitude: null,
   longitude: null,
+  region: null,
+  country: null,
+  isFeatured: false,
 }
 
 export async function seedCity(
@@ -118,8 +124,10 @@ export async function seedCity(
       row._raw.slug = seed.slug
       row._raw.latitude = seed.latitude
       row._raw.longitude = seed.longitude
+      row._raw.region = seed.region
+      row._raw.country = seed.country
       row._raw.spot_count = 0
-      row._raw.is_featured = false
+      row._raw.is_featured = seed.isFeatured
       row._raw.created_at = 1_700_000_000_000
       row._raw.updated_at = 1_700_000_000_000
     }),

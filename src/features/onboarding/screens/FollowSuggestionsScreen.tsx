@@ -1,13 +1,14 @@
 import { useCallback, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { FlatList, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { OnboardingStackParamList } from '@/shared/navigation/types'
 import { searchPeople } from '@/shared/api/discover'
 import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { follow } from '@/shared/api/follows'
-import { Avatar, Button, Card, EmptyState, Input, Text } from '@/shared/components/ui'
+import { Avatar, Button, EmptyState, SearchField, Text } from '@/shared/components/ui'
+import FollowPill from '@/features/onboarding/components/FollowPill'
+import OnboardingFrame from '@/features/onboarding/components/OnboardingFrame'
 import { useOnboardingStore } from '@/shared/store/onboarding'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 import type { Person } from '@/shared/api/types'
@@ -16,17 +17,18 @@ import { useTheme } from '@/theme/ThemeProvider'
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'FollowSuggestions'>
 
 /**
+ * Artboard 4 of the Onboarding design (STOURIFY-287), kept search-first.
+ *
  * There is no follow-suggestions endpoint. This is people search
- * (`GET /discover/search?type=people`) with a prominent Skip — it does not
- * claim to be "suggested for you"; a real recommendation surface needs a
- * server-side query this milestone does not build.
+ * (`GET /discover/search?type=people`) — it does not claim to be "suggested for
+ * you"; a real recommendation surface needs a server-side query this milestone
+ * does not build. So the design's ready-made list, its "Follow all" and its
+ * "Trailblazer" / "Local Expert" labels are not drawn: there is nothing to fill
+ * the list from, "Follow all" over search results would follow whoever matched
+ * a typed name, and explorers have no ranks.
  *
- * The last onboarding step: finishing it (Skip, same as any other route out)
- * marks onboarding complete so it never replays.
- *
- * `edges` names `bottom` as well as `top`, so the Skip footer stays clear of
- * the phone's own navigation bar. `InterestsScreen` explains why onboarding
- * needs that and the rest of the app does not (STOURIFY-81).
+ * The last onboarding step: finishing it — "Start exploring", or Skip, same as
+ * any other route out — marks onboarding complete so it never replays.
  */
 export default function FollowSuggestionsScreen({ navigation: _navigation }: Props) {
   const theme = useTheme()
@@ -63,31 +65,33 @@ export default function FollowSuggestionsScreen({ navigation: _navigation }: Pro
   })
 
   const renderItem = useCallback(
-    ({ item }: { item: Person }) => (
-      <Card>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[3] }}>
-          <Avatar name={item.name ?? item.username} />
+    ({ item }: { item: Person }) => {
+      const name = item.name ?? item.username
+
+      return (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}>
+          <Avatar name={name} size={52} />
           <View style={{ flex: 1 }}>
-            <Text variant="body">{item.name ?? item.username}</Text>
-            <Text variant="caption" color="muted">
-              @{item.username}
+            <Text
+              variant="body"
+              numberOfLines={1}
+              style={{ fontFamily: theme.fontFamily.bodySemiBold }}
+            >
+              {name}
+            </Text>
+            <Text variant="caption" color="muted" numberOfLines={1}>
+              {item.bio ?? `@${item.username}`}
             </Text>
           </View>
-          {item.user_uuid && !followedUuids.includes(item.user_uuid) ? (
-            <Button
-              label="Follow"
-              variant="secondary"
-              onPress={() => followMutation.mutate(item.user_uuid!)}
-              disabled={followMutation.isPending}
-            />
-          ) : (
-            <Text variant="caption" color="primary">
-              Following
-            </Text>
-          )}
+          <FollowPill
+            name={name}
+            following={!item.user_uuid || followedUuids.includes(item.user_uuid)}
+            onPress={() => followMutation.mutate(item.user_uuid!)}
+            disabled={followMutation.isPending}
+          />
         </View>
-      </Card>
-    ),
+      )
+    },
     [followMutation, followedUuids, theme],
   )
 
@@ -152,32 +156,28 @@ export default function FollowSuggestionsScreen({ navigation: _navigation }: Pro
     <EmptyState icon="🔍" title="No one found" subtitle="Try a different name or handle" />
   )
 
+  const finish = () => void complete()
+
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: theme.colors.surface }}
-      edges={['top', 'bottom']}
+    <OnboardingFrame
+      step={4}
+      onSkip={finish}
+      title="Follow explorers"
+      subtitle="Search for people you know to warm up your feed."
+      footer={<Button label="Start exploring" size="lg" onPress={finish} fullWidth />}
     >
-      <View style={{ padding: theme.gutter, gap: theme.spacing[3] }}>
-        <Text variant="h1">Find people to follow</Text>
-        <Input placeholder="Search people" value={query} onChangeText={setQuery} />
-      </View>
+      <SearchField placeholder="Search people" value={query} onChangeText={setQuery} />
 
       <FlatList
         data={people}
         keyExtractor={(item) => item.uuid}
         renderItem={renderItem}
-        contentContainerStyle={
-          people.length === 0
-            ? { flex: 1 }
-            : { paddingHorizontal: theme.gutter, gap: theme.spacing[3] }
-        }
-        ItemSeparatorComponent={() => <View style={{ height: theme.spacing[3] }} />}
+        keyboardShouldPersistTaps="handled"
+        style={{ marginTop: theme.spacing[5] }}
+        contentContainerStyle={people.length === 0 ? { flex: 1 } : undefined}
+        ItemSeparatorComponent={() => <View style={{ height: 14 }} />}
         ListEmptyComponent={empty}
       />
-
-      <View style={{ padding: theme.gutter }}>
-        <Button label="Skip" variant="ghost" onPress={() => void complete()} fullWidth />
-      </View>
-    </SafeAreaView>
+    </OnboardingFrame>
   )
 }

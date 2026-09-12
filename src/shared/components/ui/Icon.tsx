@@ -2,6 +2,7 @@ import {
   ArrowUpDown,
   Ban,
   Bell,
+  Camera,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -52,6 +53,8 @@ const GLYPHS = {
   back: ChevronLeft,
   /** Your activity — the Home header's bell (STOURIFY-260). */
   bell: Bell,
+  /** Taking photos — onboarding's Camera permission row (STOURIFY-287). */
+  camera: Camera,
   check: Check,
   /** A post's comments. */
   comment: MessageCircle,

@@ -60,8 +60,21 @@ function type(text: string) {
 it('is search-backed, not a claimed recommendation surface', () => {
   renderScreen()
 
+  expect(screen.getByText('Follow explorers')).toBeTruthy()
+  expect(screen.getByLabelText('Step 4 of 4')).toBeTruthy()
   expect(screen.queryByText(/suggested for you/i)).toBeNull()
   expect(screen.getByPlaceholderText('Search people')).toBeTruthy()
+})
+
+/**
+ * Drawn on the canvas, deliberately not built. Over search results it would
+ * follow everybody who happened to match a typed name — not what "Follow all"
+ * promises, and a mass-follow by accident is tedious to undo (STOURIFY-287).
+ */
+it('offers no Follow all', () => {
+  renderScreen()
+
+  expect(screen.queryByText(/follow all/i)).toBeNull()
 })
 
 it('searches people on typing and shows a Follow button per hit', async () => {
@@ -73,10 +86,37 @@ it('searches people on typing and shows a Follow button per hit', async () => {
 
   await waitFor(() => expect(screen.getByText('Ana Martinez')).toBeTruthy())
   expect(searchPeople).toHaveBeenCalledWith('ana')
+  expect(screen.getByText('@ana')).toBeTruthy()
 
-  fireEvent.press(screen.getByText('Follow'))
+  fireEvent.press(screen.getByLabelText('Follow Ana Martinez'))
 
   await waitFor(() => expect(follow).toHaveBeenCalledWith('user-1'))
+  expect(await screen.findByText('Following')).toBeTruthy()
+  expect(screen.queryByLabelText('Follow Ana Martinez')).toBeNull()
+})
+
+/** The design's one muted line is what the explorer wrote about themselves. */
+it('shows the bio as the muted line when there is one', async () => {
+  ;(searchPeople as jest.Mock).mockResolvedValue({
+    ...ONE_PERSON,
+    data: [{ ...ANA, bio: 'Street food & hidden grills' }],
+  })
+
+  renderScreen()
+  type('ana')
+
+  expect(await screen.findByText('Street food & hidden grills')).toBeTruthy()
+  expect(screen.queryByText('@ana')).toBeNull()
+})
+
+it('Start exploring completes onboarding', async () => {
+  renderScreen()
+
+  fireEvent.press(screen.getByText('Start exploring'))
+
+  await waitFor(() => {
+    expect(useOnboardingStore.getState().completed).toBe(true)
+  })
 })
 
 it('Skip completes onboarding', async () => {
