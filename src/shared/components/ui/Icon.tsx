@@ -6,15 +6,18 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Compass,
   Contrast,
   Ellipsis,
   EyeOff,
   FileText,
   Heart,
+  KeyRound,
   List,
   LocateFixed,
   Lock,
   LogOut,
+  Mail,
   Map,
   MapPin,
   MessageCircle,
@@ -23,6 +26,7 @@ import {
   RefreshCw,
   Search,
   Send,
+  Ticket,
   Trash2,
   User,
   X,
@@ -91,6 +95,14 @@ const GLYPHS = {
   private: EyeOff,
   /** Delete for good — Delete account. */
   trash: Trash2,
+  /** The brand mark on Splash — the canvas draws Lucide's compass (STOURIFY-286). */
+  compass: Compass,
+  /** An email address — the sign-in forms' Email field, Forgot password's tile. */
+  mail: Mail,
+  /** A one-time code — the reset code on Choose a new password. */
+  key: KeyRound,
+  /** An invitation — sign-up's Invitation code field. */
+  ticket: Ticket,
 } as const
 
 export type IconName = keyof typeof GLYPHS

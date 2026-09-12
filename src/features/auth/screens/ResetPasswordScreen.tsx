@@ -5,14 +5,19 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { RootStackParamList } from '@/shared/navigation/types'
 import * as authApi from '@/shared/api/auth'
 import { extractApiError } from '@/shared/api/client'
-import { Button, Input, KeyboardAwareScreen, Text } from '@/shared/components/ui'
+import { Button, Input, Text } from '@/shared/components/ui'
 import { useTheme } from '@/theme/ThemeProvider'
+import { AuthHeading, AuthIconTile, AuthScreen, AuthSpacer } from '../components/AuthScreen'
 
 type FormData = { email: string; token: string; password: string; password_confirmation: string }
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ResetPassword'>
 
 /**
+ * Where "I have a reset code" leads. The Auth & Entry canvas does not draw it,
+ * so it wears the canvas's Forgot look — tile, title, large fields — rather
+ * than a look of its own (STOURIFY-286).
+ *
  * `/reset-password` returns no token — the user must sign in again after this
  * succeeds, so the only place this screen goes on success is `Login`.
  */
@@ -58,10 +63,19 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
   }
 
   return (
-    <KeyboardAwareScreen centered>
-      <View style={{ gap: theme.spacing[5] }}>
-        <Text variant="h1">Choose a new password</Text>
+    <AuthScreen onBack={() => navigation.goBack()}>
+      <View style={{ marginTop: theme.spacing[7] }}>
+        <AuthIconTile icon="key" />
+      </View>
 
+      <View style={{ marginTop: 22 }}>
+        <AuthHeading
+          title="Choose a new password"
+          subtitle="Paste the code from your reset email, then pick a new password."
+        />
+      </View>
+
+      <View style={{ marginTop: theme.spacing[6], gap: 14 }}>
         <Controller
           control={control}
           name="email"
@@ -71,8 +85,10 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
           }}
           render={({ field: { onChange, value } }) => (
             <Input
+              size="lg"
+              icon="mail"
               label="Email"
-              placeholder="you@example.com"
+              placeholder="you@email.com"
               keyboardType="email-address"
               autoCapitalize="none"
               value={value}
@@ -88,6 +104,8 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
           rules={{ required: 'The reset code is required' }}
           render={({ field: { onChange, value } }) => (
             <Input
+              size="lg"
+              icon="key"
               label="Reset code"
               placeholder="Paste the code from your email"
               autoCapitalize="none"
@@ -107,6 +125,8 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
           }}
           render={({ field: { onChange, value } }) => (
             <Input
+              size="lg"
+              icon="lock"
               label="New password"
               placeholder="At least 8 characters"
               secureTextEntry
@@ -127,6 +147,8 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
           }}
           render={({ field: { onChange, value } }) => (
             <Input
+              size="lg"
+              icon="lock"
               label="Repeat password"
               placeholder="Repeat your password"
               secureTextEntry
@@ -137,20 +159,23 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
             />
           )}
         />
-
-        {serverError ? (
-          <Text variant="caption" color="danger">
-            {serverError}
-          </Text>
-        ) : null}
-
-        <Button
-          label="Reset password"
-          onPress={handleSubmit(onSubmit)}
-          loading={loading}
-          fullWidth
-        />
       </View>
-    </KeyboardAwareScreen>
+
+      {serverError ? (
+        <Text variant="caption" color="danger" style={{ marginTop: theme.spacing[4] }}>
+          {serverError}
+        </Text>
+      ) : null}
+
+      <AuthSpacer />
+
+      <Button
+        label="Reset password"
+        size="lg"
+        onPress={handleSubmit(onSubmit)}
+        loading={loading}
+        fullWidth
+      />
+    </AuthScreen>
   )
 }

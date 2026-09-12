@@ -20,6 +20,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The sign-in screens match the Auth & Entry design (STOURIFY-286).**
+  - **Splash** is now the compass, the wordmark and "Your local adventure starts here" on the
+    brand gradient, still only for as long as the stored sign-in takes to read.
+  - **Welcome** sits on the same gradient.
+  - **Log In, Sign Up, Forgot password and Reset password** get the round back button, the big
+    Fraunces heading and the canvas's 54-point fields with an envelope or padlock inside.
+  - **Sign Up** gains a password strength meter (advice only, never a block) and the Terms and
+    Privacy Policy links Settings opens.
+  - **Forgot password** now has a "Check your inbox" state with Resend. It names the address but
+    never confirms that an account exists.
+
+  Every request, error message and stored-token rule is unchanged. Social sign-in, the 6-digit
+  code and "You're all set" are drawn but not built, because nothing on the server backs them. So
+  is the Welcome photo, because the app ships none. All of these screens draw from theme tokens, so
+  they work in light and dark. New shared pieces:
+  - `BackButton`, which `BarHeader` now uses
+  - `Input`'s `icon` and `size="lg"`
+  - the `hero*` and `successBg` tokens
+  - the `compass`, `mail`, `key` and `ticket` icons
+
+  Why each difference exists: `docs/what-the-sign-in-screens-leave-out.md`.
 - **Settings matches the Settings design, and its privacy controls moved to a new Privacy &
   security screen (STOURIFY-290).** The hub (artboard 1) has the round-back header, an account
   card (avatar, name, "@username · home city") and grouped rows: Edit profile, Privacy & security,

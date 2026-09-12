@@ -54,6 +54,13 @@ it('sends the user back to sign in once the password is reset', async () => {
   await waitFor(() => expect(navigation.navigate).toHaveBeenCalledWith('Login'))
 })
 
+it('goes back from the round back button — STOURIFY-286', () => {
+  renderScreen('a@b.com')
+
+  fireEvent.press(screen.getByLabelText('Back'))
+  expect(navigation.goBack).toHaveBeenCalled()
+})
+
 it('refuses mismatched passwords without calling the server', async () => {
   renderScreen('a@b.com')
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { View } from 'react-native'
+import { Pressable, View } from 'react-native'
 import { useForm, Controller } from 'react-hook-form'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { RootStackParamList } from '@/shared/navigation/types'
@@ -7,13 +7,21 @@ import { useAuthStore } from '@/shared/store/auth'
 import * as authApi from '@/shared/api/auth'
 import { extractApiError, extractValidationErrors } from '@/shared/api/client'
 import { onLogin } from '@/sync/session'
-import { BuildIdentity, Button, Input, KeyboardAwareScreen, Text } from '@/shared/components/ui'
+import { BuildIdentity, Button, Input, Text } from '@/shared/components/ui'
 import { useTheme } from '@/theme/ThemeProvider'
+import { AuthHeading, AuthScreen, AuthSpacer } from '../components/AuthScreen'
+import AuthPromptLink from '../components/AuthPromptLink'
 
 type FormData = { email: string; password: string }
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>
 
+/**
+ * The Auth & Entry design's LOG IN (STOURIFY-286). The canvas also draws
+ * "Continue with Google / Apple / Facebook"; they are left out because the
+ * server has no social sign-in to call — see
+ * `docs/what-the-sign-in-screens-leave-out.md`.
+ */
 export default function LoginScreen({ navigation }: Props) {
   const theme = useTheme()
   const { setToken, setUser } = useAuthStore()
@@ -50,10 +58,12 @@ export default function LoginScreen({ navigation }: Props) {
   }
 
   return (
-    <KeyboardAwareScreen centered>
-      <View style={{ gap: theme.spacing[5] }}>
-        <Text variant="h1">Welcome back</Text>
+    <AuthScreen onBack={() => navigation.goBack()}>
+      <View style={{ marginTop: 20 }}>
+        <AuthHeading title="Welcome back" subtitle="Log in to keep exploring." />
+      </View>
 
+      <View style={{ marginTop: theme.spacing[6], gap: 15 }}>
         <Controller
           control={control}
           name="email"
@@ -63,8 +73,10 @@ export default function LoginScreen({ navigation }: Props) {
           }}
           render={({ field: { onChange, value } }) => (
             <Input
+              size="lg"
+              icon="mail"
               label="Email"
-              placeholder="you@example.com"
+              placeholder="you@email.com"
               keyboardType="email-address"
               autoCapitalize="none"
               value={value}
@@ -83,8 +95,10 @@ export default function LoginScreen({ navigation }: Props) {
           }}
           render={({ field: { onChange, value } }) => (
             <Input
+              size="lg"
+              icon="lock"
               label="Password"
-              placeholder="Your password"
+              placeholder="Enter your password"
               secureTextEntry
               autoCapitalize="none"
               value={value}
@@ -93,29 +107,51 @@ export default function LoginScreen({ navigation }: Props) {
             />
           )}
         />
-
-        <Button
-          label="Forgot password?"
-          variant="ghost"
-          onPress={() => navigation.navigate('ForgotPassword')}
-        />
-
-        {serverError ? (
-          <Text variant="caption" color="danger">
-            {serverError}
-          </Text>
-        ) : null}
-
-        <Button label="Sign in" onPress={handleSubmit(onSubmit)} loading={loading} fullWidth />
-
-        <Button
-          label="New here? Create an account"
-          variant="ghost"
-          onPress={() => navigation.navigate('Register')}
-        />
-
-        <BuildIdentity />
       </View>
-    </KeyboardAwareScreen>
+
+      <Pressable
+        onPress={() => navigation.navigate('ForgotPassword')}
+        accessibilityRole="button"
+        hitSlop={theme.spacing[2]}
+        style={({ pressed }) => ({
+          alignSelf: 'flex-end',
+          minHeight: theme.minTouchTarget,
+          justifyContent: 'center',
+          opacity: pressed ? 0.85 : 1,
+        })}
+      >
+        <Text
+          variant="body"
+          color="primary"
+          style={{ fontFamily: theme.fontFamily.bodySemiBold, fontSize: 14 }}
+        >
+          Forgot password?
+        </Text>
+      </Pressable>
+
+      {serverError ? (
+        <Text variant="caption" color="danger">
+          {serverError}
+        </Text>
+      ) : null}
+
+      <AuthSpacer />
+
+      <Button
+        label="Log in"
+        size="lg"
+        onPress={handleSubmit(onSubmit)}
+        loading={loading}
+        fullWidth
+      />
+
+      <AuthPromptLink
+        prompt="New to Stourify?"
+        action="Sign up"
+        onPress={() => navigation.navigate('Register')}
+      />
+
+      <BuildIdentity />
+    </AuthScreen>
   )
 }
