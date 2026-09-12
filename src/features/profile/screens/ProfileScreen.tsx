@@ -47,7 +47,7 @@ const GRID_GAP = 2
  * "Follow" no matter the relationship. The explorer identity lives on
  * `GET /profile` and `GET /profiles/{user}`.
  *
- * Four read outcomes are ordinary rather than exceptional, and each gets its
+ * Five read outcomes are ordinary rather than exceptional, and each gets its
  * own render:
  *
  * - **`null` from `GET /profile`** — no profile row. Not an error, and since
@@ -63,6 +63,9 @@ const GRID_GAP = 2
  * - **403** — a block stands between the two parties. The server's wording is
  *   identical from either side by design (STOURIFY-36), so the client must not
  *   try to explain it either.
+ * - **any other failure on somebody else's** — the request failed, which says
+ *   nothing about the explorer. It says what went wrong and offers a retry
+ *   (STOURIFY-278); it used to borrow the 404's "has not set up their profile".
  */
 export default function ProfileScreen({ route, navigation }: Props) {
   const theme = useTheme()
@@ -293,17 +296,52 @@ export default function ProfileScreen({ route, navigation }: Props) {
       )
     }
 
+    // A block. The server's wording is identical from either side (STOURIFY-36),
+    // so this stays in the screen's own words rather than the helper's refusal
+    // sentence, which is a different claim.
+    if (status === 403) {
+      return renderFrame(
+        <EmptyState
+          icon="🔒"
+          title="This profile is not available."
+          subtitle="You cannot view this explorer right now."
+          actionLabel="Go back"
+          onAction={() => navigation.goBack()}
+        />,
+      )
+    }
+
+    // The server said this explorer has no profile — a verdict, so nothing to retry.
+    if (status === 404) {
+      return renderFrame(
+        <EmptyState
+          icon="🧭"
+          title="No profile found"
+          subtitle="This explorer has not set up their profile yet."
+          actionLabel="Go back"
+          onAction={() => navigation.goBack()}
+        />,
+      )
+    }
+
+    /**
+     * Anything else is a request that failed, not an answer about the explorer
+     * (STOURIFY-278). It used to fall into the 404 wording above, so a dropped
+     * connection told the reader this person had never set up a profile — a
+     * claim nobody had checked. It says what actually happened and offers a
+     * retry; Go back stays beside it for a reader who does not want to wait.
+     */
+    const failure = describeRequestFailure(profileQuery.error, 'this profile')
+
     return renderFrame(
       <EmptyState
-        icon={status === 403 ? '🔒' : '🧭'}
-        title={status === 403 ? 'This profile is not available.' : 'No profile found'}
-        subtitle={
-          status === 403
-            ? 'You cannot view this explorer right now.'
-            : 'This explorer has not set up their profile yet.'
-        }
-        actionLabel="Go back"
-        onAction={() => navigation.goBack()}
+        icon={failure.icon}
+        title={failure.title}
+        subtitle={failure.subtitle}
+        actionLabel="Try again"
+        onAction={() => void profileQuery.refetch()}
+        secondaryActionLabel="Go back"
+        onSecondaryAction={() => navigation.goBack()}
       />,
     )
   }
