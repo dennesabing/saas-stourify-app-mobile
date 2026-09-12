@@ -1,5 +1,5 @@
 import { AxiosError, CanceledError, type AxiosResponse } from 'axios'
-import { describeRequestFailure } from '@/shared/api/errorMessage'
+import { describeRequestFailure, describeSendFailure } from '@/shared/api/errorMessage'
 
 /**
  * The card this file exists for: STOURIFY-225.
@@ -261,5 +261,128 @@ describe('a 403 that says which refusal it is', () => {
     const { subtitle } = describeRequestFailure(responseError(403, data), 'your feed')
 
     expect(subtitle).toBe("This account isn't allowed to see this. Nothing on your end is broken.")
+  })
+})
+
+/**
+ * STOURIFY-252 — the same fault as STOURIFY-225, on a write instead of a read.
+ *
+ * The note composer on a spot's About tab said "That didn't send. Check your
+ * connection and try again." for every failure, including the server picking
+ * up and saying no. A send is a different event from a load — the reader still
+ * has their words in the box and wants to know whether pressing post again will
+ * work — so it gets its own words, read off the same cause.
+ */
+describe('describeSendFailure', () => {
+  it.each([
+    ['a dead network', networkError()],
+    ['a deadline', timeoutError()],
+    ['a cancellation', cancelledError()],
+    ['a 401', responseError(401)],
+    ['a refusal', responseError(403)],
+    ['a 404', responseError(404)],
+    ['a 422', responseError(422)],
+    ['a 429', responseError(429)],
+    ['a server fault', responseError(500)],
+    ['something that is not an axios error at all', new Error('boom')],
+  ])('opens with "That didn\'t send." for %s', (_label, error) => {
+    expect(describeSendFailure(error).startsWith("That didn't send. ")).toBe(true)
+  })
+
+  /**
+   * The one case the old sentence was right about, kept word for word — the
+   * same rule the read side followed.
+   */
+  it('keeps the original sentence when there was genuinely no answer', () => {
+    expect(describeSendFailure(networkError())).toBe(
+      "That didn't send. Check your connection and try again.",
+    )
+  })
+
+  it('says it is a permission problem on a 403, and never mentions the connection', () => {
+    const message = describeSendFailure(responseError(403))
+
+    expect(message).toContain("isn't allowed to post")
+    expect(message).not.toMatch(/connection/i)
+  })
+
+  it.each([
+    ['a deadline', timeoutError()],
+    ['a cancellation', cancelledError()],
+    ['a 401', responseError(401)],
+    ['a 404', responseError(404)],
+    ['a 422', responseError(422)],
+    ['a 429', responseError(429)],
+    ['a 500', responseError(500)],
+    ['a status nobody planned for', responseError(418)],
+  ])('does not blame the connection for %s', (_label, error) => {
+    expect(describeSendFailure(error)).not.toMatch(/connection/i)
+  })
+
+  /**
+   * A send that ran out of time may still have landed — the server can finish a
+   * write after the app stops waiting. The list refetches when the send settles,
+   * so the honest advice is to look before posting a second copy.
+   */
+  it('says a timed-out send may have landed, rather than to simply retry', () => {
+    const message = describeSendFailure(timeoutError())
+
+    expect(message).toContain('took too long')
+    expect(message).toContain("doesn't appear")
+  })
+
+  it("passes on the server's own words for a rejected field", () => {
+    const message = describeSendFailure(
+      responseError(422, {
+        message: 'The given data was invalid.',
+        errors: { body: ['The body field must not be greater than 2000 characters.'] },
+        status: 422,
+      }),
+    )
+
+    expect(message).toBe(
+      "That didn't send. The body field must not be greater than 2000 characters.",
+    )
+  })
+
+  it.each([
+    ['no body at all', undefined],
+    ['no errors object', { message: 'The given data was invalid.' }],
+    ['an errors object with nothing in it', { errors: {} }],
+    ['a field whose messages are not strings', { errors: { body: [7] } }],
+    ['errors that are not an object', { errors: 'nope' }],
+    ['a body that is a bare string', 'Unprocessable'],
+  ])('falls back to plain words on a 422 with %s', (_label, data) => {
+    expect(describeSendFailure(responseError(422, data))).toBe(
+      "That didn't send. Stourify couldn't accept it as written.",
+    )
+  })
+
+  it('never gives two different failures the same words', () => {
+    const cases = [
+      networkError(),
+      timeoutError(),
+      cancelledError(),
+      responseError(401),
+      responseError(403),
+      responseError(404),
+      responseError(422),
+      responseError(429),
+      responseError(500),
+      responseError(418),
+    ]
+
+    expect(new Set(cases.map(describeSendFailure)).size).toBe(cases.length)
+  })
+
+  /**
+   * The send side knows about 422 and the read side deliberately does not — a
+   * load has no fields to reject. Pinned so sharing the cause step cannot
+   * quietly give the twelve read screens a new sentence.
+   */
+  it('leaves the read wording for a 422 exactly as it was', () => {
+    expect(describeRequestFailure(responseError(422), 'your feed').subtitle).toBe(
+      'Something went wrong. Try again in a moment.',
+    )
   })
 })
