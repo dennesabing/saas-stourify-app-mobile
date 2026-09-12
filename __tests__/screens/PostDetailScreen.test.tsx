@@ -1,7 +1,10 @@
+import { AxiosError, type AxiosResponse } from 'axios'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { QueryClient } from '@tanstack/react-query'
 import PostDetailScreen from '@/features/feed/screens/PostDetailScreen'
 import { createTestDatabase } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
+import { trackQueryClient } from '../support/queryClients'
 
 jest.mock('@/shared/api/posts', () => ({
   getPost: jest.fn(),
@@ -45,9 +48,9 @@ function makePost(overrides: Partial<any> = {}) {
   }
 }
 
-function renderScreen(postId = 'post-1') {
+function renderScreen(postId = 'post-1', queryClient?: QueryClient) {
   return render(
-    <TestProviders database={createTestDatabase()}>
+    <TestProviders database={createTestDatabase()} queryClient={queryClient}>
       <PostDetailScreen navigation={navigation} route={{ params: { postId } } as any} />
     </TestProviders>,
   )
@@ -207,4 +210,93 @@ it('files a report for this post from the detail header', async () => {
       expect.objectContaining({ reportableType: 'post', reportableUuid: 'post-1' }),
     ),
   )
+})
+
+/**
+ * STOURIFY-279. This screen had no failure branch at all: it drew its loading
+ * placeholders whenever `isLoading || !post`, and a failed request leaves `post`
+ * undefined for good — so a refused, missing or unreachable post looked like a
+ * slow load that might still finish, with Back the only way out.
+ *
+ * The 403 and network tests are a pair, as on every screen since STOURIFY-225:
+ * the first alone would pass if the connection wording were deleted everywhere,
+ * which would break the one case where it is true.
+ */
+describe('when the post cannot be loaded', () => {
+  function answered(status: number, statusText: string) {
+    const config = { headers: {} } as never
+    return new AxiosError(`Request failed with status code ${status}`, String(status), config, {}, {
+      status,
+      statusText,
+      data: { message: statusText },
+      headers: {},
+      config,
+    } as AxiosResponse)
+  }
+
+  function unreachable() {
+    return new AxiosError('Network Error', AxiosError.ERR_NETWORK, { headers: {} } as never, {})
+  }
+
+  it('does not blame the connection at all when the server answered 403', async () => {
+    ;(getPost as jest.Mock).mockRejectedValue(answered(403, 'This action is unauthorized.'))
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText("Couldn't load this post")).toBeTruthy())
+    expect(screen.getByText(/isn't allowed/i)).toBeTruthy()
+    expect(screen.queryByText(/can't reach|connection|network|signal/i)).toBeNull()
+  })
+
+  it('says the post could not be found when the server answered 404', async () => {
+    ;(getPost as jest.Mock).mockRejectedValue(answered(404, 'Not Found'))
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText("Couldn't load this post")).toBeTruthy())
+    expect(screen.getByText(/couldn't find this/i)).toBeTruthy()
+  })
+
+  it('still blames the connection when there really was no answer', async () => {
+    ;(getPost as jest.Mock).mockRejectedValue(unreachable())
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText("Couldn't load this post")).toBeTruthy())
+    expect(screen.getByText(/check your connection/i)).toBeTruthy()
+  })
+
+  it('asks for the post again when Try again is pressed', async () => {
+    ;(getPost as jest.Mock).mockRejectedValue(unreachable())
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Try again')).toBeTruthy())
+    expect(getPost).toHaveBeenCalledTimes(1)
+
+    fireEvent.press(screen.getByText('Try again'))
+
+    // Copy without a working button is a nicer dead end, not a way out.
+    await waitFor(() => expect((getPost as jest.Mock).mock.calls.length).toBeGreaterThan(1))
+  })
+
+  /**
+   * Content beats an error. React Query keeps serving a post it already holds
+   * while a background refresh fails, so `isError` is true here while the
+   * reader is looking at a perfectly good post. This is what pins the failure
+   * branch to `isError && !post` rather than `isError` alone.
+   */
+  it('keeps showing a post it already has while the refresh is failing', async () => {
+    const queryClient = trackQueryClient(
+      new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+    )
+    queryClient.setQueryData(['post', 'post-1'], makePost())
+    ;(getPost as jest.Mock).mockRejectedValue(unreachable())
+
+    renderScreen('post-1', queryClient)
+
+    await waitFor(() => expect(getPost).toHaveBeenCalled())
+    await waitFor(() => expect(queryClient.getQueryState(['post', 'post-1'])?.status).toBe('error'))
+
+    expect(screen.getByText('Sunset at the cove')).toBeTruthy()
+    expect(screen.getByText('View all 2 comments')).toBeTruthy()
+    expect(screen.queryByText("Couldn't load this post")).toBeNull()
+    expect(screen.queryByText('Try again')).toBeNull()
+  })
 })

@@ -5,9 +5,18 @@ import { Pressable, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
+import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { getPost, setPostLike } from '@/shared/api/posts'
 import PostActionsSheet from '@/features/social/components/PostActionsSheet'
-import { Avatar, BarHeader, HashtagText, Icon, Skeleton, Text } from '@/shared/components/ui'
+import {
+  Avatar,
+  BarHeader,
+  EmptyState,
+  HashtagText,
+  Icon,
+  Skeleton,
+  Text,
+} from '@/shared/components/ui'
 import type { Post } from '@/shared/api/types'
 import { useTheme } from '@/theme/ThemeProvider'
 
@@ -37,10 +46,43 @@ export default function PostDetailScreen({ route, navigation }: Props) {
   const queryClient = useQueryClient()
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const { data: post, isLoading } = useQuery({
+  const {
+    data: post,
+    error,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: POST_QUERY_KEY(postId),
     queryFn: () => getPost(postId),
   })
+
+  /**
+   * Whether the body shows the failure panel instead of the post or its
+   * placeholders. It is asked first, so the placeholders' `isLoading || !post`
+   * below only ever means "still waiting".
+   *
+   * Before STOURIFY-279 there was no failure state: the placeholders were drawn
+   * whenever `isLoading || !post`, and a failed request leaves `post` undefined
+   * for good, so a refused, missing or unreachable post showed placeholders
+   * forever and looked like a slow load that might still finish.
+   *
+   * **`&& !post` is the load-bearing half.** React Query keeps serving a post
+   * it already holds while a background refresh fails, so `isError` alone is
+   * true in the one situation where the reader is looking at a perfectly good
+   * post. Content beats an error: the panel appears only when there is nothing
+   * to show (`SpotDetailScreen` for the same rule on one spot, STOURIFY-64;
+   * `FeedScreen` for lists).
+   */
+  const hasFailed = isError && !post
+
+  /**
+   * What the failure panel says, chosen from the failure that actually
+   * happened (STOURIFY-225): a refusal, a missing post, a timeout and a lost
+   * connection each read differently, and only the last mentions the
+   * connection.
+   */
+  const failure = describeRequestFailure(error, 'this post')
 
   /**
    * The same shape as the feed's like, and deliberately so — see `FeedScreen`
@@ -109,7 +151,15 @@ export default function PostDetailScreen({ route, navigation }: Props) {
       />
 
       <ScrollView contentContainerStyle={{ paddingBottom: theme.spacing[6] }}>
-        {isLoading || !post ? (
+        {hasFailed ? (
+          <EmptyState
+            icon={failure.icon}
+            title={failure.title}
+            subtitle={failure.subtitle}
+            actionLabel="Try again"
+            onAction={() => void refetch()}
+          />
+        ) : isLoading || !post ? (
           <View style={{ padding: theme.gutter, gap: theme.spacing[3] }}>
             <Skeleton height={PHOTO_HEIGHT} />
             <Skeleton height={20} width="60%" />
