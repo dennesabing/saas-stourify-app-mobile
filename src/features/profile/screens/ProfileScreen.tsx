@@ -109,15 +109,21 @@ export default function ProfileScreen({ route, navigation }: Props) {
    * to go back to, and artboard 6 draws the button for it. The Profile tab's
    * own root does not, so it gets none.
    *
-   * **Asked of this screen's own stack, not of `navigation.canGoBack()`** —
-   * and the emulator is why. `canGoBack()` also asks the tab bar above the
-   * stack, and a tab bar that remembers you came from Home answers yes, so the
-   * Profile tab's root drew a Back button that switched tabs instead of going
-   * anywhere back (STOURIFY-288's live run). A stack index above 0 means this
-   * screen was pushed onto something inside its own stack, which is the one
-   * case the button is for.
+   * **Asked as "am I the first screen in my own stack?"** — and the emulator
+   * rejected two easier questions (STOURIFY-288's live run):
+   *
+   * - `navigation.canGoBack()` also asks the tab bar above the stack, and a
+   *   tab bar that remembers you came from Home answers yes. The Profile tab's
+   *   root drew a Back button that switched tabs instead of going back.
+   * - The stack's `index` is right at the moment it is read, but reading it
+   *   during render does not subscribe to it. Choosing Light in Settings
+   *   re-rendered this screen while Settings sat on top (index 1), and popping
+   *   Settings did not re-render it, so the stale Back button stayed.
+   *
+   * Whether this route is the stack's first never changes while the screen
+   * exists, so a render at any moment gives the same, correct answer.
    */
-  const canGoBack = (navigation.getState?.()?.index ?? 0) > 0
+  const canGoBack = (navigation.getState?.()?.routes?.[0]?.key ?? route.key) !== route.key
 
   const [tab, setTab] = useState<ProfileTab>('spots')
   // Only your own profile has a Wishlist; a stale 'wishlist' can never show on

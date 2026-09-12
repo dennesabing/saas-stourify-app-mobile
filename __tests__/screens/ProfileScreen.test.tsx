@@ -125,11 +125,23 @@ let routeNames = PROFILE_STACK_ROUTES
 let stackIndex = 0
 let canGoBack = false
 
+/** The rendered screen's own route key — the last entry in the stack below. */
+const PROFILE_ROUTE_KEY = 'profile-route'
+
 const navigation = {
   navigate: jest.fn(),
   goBack: jest.fn(),
   canGoBack: () => canGoBack,
-  getState: () => ({ routeNames, index: stackIndex }),
+  // The stack as React Navigation reports it: `stackIndex` routes below this
+  // screen, then this screen. The screen asks whether it is the FIRST route.
+  getState: () => ({
+    routeNames,
+    index: stackIndex,
+    routes: [
+      ...Array.from({ length: stackIndex }, (_, i) => ({ key: `below-${i}` })),
+      { key: PROFILE_ROUTE_KEY },
+    ],
+  }),
 } as any
 
 /**
@@ -157,7 +169,7 @@ function renderProfile(userId?: string, queryClient?: QueryClient) {
         <QueryClientProvider client={qc}>
           <ProfileScreen
             navigation={navigation}
-            route={{ params: userId ? { userId } : undefined } as any}
+            route={{ key: PROFILE_ROUTE_KEY, params: userId ? { userId } : undefined } as any}
           />
         </QueryClientProvider>
       </ThemeProvider>
