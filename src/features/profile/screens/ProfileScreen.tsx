@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { Dimensions, FlatList, Image, Pressable, View } from 'react-native'
+import { Dimensions, FlatList, Image, Linking, Pressable, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { describeRequestFailure } from '@/shared/api/errorMessage'
@@ -10,17 +10,21 @@ import { getPosts, getUserPosts } from '@/shared/api/posts'
 import { follow, unfollow } from '@/shared/api/follows'
 import { blockUser } from '@/shared/api/blocks'
 import { extractApiError } from '@/shared/api/client'
+import { WISHLIST_QUERY_KEY, getWishlist, type WishlistItem } from '@/shared/api/wishlist'
 import ReportSheet from '@/features/social/components/ReportSheet'
+import SavedSpotRow from '@/features/spots/components/SavedSpotRow'
 import {
   Avatar,
+  BackButton,
   Button,
   Chip,
-  Divider,
   EmptyState,
+  Icon,
   Sheet,
   SheetOption,
   Skeleton,
   Text,
+  type IconName,
 } from '@/shared/components/ui'
 import { useAuthStore } from '@/shared/store/auth'
 import type { Post } from '@/shared/api/types'
@@ -28,8 +32,15 @@ import { useTheme } from '@/theme/ThemeProvider'
 
 type Props = NativeStackScreenProps<ProfileStackParamList, 'Profile'>
 
+/** The two content tabs. Somebody else's profile only ever has the first. */
+type ProfileTab = 'spots' | 'wishlist'
+
 const COLUMNS = 3
-const GRID_GAP = 2
+/** The design's `.grid3` gap and padding, in points. */
+const GRID_GAP = 4
+const GRID_PADDING = 14
+/** The design's round header buttons (`.cbtn`), the same size as `BackButton`. */
+const DISC = 38
 
 /**
  * The explorer identity surface — mine and anyone else's, one screen.
@@ -38,6 +49,12 @@ const GRID_GAP = 2
  * uuid) means mine. That single-screen shape is deliberate — the two differ
  * only in which endpoint feeds them and which action sits under the header, and
  * splitting them would duplicate the whole header for one button.
+ *
+ * **It is drawn from artboards 1 and 6 of `docs/design/Stourify - Profile.dc.html`**
+ * (STOURIFY-288): a left-aligned header, the three numbers on a card, one
+ * action button, and underline tabs over the content. What the canvas draws
+ * that nothing backs is deliberately absent — the cover photo, Trails, Badges,
+ * Message, Share and Mute. The card's `spec` names each and says why.
  *
  * **Two endpoints, and the distinction is not cosmetic** (STOURIFY-35). This
  * screen used to read `GET /users/{uuid}` — the boilerplate's platform-user
@@ -87,6 +104,16 @@ export default function ProfileScreen({ route, navigation }: Props) {
   const routeNames: string[] = navigation.getState?.()?.routeNames ?? []
   const canOpen = useCallback((name: string) => routeNames.includes(name), [routeNames])
 
+  // A profile pushed from the feed, a search or a follower list has somewhere
+  // to go back to, and artboard 6 draws the button for it. The Profile tab's
+  // own root does not, so it gets none rather than one that does nothing.
+  const canGoBack = navigation.canGoBack?.() ?? false
+
+  const [tab, setTab] = useState<ProfileTab>('spots')
+  // Only your own profile has a Wishlist; a stale 'wishlist' can never show on
+  // somebody else's, whatever the state says.
+  const activeTab: ProfileTab = isOwn ? tab : 'spots'
+
   const profileQuery = useQuery({
     queryKey: ['explorer-profile', isOwn ? 'me' : targetId],
     queryFn: () => (isOwn ? getMyProfile() : getProfile(targetId)),
@@ -97,6 +124,20 @@ export default function ProfileScreen({ route, navigation }: Props) {
     queryKey: ['explorer-posts', isOwn ? 'me' : targetId],
     queryFn: () => (isOwn ? getPosts({ mine: true }) : getUserPosts(targetId)),
     enabled: isOwn || targetId !== '',
+  })
+
+  /**
+   * The Wishlist tab's list — the SAME query as the Saved spots screen, same
+   * key, so opening one after the other costs nothing (STOURIFY-288).
+   *
+   * It waits for the tab to be opened. Most visits to a profile never look at
+   * the saves, and a request per visit for a list nobody asked to see is the
+   * kind of cost an offline-first app should not pay by default.
+   */
+  const wishlistQuery = useQuery({
+    queryKey: WISHLIST_QUERY_KEY,
+    queryFn: getWishlist,
+    enabled: isOwn && activeTab === 'wishlist',
   })
 
   const profile = profileQuery.data ?? null
@@ -124,6 +165,28 @@ export default function ProfileScreen({ route, navigation }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmingBlock, setConfirmingBlock] = useState(false)
   const [reporting, setReporting] = useState(false)
+
+  // ── My own menu (STOURIFY-288) ────────────────────────────────────────────
+  const [ownMenuOpen, setOwnMenuOpen] = useState(false)
+
+  /**
+   * What sat on the page as buttons before the redesign, now behind the round
+   * button at the top — the canvas's "more/settings menu". Only what the app
+   * has: its "Offline downloads" and "Claim your business" rows are features
+   * that do not exist.
+   *
+   * Each is gated exactly as the buttons were: this screen renders inside four
+   * stacks, and navigating to a route a stack has not registered throws. When
+   * none of them can be reached, the menu button is not drawn at all.
+   */
+  const ownMenu = (
+    [
+      { label: 'Settings', icon: '⚙️', route: 'Settings' },
+      // Posts you started and did not share (STOURIFY-159).
+      { label: 'Drafts', icon: '📝', route: 'Drafts' },
+      { label: 'Offline & sync', icon: '🔄', route: 'SyncStatus' },
+    ] as const
+  ).filter((item) => canOpen(item.route))
 
   /**
    * A block changes what several endpoints return, not one row, so the caches
@@ -169,7 +232,7 @@ export default function ProfileScreen({ route, navigation }: Props) {
   })
 
   const width = Dimensions.get('window').width
-  const tile = Math.floor((width - GRID_GAP * (COLUMNS - 1)) / COLUMNS)
+  const tile = Math.floor((width - GRID_PADDING * 2 - GRID_GAP * (COLUMNS - 1)) / COLUMNS)
 
   const renderTile = useCallback(
     ({ item }: { item: Post }) => {
@@ -200,6 +263,18 @@ export default function ProfileScreen({ route, navigation }: Props) {
     [navigation, theme.colors.surfaceAlt, tile],
   )
 
+  const renderSaved = useCallback(
+    ({ item }: { item: WishlistItem }) => (
+      <View style={{ paddingHorizontal: theme.gutter }}>
+        <SavedSpotRow
+          item={item}
+          onOpenSpot={(spotId) => navigation.navigate('SpotDetail', { spotId })}
+        />
+      </View>
+    ),
+    [navigation, theme.gutter],
+  )
+
   function renderFrame(children: React.ReactNode) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
@@ -211,7 +286,7 @@ export default function ProfileScreen({ route, navigation }: Props) {
   if (profileQuery.isLoading) {
     return renderFrame(
       <View style={{ padding: theme.gutter, gap: theme.spacing[4] }}>
-        <Skeleton height={88} width={88} />
+        <Skeleton height={92} width={92} />
         <Skeleton height={24} width="60%" />
         <Skeleton height={64} />
       </View>,
@@ -283,7 +358,7 @@ export default function ProfileScreen({ route, navigation }: Props) {
           // run with no signal, or a copy that has aged past the cache's 24
           // hours. Settings needs no network, and Blocked accounts and Offline
           // & sync are behind it. Gated on the stack actually registering the
-          // route, exactly like the buttons in the header below: this screen is
+          // route, exactly like the menu in the header below: this screen is
           // also pushed onto Home, Discover and Activity, none of which carry
           // Settings, and navigating to a route a stack does not have throws.
           {...(canOpen('Settings')
@@ -409,52 +484,144 @@ export default function ProfileScreen({ route, navigation }: Props) {
     <EmptyState icon="📷" title={isOwn ? 'You have not posted yet.' : 'No posts to show.'} />
   )
 
+  /**
+   * The Wishlist tab's empty states, in the Saved spots screen's own words
+   * (STOURIFY-280) — the same three situations with the same remedies, because
+   * it is the same list. A reader told "you have saved nothing" when the
+   * request actually failed goes away believing their saves were lost.
+   */
+  const wishlistFailure = describeRequestFailure(wishlistQuery.error, 'your saved spots')
+  const emptyWishlist = wishlistQuery.isPending ? (
+    <EmptyState icon="🔖" title="Loading your saved spots…" />
+  ) : wishlistQuery.isError ? (
+    <EmptyState
+      icon={wishlistFailure.icon}
+      title={wishlistFailure.title}
+      subtitle={wishlistFailure.subtitle}
+      actionLabel="Try again"
+      onAction={() => void wishlistQuery.refetch()}
+    />
+  ) : (
+    <EmptyState
+      icon="🔖"
+      title="Nothing saved yet"
+      subtitle="Tap the heart on any spot and it will show up here."
+    />
+  )
+
+  const header = (
+    <ProfileHeader
+      profile={profile}
+      isStale={showingSavedCopy}
+      // `profile.name` first for BOTH cases. Falling back to the username
+      // renders it twice — once as the name and once as the handle — which
+      // is what the header did before the server sent a name at all.
+      displayName={profile?.name ?? (isOwn ? currentUser?.name : undefined) ?? ''}
+      avatarUri={isOwn ? currentUser?.avatar : undefined}
+      isOwn={isOwn}
+      canOpen={canOpen}
+      onEdit={() => navigation.navigate('EditProfile')}
+      onFollowers={() => navigation.navigate('FollowList', { userId: targetId, type: 'followers' })}
+      onFollowing={() => navigation.navigate('FollowList', { userId: targetId, type: 'following' })}
+      onFollowToggle={() =>
+        viewer?.follow_uuid ? unfollowMutation.mutate() : followMutation.mutate()
+      }
+      followPending={followMutation.isPending || unfollowMutation.isPending}
+      tab={activeTab}
+      onTab={setTab}
+    />
+  )
+
+  // The menu button's place in the top bar. Mine opens my own menu; theirs
+  // opens Block and Report (STOURIFY-37), as the canvas draws both.
+  const menuButton = isOwn ? (
+    ownMenu.length > 0 ? (
+      <DiscButton icon="settings" label="Profile menu" onPress={() => setOwnMenuOpen(true)} />
+    ) : null
+  ) : (
+    <DiscButton icon="more" label="More options" onPress={() => setMenuOpen(true)} />
+  )
+
   return renderFrame(
     <>
-      <FlatList
-        testID="profile-grid"
-        data={posts}
-        keyExtractor={(post) => post.uuid}
-        renderItem={renderTile}
-        numColumns={COLUMNS}
-        columnWrapperStyle={{ gap: GRID_GAP }}
-        ListHeaderComponent={
-          <ProfileHeader
-            profile={profile}
-            isStale={showingSavedCopy}
-            // `profile.name` first for BOTH cases. Falling back to the username
-            // renders it twice — once as the name and once as the handle — which
-            // is what the header did before the server sent a name at all.
-            displayName={profile?.name ?? (isOwn ? currentUser?.name : undefined) ?? ''}
-            avatarUri={isOwn ? currentUser?.avatar : undefined}
-            isOwn={isOwn}
-            canOpen={canOpen}
-            onEdit={() => navigation.navigate('EditProfile')}
-            onSettings={() => navigation.navigate('Settings')}
-            onDrafts={() => navigation.navigate('Drafts')}
-            onSaved={() => navigation.navigate('Wishlist')}
-            onFollowers={() =>
-              navigation.navigate('FollowList', { userId: targetId, type: 'followers' })
-            }
-            onFollowing={() =>
-              navigation.navigate('FollowList', { userId: targetId, type: 'following' })
-            }
-            onFollowToggle={() =>
-              viewer?.follow_uuid ? unfollowMutation.mutate() : followMutation.mutate()
-            }
-            followPending={followMutation.isPending || unfollowMutation.isPending}
-            onMore={() => setMenuOpen(true)}
+      {canGoBack || menuButton ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: GRID_PADDING,
+            paddingTop: theme.spacing[1],
+            paddingBottom: theme.spacing[1],
+          }}
+        >
+          {canGoBack ? <BackButton onPress={() => navigation.goBack()} /> : <View />}
+          {menuButton}
+        </View>
+      ) : null}
+
+      {/*
+        One list per tab, keyed so the swap is a fresh list. React Native cannot
+        change `numColumns` on a list that is already on screen — it throws —
+        and the grid is three columns while the saved spots are one.
+      */}
+      {activeTab === 'wishlist' ? (
+        <FlatList
+          key="wishlist"
+          testID="profile-wishlist"
+          data={wishlistQuery.data ?? []}
+          keyExtractor={(item) => item.uuid}
+          renderItem={renderSaved}
+          ListHeaderComponent={header}
+          ListEmptyComponent={emptyWishlist}
+          ItemSeparatorComponent={() => <View style={{ height: theme.spacing[3] }} />}
+          contentContainerStyle={{ paddingBottom: theme.spacing[6] }}
+        />
+      ) : (
+        <FlatList
+          key="spots"
+          testID="profile-grid"
+          data={posts}
+          keyExtractor={(post) => post.uuid}
+          renderItem={renderTile}
+          numColumns={COLUMNS}
+          columnWrapperStyle={{ gap: GRID_GAP, paddingHorizontal: GRID_PADDING }}
+          ListHeaderComponent={header}
+          ListEmptyComponent={emptyGrid}
+        />
+      )}
+
+      <Sheet visible={ownMenuOpen} onClose={() => setOwnMenuOpen(false)}>
+        {ownMenu.map((item) => (
+          <SheetOption
+            key={item.route}
+            label={item.label}
+            icon={item.icon}
+            onPress={() => {
+              setOwnMenuOpen(false)
+              navigation.navigate(item.route)
+            }}
           />
-        }
-        ListEmptyComponent={emptyGrid}
-      />
+        ))}
+      </Sheet>
 
       {/* The overflow menu. Unblock is deliberately absent: once a block stands,
         this screen cannot be reached at all — `GET /profiles/{them}` answers 403
         for the blocker exactly as it does for the blocked party, because a
         different answer would announce the block (STOURIFY-36). Unblock lives on
-        the Blocked accounts list, which `GET /blocks` can always serve. */}
+        the Blocked accounts list, which `GET /blocks` can always serve. Report
+        comes first, as the canvas orders them; its "Share profile" and "Mute
+        notifications" rows are not built, because nothing backs either. */}
       <Sheet visible={menuOpen} onClose={() => setMenuOpen(false)}>
+        <SheetOption
+          label="Report"
+          icon="🚩"
+          description="Tell our team about this explorer. They will not know."
+          onPress={() => {
+            setMenuOpen(false)
+            setReporting(true)
+          }}
+        />
         <SheetOption
           label="Block"
           icon="🚫"
@@ -463,15 +630,6 @@ export default function ProfileScreen({ route, navigation }: Props) {
           onPress={() => {
             setMenuOpen(false)
             setConfirmingBlock(true)
-          }}
-        />
-        <SheetOption
-          label="Report"
-          icon="🚩"
-          description="Tell our team about this explorer. They will not know."
-          onPress={() => {
-            setMenuOpen(false)
-            setReporting(true)
           }}
         />
       </Sheet>
@@ -521,6 +679,59 @@ export default function ProfileScreen({ route, navigation }: Props) {
   )
 }
 
+/**
+ * A round header button — the canvas's `.cbtn`. Drawn like `BackButton`, the
+ * disc beside it, so the two read as one pair of controls.
+ *
+ * The glyph is decorative (`Icon` hides itself from screen readers); the
+ * accessible label carries the whole meaning.
+ */
+function DiscButton({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: IconName
+  label: string
+  onPress: () => void
+}) {
+  const theme = useTheme()
+  const slop = (theme.minTouchTarget - DISC) / 2
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={slop}
+      style={({ pressed }) => ({
+        width: DISC,
+        height: DISC,
+        borderRadius: DISC / 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: theme.colors.surfaceAlt,
+        opacity: pressed ? 0.85 : 1,
+      })}
+    >
+      <Icon name={icon} size={18} />
+    </Pressable>
+  )
+}
+
+/**
+ * The address a person typed, made into one the phone can open. People write
+ * `alexrivera.co`, not `https://alexrivera.co`, and a bare host is not a URL.
+ */
+function websiteUrl(website: string): string {
+  return /^https?:\/\//i.test(website) ? website : `https://${website}`
+}
+
+/** The address as people read it — no scheme, no trailing slash. */
+function websiteLabel(website: string): string {
+  return website.replace(/^https?:\/\//i, '').replace(/\/$/, '')
+}
+
 interface HeaderProps {
   profile: ExplorerProfile | null
   /** The refresh failed and this is the copy saved on the device. */
@@ -530,33 +741,31 @@ interface HeaderProps {
   isOwn: boolean
   canOpen: (name: string) => boolean
   onEdit: () => void
-  onSettings: () => void
-  onDrafts: () => void
-  onSaved: () => void
   onFollowers: () => void
   onFollowing: () => void
   onFollowToggle: () => void
   followPending: boolean
-  /** Opens the block/report menu. Only ever called on somebody else's profile. */
-  onMore: () => void
+  tab: ProfileTab
+  onTab: (tab: ProfileTab) => void
 }
 
 /**
- * The identity header.
+ * The identity header — artboards 1 and 6 from the avatar down to the tabs.
  *
- * The AFFORDANCE SLOT that stood here is filled: block and report live in
- * `ProfileActions` below, in the `else` branch beside the follow button
- * (STOURIFY-37).
+ * Left-aligned, as the canvas draws it. The canvas hangs the avatar over a
+ * cover photo; a profile has no cover field, so the header starts at the avatar
+ * rather than under a grey band that would read as an image that failed to
+ * load (STOURIFY-264 trained reviewers to see grey as broken).
  *
- * One thing that note got wrong, worth recording because it looks right. It
- * said to gate the two actions on `profile.can`. That map comes from
+ * Block and report are NOT gated on `profile.can`, and the reason is worth
+ * keeping because it looks right. That map comes from
  * `BaseResource::resolvePermissions()`, which resolves `view` / `update` /
  * `delete` **against the ExplorerProfile row** — so `can.update` is true only
  * for the profile's owner, and gating Block on it would show the button on the
  * one profile where blocking is meaningless and hide it everywhere it matters.
  * The abilities that really govern these two (`stourify.follows.manage`,
  * `stourify.reports.create`) are held by every explorer and are not reported
- * per target by any payload. So the gate is the `else` branch itself.
+ * per target by any payload. So the gate is `isOwn` itself.
  */
 function ProfileHeader({
   profile,
@@ -566,26 +775,19 @@ function ProfileHeader({
   isOwn,
   canOpen,
   onEdit,
-  onSettings,
-  onDrafts,
-  onSaved,
   onFollowers,
   onFollowing,
   onFollowToggle,
   followPending,
-  onMore,
+  tab,
+  onTab,
 }: HeaderProps) {
   const theme = useTheme()
   const counts = profile?.counts
+  const website = profile?.website
 
   return (
-    <View
-      style={{
-        paddingHorizontal: theme.gutter,
-        paddingTop: theme.spacing[4],
-        gap: theme.spacing[3],
-      }}
-    >
+    <View style={{ gap: theme.spacing[4], paddingTop: theme.spacing[2] }}>
       {/*
         Said out loud rather than left to be inferred. Showing a saved copy in
         silence is the quiet lie an offline app cannot afford: a follower count
@@ -595,70 +797,117 @@ function ProfileHeader({
         a control that can be dismissed is one that has to remember it was.
       */}
       {isStale ? (
-        <Text variant="caption" color="muted" style={{ textAlign: 'center' }}>
+        <Text
+          variant="caption"
+          color="muted"
+          style={{ textAlign: 'center', paddingHorizontal: theme.gutter }}
+        >
           Saved on this device — we could not refresh it just now, so it may be out of date.
         </Text>
       ) : null}
 
-      <View style={{ alignItems: 'center', gap: theme.spacing[2] }}>
-        <Avatar uri={avatarUri} name={displayName || profile?.username} size={88} ringed />
+      <View style={{ paddingHorizontal: theme.gutter, gap: theme.spacing[1] }}>
+        <Avatar uri={avatarUri} name={displayName || profile?.username} size={92} />
 
         {displayName ? (
-          <Text variant="h1" numberOfLines={1}>
+          <Text variant="h1" numberOfLines={2} style={{ marginTop: theme.spacing[2] }}>
             {displayName}
           </Text>
         ) : null}
 
+        {/*
+          "@username · home city" — two pieces on one line rather than one
+          string, so the handle stays a thing of its own for a screen reader
+          and for every test that finds the profile by it.
+        */}
         {profile?.username ? (
-          <Text variant="caption" color="muted">
-            @{profile.username}
-          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing[1] }}>
+            <Text variant="caption" color="muted">
+              @{profile.username}
+            </Text>
+            {profile.home_city ? (
+              <>
+                <Text variant="caption" color="muted">
+                  ·
+                </Text>
+                <Text variant="caption" color="muted">
+                  {profile.home_city.name}
+                </Text>
+              </>
+            ) : null}
+          </View>
         ) : null}
 
         {profile?.bio ? (
-          <Text variant="body" color="muted" style={{ textAlign: 'center' }}>
+          <Text variant="body" style={{ marginTop: theme.spacing[2] }}>
             {profile.bio}
           </Text>
         ) : null}
 
-        {profile?.home_city ? (
-          <Text variant="caption" color="muted">
-            📍 {profile.home_city.name}
-          </Text>
+        {website ? (
+          <Pressable
+            onPress={() => void Linking.openURL(websiteUrl(website)).catch(() => {})}
+            accessibilityRole="link"
+            accessibilityHint="Opens in your browser"
+            hitSlop={theme.spacing[2]}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+              alignSelf: 'flex-start',
+              marginTop: theme.spacing[1],
+            }}
+          >
+            <Icon name="link" size={15} color="primary" />
+            <Text
+              variant="caption"
+              color="primary"
+              style={{ fontFamily: theme.fontFamily.bodySemiBold }}
+            >
+              {websiteLabel(website)}
+            </Text>
+          </Pressable>
+        ) : null}
+
+        {profile?.interests?.length ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              gap: theme.spacing[2],
+              marginTop: theme.spacing[2],
+            }}
+          >
+            {profile.interests.map((interest) => (
+              <Chip key={interest} label={interest} />
+            ))}
+          </View>
         ) : null}
       </View>
 
-      {profile?.interests?.length ? (
-        <View
-          style={{
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            gap: theme.spacing[2],
-            justifyContent: 'center',
-          }}
-        >
-          {profile.interests.map((interest) => (
-            <Chip key={interest} label={interest} />
-          ))}
-        </View>
-      ) : null}
-
       {/* Counts come from the server's computed aggregates. They rendered as a
           literal "–" before STOURIFY-35 because the endpoint being read did not
-          carry them at all. */}
+          carry them at all. The card and the hairlines between the three are
+          the canvas's `.pf-stats`. */}
       <View
         style={{
           flexDirection: 'row',
-          justifyContent: 'space-evenly',
+          marginHorizontal: theme.gutter,
           paddingVertical: theme.spacing[3],
+          borderRadius: theme.radius.card,
+          borderWidth: 1,
+          borderColor: theme.colors.hairline,
+          backgroundColor: theme.colors.card,
         }}
       >
         <CountStat label="Spots" value={counts?.spots ?? 0} />
+        <StatDivider />
         <CountStat
           label="Followers"
           value={counts?.followers ?? 0}
           onPress={canOpen('FollowList') ? onFollowers : undefined}
         />
+        <StatDivider />
         <CountStat
           label="Following"
           value={counts?.following ?? 0}
@@ -671,15 +920,11 @@ function ProfileHeader({
         isOwn={isOwn}
         canOpen={canOpen}
         onEdit={onEdit}
-        onSettings={onSettings}
-        onDrafts={onDrafts}
-        onSaved={onSaved}
         onFollowToggle={onFollowToggle}
         followPending={followPending}
-        onMore={onMore}
       />
 
-      <Divider />
+      <ProfileTabs isOwn={isOwn} value={tab} onChange={onTab} />
     </View>
   )
 }
@@ -689,65 +934,36 @@ interface ActionsProps {
   isOwn: boolean
   canOpen: (name: string) => boolean
   onEdit: () => void
-  onSettings: () => void
-  onDrafts: () => void
-  onSaved: () => void
   onFollowToggle: () => void
   followPending: boolean
-  onMore: () => void
 }
 
 /**
- * The action row under the header — Follow, and beside it the overflow that
- * carries Block and Report (STOURIFY-37).
+ * The one action under the header — Edit profile on mine, Follow on theirs.
+ *
+ * The canvas draws a second button beside each (Share on mine, Message on
+ * theirs) and nothing backs either, so each button gets the whole row. That is
+ * also what ends "Edit Profi…" (STOURIFY-269): three buttons sharing a 360dp
+ * row left each too narrow for its label.
  */
 function ProfileActions({
   profile,
   isOwn,
   canOpen,
   onEdit,
-  onSettings,
-  onDrafts,
-  onSaved,
   onFollowToggle,
   followPending,
-  onMore,
 }: ActionsProps) {
   const theme = useTheme()
 
   if (isOwn) {
-    return (
-      <View style={{ gap: theme.spacing[2] }}>
-        <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
-          {canOpen('EditProfile') ? (
-            <Button label="Edit Profile" variant="secondary" onPress={onEdit} style={{ flex: 1 }} />
-          ) : null}
-          {canOpen('Settings') ? (
-            <Button label="Settings" variant="secondary" onPress={onSettings} style={{ flex: 1 }} />
-          ) : null}
-          {/* Posts you started and did not share (STOURIFY-159). Guarded like its
-              neighbours: this renders inside four different stacks, and navigating
-              to a route a stack has not registered throws. */}
-          {canOpen('Drafts') ? (
-            <Button label="Drafts" variant="secondary" onPress={onDrafts} style={{ flex: 1 }} />
-          ) : null}
-        </View>
-
-        {/*
-          The way to your saved spots, and until STOURIFY-195 there wasn't one:
-          the heart on a spot saved it correctly and the app had nowhere to show
-          you the result.
-
-          It gets a row of its own rather than becoming a fourth button beside
-          the three above. Four labels of this length on a 360dp screen wrap to
-          two lines each and the row stops looking like a row — the same reason
-          `DiscoverScreen` puts "Explore on a map" on its own line.
-        */}
-        {canOpen('Wishlist') ? (
-          <Button label="Saved spots" variant="secondary" fullWidth onPress={onSaved} />
-        ) : null}
+    // Guarded like everything else that navigates: this renders inside four
+    // stacks, and only the Profile stack registers EditProfile.
+    return canOpen('EditProfile') ? (
+      <View style={{ paddingHorizontal: theme.gutter }}>
+        <Button label="Edit profile" onPress={onEdit} fullWidth />
       </View>
-    )
+    ) : null
   }
 
   // Three states, not two. A pending request to a private account is neither
@@ -761,38 +977,106 @@ function ProfileActions({
     status === 'active' ? 'Unfollow' : status === 'pending' ? 'Cancel follow request' : 'Follow'
 
   return (
-    <View style={{ flexDirection: 'row', gap: theme.spacing[2] }}>
+    <View style={{ paddingHorizontal: theme.gutter }}>
       <Button
         label={label}
         accessibilityLabel={action}
         variant={status === null || status === undefined ? 'primary' : 'secondary'}
         onPress={onFollowToggle}
         loading={followPending}
-        style={{ flex: 1 }}
+        fullWidth
       />
-
-      {/* Not a Button: the kit's Button is a labelled control and this is a
-          glyph. The visible "⋯" says nothing to a screen reader, so the
-          accessible label carries the whole meaning. */}
-      <Pressable
-        onPress={onMore}
-        accessibilityRole="button"
-        accessibilityLabel="More options"
-        style={{
-          minWidth: theme.minTouchTarget,
-          minHeight: theme.minTouchTarget,
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: theme.radius.button,
-          borderWidth: 1,
-          borderColor: theme.colors.hairline,
-        }}
-      >
-        <Text variant="h2" color="muted">
-          ⋯
-        </Text>
-      </Pressable>
     </View>
+  )
+}
+
+/**
+ * The content tabs — the canvas's `.pf-tabs`: an icon and a label each, the
+ * chosen one in azure with an azure line under it.
+ *
+ * Not `SegmentedControl`. That draws a grey track with a raised white segment,
+ * which is the Search results switch; the canvas draws this one as underline
+ * tabs, and a reader tells the two apart by exactly that difference.
+ *
+ * Somebody else's profile has one tab. The canvas gives it a second, "Trails ·
+ * 12", and there are no trails; a single tab still names what the grid below
+ * it is.
+ */
+function ProfileTabs({
+  isOwn,
+  value,
+  onChange,
+}: {
+  isOwn: boolean
+  value: ProfileTab
+  onChange: (tab: ProfileTab) => void
+}) {
+  const theme = useTheme()
+  const tabs: { key: ProfileTab; label: string; icon: IconName }[] = isOwn
+    ? [
+        { key: 'spots', label: 'Spots', icon: 'grid' },
+        { key: 'wishlist', label: 'Wishlist', icon: 'bookmark' },
+      ]
+    : [{ key: 'spots', label: 'Spots', icon: 'grid' }]
+
+  return (
+    <View
+      accessibilityRole="tablist"
+      style={{
+        flexDirection: 'row',
+        paddingHorizontal: GRID_PADDING,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.hairline,
+        marginBottom: GRID_PADDING - GRID_GAP,
+      }}
+    >
+      {tabs.map((t) => {
+        const selected = t.key === value
+
+        return (
+          <Pressable
+            key={t.key}
+            onPress={() => onChange(t.key)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            accessibilityLabel={t.label}
+            style={{
+              flex: 1,
+              minHeight: theme.minTouchTarget,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              borderBottomWidth: 2,
+              borderBottomColor: selected ? theme.colors.primary : 'transparent',
+              marginBottom: -1,
+            }}
+          >
+            <Icon name={t.icon} size={16} color={selected ? 'primary' : 'muted'} />
+            <Text
+              variant="caption"
+              color={selected ? 'primary' : 'muted'}
+              style={{ fontFamily: theme.fontFamily.bodySemiBold }}
+            >
+              {t.label}
+            </Text>
+          </Pressable>
+        )
+      })}
+    </View>
+  )
+}
+
+/** The hairline between two numbers on the stats card, inset top and bottom. */
+function StatDivider() {
+  const theme = useTheme()
+
+  return (
+    <View
+      style={{ width: 1, marginVertical: 6, backgroundColor: theme.colors.hairline }}
+      accessibilityElementsHidden
+      importantForAccessibility="no"
+    />
   )
 }
 
@@ -813,10 +1097,12 @@ function CountStat({
       disabled={!onPress}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={onPress ? `${value} ${label}` : undefined}
-      style={{ alignItems: 'center', minWidth: theme.minTouchTarget }}
+      style={{ flex: 1, alignItems: 'center', minHeight: theme.minTouchTarget }}
     >
-      <Text variant="h2">{String(value)}</Text>
-      <Text variant="caption" color="muted">
+      <Text variant="h2" style={{ fontFamily: theme.fontFamily.displayBold }}>
+        {String(value)}
+      </Text>
+      <Text variant="micro" color="muted">
         {label}
       </Text>
     </Pressable>

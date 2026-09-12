@@ -6,8 +6,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { ProfileStackParamList } from '@/shared/navigation/types'
 import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { WISHLIST_QUERY_KEY, getWishlist, type WishlistItem } from '@/shared/api/wishlist'
-import { thumbFor } from '@/features/discover/api/exploreSpots'
-import { EmptyState, SpotCard, Text } from '@/shared/components/ui'
+import SavedSpotRow from '@/features/spots/components/SavedSpotRow'
+import { EmptyState, Text } from '@/shared/components/ui'
 import { useRefetchOnFocus } from '@/shared/hooks/useRefetchOnFocus'
 import { useTheme } from '@/theme/ThemeProvider'
 
@@ -55,44 +55,15 @@ export default function SavedSpotsScreen({ navigation }: Props) {
 
   const items = data ?? []
 
+  // The row is shared with the Wishlist tab on your own profile (STOURIFY-288).
   const renderItem = useCallback(
-    ({ item }: { item: WishlistItem }) => {
-      const { spot } = item
-
-      // A saved row whose spot is gone. Rendering nothing would silently shorten
-      // the list, so it says what happened instead — the alternative is an
-      // explorer counting their saves and finding one missing with no reason.
-      if (!spot) {
-        return (
-          <View
-            testID="saved-spot-missing"
-            style={{
-              padding: theme.spacing[3],
-              backgroundColor: theme.colors.surfaceAlt,
-              borderRadius: theme.radius.card,
-            }}
-          >
-            <Text variant="body" color="muted">
-              This spot is no longer available.
-            </Text>
-          </View>
-        )
-      }
-
-      return (
-        <SpotCard
-          title={spot.title}
-          layout="wide"
-          category={spot.categories?.[0]}
-          imageUri={thumbFor(spot)}
-          rating={spot.rating_average}
-          reviewCount={spot.reviews_count}
-          meta={spot.address}
-          onPress={() => navigation.navigate('SpotDetail', { spotId: spot.uuid })}
-        />
-      )
-    },
-    [navigation, theme],
+    ({ item }: { item: WishlistItem }) => (
+      <SavedSpotRow
+        item={item}
+        onOpenSpot={(spotId) => navigation.navigate('SpotDetail', { spotId })}
+      />
+    ),
+    [navigation],
   )
 
   /**

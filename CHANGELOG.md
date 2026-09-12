@@ -20,6 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The Profile screen matches the Profile design, for your own profile and for anyone else's
+  (STOURIFY-288).** Same data and the same actions, laid out the way artboards 1 and 6 draw them:
+  - The header is left-aligned: your avatar, your name in Fraunces, "@username · home city", your
+    bio and your website as a link. The three numbers sit on a card.
+  - On your own profile, a full-width "Edit profile" button shows its whole label (STOURIFY-269).
+    Settings, Drafts and Offline & sync move into a menu behind the round button at the top right.
+  - Your profile has **Spots** and **Wishlist** tabs. Wishlist lists your saved spots right there,
+    using the same request and the same rows as the Saved spots screen, so the "Saved spots"
+    button is gone. The row now lives in `src/features/spots/components/SavedSpotRow.tsx`.
+  - Somebody else's profile has a round back button, a Follow pill (Following or Requested as
+    before), and Report and Block behind the ⋯ at the top right.
+  - Not built, because nothing backs them yet: the cover photo, Trails, Badges, Message, Share and
+    Mute.
 - **First-run onboarding matches the Onboarding design (STOURIFY-287).** The four screens after
   sign-up now share one frame (`src/features/onboarding/components/OnboardingFrame.tsx`): a
   four-part progress bar with Skip at its right, the Fraunces heading, and the main button pinned
