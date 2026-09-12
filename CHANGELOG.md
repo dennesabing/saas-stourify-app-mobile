@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A post that fails to load now says so, instead of loading forever (STOURIFY-279).** The post
+  screen had no failure state: it drew its grey placeholders whenever the post was missing, and a
+  failed request leaves it missing for good. So a post the server refused, a post that no longer
+  exists and a lost connection all looked like a slow load that might still finish, and Back was the
+  only way out. The screen now shows "Couldn't load this post" with a **Try again** button, and the
+  sentence under it comes from `describeRequestFailure()`: a refusal says the account isn't allowed
+  to see this, a missing post says it may have been removed, and only a genuine lost connection says
+  to check it. A post already on screen stays when a background refresh fails: the panel appears
+  only when there is nothing to show.
 - **Saved spots now says what actually went wrong (STOURIFY-280).** When the list of saved spots
   failed to load, the screen said "Can't reach Stourify … try again once you have signal" for every
   failure, even when the server had answered and refused. Its words now come from
