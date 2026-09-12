@@ -13,6 +13,38 @@ const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 
 beforeEach(() => jest.clearAllMocks())
 
+it('asks what the explorer is into, as the second of four steps', () => {
+  render(
+    <TestProviders database={createTestDatabase()}>
+      <InterestsScreen navigation={navigation} route={{} as any} />
+    </TestProviders>,
+  )
+
+  expect(screen.getByText('What are you into?')).toBeTruthy()
+  expect(screen.getByLabelText('Step 2 of 4')).toBeTruthy()
+})
+
+/**
+ * The design's pinned button counts what you picked — "Continue · 4 selected"
+ * — so the reader can see the choice registered without scrolling back up.
+ */
+it('counts the selection on the pinned button', () => {
+  render(
+    <TestProviders database={createTestDatabase()}>
+      <InterestsScreen navigation={navigation} route={{} as any} />
+    </TestProviders>,
+  )
+
+  expect(screen.getByText('Continue')).toBeTruthy()
+
+  fireEvent.press(screen.getByText('Nature'))
+  fireEvent.press(screen.getByText('Food'))
+  expect(screen.getByText('Continue · 2 selected')).toBeTruthy()
+
+  fireEvent.press(screen.getByText('Food'))
+  expect(screen.getByText('Continue · 1 selected')).toBeTruthy()
+})
+
 it('writes the selected interests to the local explorer profile and advances to Home city', async () => {
   const database = createTestDatabase()
   await seedExplorerProfile(database)
@@ -25,7 +57,7 @@ it('writes the selected interests to the local explorer profile and advances to 
 
   fireEvent.press(screen.getByText('Nature'))
   fireEvent.press(screen.getByText('Food'))
-  fireEvent.press(screen.getByText('Continue'))
+  fireEvent.press(screen.getByText('Continue · 2 selected'))
 
   await waitFor(() => {
     expect(navigation.navigate).toHaveBeenCalledWith('HomeCity')
@@ -70,7 +102,7 @@ it('sends the interests to the server when the local profile has not synced yet'
   )
 
   fireEvent.press(screen.getByText('Nature'))
-  fireEvent.press(screen.getByText('Continue'))
+  fireEvent.press(screen.getByText('Continue · 1 selected'))
 
   await waitFor(() => expect(navigation.navigate).toHaveBeenCalledWith('HomeCity'))
 
