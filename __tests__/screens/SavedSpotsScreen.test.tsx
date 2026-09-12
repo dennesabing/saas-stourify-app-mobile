@@ -1,3 +1,4 @@
+import { AxiosError, type AxiosResponse } from 'axios'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react-native'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import SavedSpotsScreen from '@/features/spots/screens/SavedSpotsScreen'
@@ -86,10 +87,56 @@ it('says the request failed rather than claiming nothing is saved', async () => 
   renderScreen()
 
   await waitFor(() => {
-    expect(screen.getByText("Can't reach Stourify")).toBeTruthy()
+    expect(screen.getByText("Couldn't load your saved spots")).toBeTruthy()
   })
 
   expect(screen.queryByText('Nothing saved yet')).toBeNull()
+  expect(screen.getByText('Try again')).toBeTruthy()
+})
+
+/**
+ * STOURIFY-280, following STOURIFY-225 and -250. This panel was headed "Can't
+ * reach Stourify" over "…try again once you have signal" for every failure,
+ * including a refusal the server answered — so, as on Discover, the headline was
+ * part of the wrong claim, and the refusal test forbids any wording about
+ * reaching, connection or signal. The pair is the point: the first test alone
+ * would pass if the connection wording were deleted everywhere, which would
+ * break the one case where it is true.
+ */
+describe('the failure it reports is the failure that happened', () => {
+  function forbidden() {
+    const config = { headers: {} } as never
+    return new AxiosError('Request failed with status code 403', '403', config, {}, {
+      status: 403,
+      statusText: 'Forbidden',
+      data: { message: 'This action is unauthorized.' },
+      headers: {},
+      config,
+    } as AxiosResponse)
+  }
+
+  it('does not blame the connection at all when the server answered 403', async () => {
+    mockGetWishlist.mockRejectedValue(forbidden())
+    renderScreen()
+
+    await waitFor(() => {
+      expect(screen.getByText("Couldn't load your saved spots")).toBeTruthy()
+    })
+    expect(screen.queryByText(/can't reach|connection|signal/i)).toBeNull()
+    expect(screen.getByText(/isn't allowed/i)).toBeTruthy()
+  })
+
+  it('still blames the connection when there really was no answer', async () => {
+    mockGetWishlist.mockRejectedValue(
+      new AxiosError('Network Error', AxiosError.ERR_NETWORK, { headers: {} } as never, {}),
+    )
+    renderScreen()
+
+    await waitFor(() => {
+      expect(screen.getByText("Couldn't load your saved spots")).toBeTruthy()
+    })
+    expect(screen.getByText(/check your connection/i)).toBeTruthy()
+  })
 })
 
 /**

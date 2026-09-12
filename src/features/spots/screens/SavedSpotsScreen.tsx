@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { ProfileStackParamList } from '@/shared/navigation/types'
+import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { WISHLIST_QUERY_KEY, getWishlist, type WishlistItem } from '@/shared/api/wishlist'
 import { thumbFor } from '@/features/discover/api/exploreSpots'
 import { EmptyState, SpotCard, Text } from '@/shared/components/ui'
@@ -29,10 +30,24 @@ type Props = NativeStackScreenProps<ProfileStackParamList, 'Wishlist'>
 export default function SavedSpotsScreen({ navigation }: Props) {
   const theme = useTheme()
 
-  const { data, isPending, isError, refetch, isRefetching } = useQuery({
+  const { data, error, isPending, isError, refetch, isRefetching } = useQuery({
     queryKey: WISHLIST_QUERY_KEY,
     queryFn: getWishlist,
   })
+
+  /**
+   * What the failure panel says, chosen from the failure that actually
+   * happened (STOURIFY-280, following STOURIFY-225 and -250).
+   *
+   * It used to read "Can't reach Stourify" over "…Your saves are safe — try
+   * again once you have signal" for every failure, including a refusal the
+   * server answered. As on Discover, the headline was part of the wrong claim,
+   * so all three fields come from the helper. "Your saves are safe" was dropped
+   * rather than kept as a suffix: after a 404 it would contradict the helper's
+   * "It may have been removed", and the headline already says the loading
+   * failed, not the saves. The decision is recorded on STOURIFY-280.
+   */
+  const failure = describeRequestFailure(error, 'your saved spots')
 
   // A save made on the spot page has to appear here when you come back, and
   // this screen stays mounted between visits (STOURIFY-200).
@@ -91,9 +106,9 @@ export default function SavedSpotsScreen({ navigation }: Props) {
     <EmptyState icon="🔖" title="Loading your saved spots…" />
   ) : isError ? (
     <EmptyState
-      icon="📡"
-      title="Can't reach Stourify"
-      subtitle="We couldn't load your saved spots just now. Your saves are safe — try again once you have signal."
+      icon={failure.icon}
+      title={failure.title}
+      subtitle={failure.subtitle}
       actionLabel="Try again"
       onAction={() => void refetch()}
     />
