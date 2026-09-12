@@ -6,6 +6,7 @@
  * (`docs/mobile-delivery/technical-spec.md` §10).
  */
 export { default as Avatar } from './Avatar'
+export { default as BackButton } from './BackButton'
 export { default as BarHeader } from './BarHeader'
 export { default as BuildIdentity } from './BuildIdentity'
 export { default as Button } from './Button'

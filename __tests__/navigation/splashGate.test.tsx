@@ -50,8 +50,13 @@ it('shows the splash and never the Login screen while the token is rehydrating',
 
   // The gate: before rehydration resolves, no auth screen may be on screen.
   expect(screen.queryByText('MAIN_TABS')).toBeNull()
-  expect(screen.queryByText('Sign in')).toBeNull()
+  expect(screen.queryByText('Log in')).toBeNull()
+  expect(screen.queryByText('Welcome back')).toBeNull()
   expect(screen.getByTestId('splash')).toBeTruthy()
+  // What the gate shows is the brand, as the Auth & Entry design draws it
+  // (STOURIFY-286) — still only for as long as the reads take.
+  expect(screen.getByText('Stourify')).toBeTruthy()
+  expect(screen.getByText('Your local adventure starts here')).toBeTruthy()
 
   mockResolveLoad.current()
 

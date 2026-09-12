@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
-import { KeyboardAvoidingView } from 'react-native'
+import { KeyboardAvoidingView, Linking } from 'react-native'
 import RegisterScreen from '@/features/auth/screens/RegisterScreen'
 import * as authApi from '@/shared/api/auth'
+import { PRIVACY_POLICY_URL, TERMS_URL } from '@/shared/config/legal'
 import { onLogin } from '@/sync/session'
 import { useOnboardingStore } from '@/shared/store/onboarding'
 import { createTestDatabase } from '../support/testDatabase'
@@ -72,8 +73,8 @@ it('flags onboarding BEFORE the token flips, so the feed never mounts first', as
 
 async function fillValidForm() {
   fireEvent.changeText(screen.getByPlaceholderText('Your name'), 'Ada')
-  fireEvent.changeText(screen.getByPlaceholderText('you@example.com'), 'a@b.com')
-  fireEvent.changeText(screen.getByPlaceholderText('At least 8 characters'), 'password123')
+  fireEvent.changeText(screen.getByPlaceholderText('you@email.com'), 'a@b.com')
+  fireEvent.changeText(screen.getByPlaceholderText('Create a password'), 'password123')
   fireEvent.changeText(screen.getByPlaceholderText('Repeat your password'), 'password123')
 }
 
@@ -107,8 +108,8 @@ it('routes into onboarding after a successful registration — never after an or
 it('does not submit when the passwords differ', async () => {
   renderScreen()
   fireEvent.changeText(screen.getByPlaceholderText('Your name'), 'Ada')
-  fireEvent.changeText(screen.getByPlaceholderText('you@example.com'), 'a@b.com')
-  fireEvent.changeText(screen.getByPlaceholderText('At least 8 characters'), 'password123')
+  fireEvent.changeText(screen.getByPlaceholderText('you@email.com'), 'a@b.com')
+  fireEvent.changeText(screen.getByPlaceholderText('Create a password'), 'password123')
   fireEvent.changeText(screen.getByPlaceholderText('Repeat your password'), 'different')
   fireEvent.press(screen.getByText('Create account'))
 
@@ -160,4 +161,68 @@ it('moves its fields clear of the keyboard — STOURIFY-100', () => {
   renderScreen()
 
   expect(screen.UNSAFE_getByType(KeyboardAvoidingView)).toBeTruthy()
+})
+
+// STOURIFY-286 — the Auth & Entry design.
+
+it('opens with the design heading', () => {
+  renderScreen()
+
+  expect(screen.getByText('Create your account')).toBeTruthy()
+  expect(screen.getByText('Join a community discovering local gems.')).toBeTruthy()
+})
+
+it('rates the password as it is typed, and never blocks on it', async () => {
+  renderScreen()
+
+  expect(screen.getByText('Use 8+ characters')).toBeTruthy()
+
+  fireEvent.changeText(screen.getByPlaceholderText('Create a password'), 'abc')
+  expect(screen.getByText('Strength: Weak')).toBeTruthy()
+
+  fireEvent.changeText(screen.getByPlaceholderText('Create a password'), 'Password1!')
+  expect(screen.getByText('Strength: Strong')).toBeTruthy()
+
+  // A weak-but-valid password still goes to the server, which has the final say.
+  fireEvent.changeText(screen.getByPlaceholderText('Your name'), 'Ada')
+  fireEvent.changeText(screen.getByPlaceholderText('you@email.com'), 'a@b.com')
+  fireEvent.changeText(screen.getByPlaceholderText('Create a password'), 'password')
+  fireEvent.changeText(screen.getByPlaceholderText('Repeat your password'), 'password')
+  expect(screen.getByText('Strength: Weak')).toBeTruthy()
+  fireEvent.press(screen.getByText('Create account'))
+
+  await waitFor(() => expect(authApi.register).toHaveBeenCalled())
+})
+
+it('links the Terms and the Privacy Policy to the pages Settings opens', () => {
+  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true)
+  renderScreen()
+
+  fireEvent.press(screen.getByText('Terms'))
+  expect(openURL).toHaveBeenLastCalledWith(TERMS_URL)
+
+  fireEvent.press(screen.getByText('Privacy Policy'))
+  expect(openURL).toHaveBeenLastCalledWith(PRIVACY_POLICY_URL)
+
+  openURL.mockRestore()
+})
+
+it('sends someone with an account to log in', () => {
+  renderScreen()
+
+  fireEvent.press(screen.getByText('Log in'))
+  expect(navigation.navigate).toHaveBeenCalledWith('Login')
+})
+
+it('goes back from the round back button', () => {
+  renderScreen()
+
+  fireEvent.press(screen.getByLabelText('Back'))
+  expect(navigation.goBack).toHaveBeenCalled()
+})
+
+it('draws no social sign-up — the server has none to call', () => {
+  renderScreen()
+
+  expect(screen.queryByText(/Google|Apple|Facebook/)).toBeNull()
 })

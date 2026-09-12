@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
-import { Pressable, View } from 'react-native'
+import { View } from 'react-native'
 import { useTheme } from '@/theme/ThemeProvider'
-import Icon from './Icon'
+import BackButton from './BackButton'
 import Text from './Text'
 
 interface Props {
@@ -18,9 +18,6 @@ interface Props {
   testID?: string
 }
 
-/** The design's `.bb .bk`: a 38-point disc. */
-const BACK_SIZE = 38
-
 /**
  * The design's back bar (`.bb` in the Create and Discover artboards): a round
  * back button and the screen's title on one line (STOURIFY-257).
@@ -31,11 +28,11 @@ const BACK_SIZE = 38
  * (STOURIFY-209). The disc here is a fixed size, so the title starts at the
  * same x everywhere — which is what makes one line safe again.
  *
- * The disc is drawn at 38 and answers to 44: `hitSlop` makes up the rest.
+ * The disc is `BackButton` at its default 38 (`.bb .bk`), shared with the
+ * sign-in screens since STOURIFY-286.
  */
 export default function BarHeader({ title, onBack, right, testID }: Props) {
   const theme = useTheme()
-  const slop = (theme.minTouchTarget - BACK_SIZE) / 2
 
   return (
     <View
@@ -49,23 +46,7 @@ export default function BarHeader({ title, onBack, right, testID }: Props) {
         paddingBottom: 10,
       }}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-        onPress={onBack}
-        hitSlop={slop}
-        style={({ pressed }) => ({
-          width: BACK_SIZE,
-          height: BACK_SIZE,
-          borderRadius: BACK_SIZE / 2,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: theme.colors.surfaceAlt,
-          opacity: pressed ? 0.85 : 1,
-        })}
-      >
-        <Icon name="back" size={20} />
-      </Pressable>
+      <BackButton onPress={onBack} />
 
       <Text
         variant="h2"

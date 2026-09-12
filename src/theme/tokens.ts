@@ -40,6 +40,26 @@ export const palette = {
      * (STOURIFY-290).
      */
     dangerBg: 'rgba(192,73,47,0.12)',
+    /**
+     * The tint behind a success tile — Forgot password's "Check your inbox".
+     * Written inline in the Auth & Entry canvas as `rgba(46,158,107,.14)`, which
+     * is `success` at 14% (STOURIFY-286).
+     */
+    successBg: 'rgba(46,158,107,0.14)',
+    /**
+     * The brand gradient behind Splash and Welcome, top-left to bottom-right.
+     * The Auth & Entry canvas draws it as
+     * `linear-gradient(165deg,#0f4c73,#1C8FC4 55%,#3FA7C4)` (STOURIFY-286).
+     */
+    heroFrom: '#0F4C73',
+    heroVia: '#1C8FC4',
+    heroTo: '#3FA7C4',
+    /** The navy Welcome fades to at the bottom, so white text stays readable there. */
+    heroShade: '#0B1F36',
+    /** A white wash for a tile drawn on the gradient — Splash's compass. */
+    heroTint: 'rgba(255,255,255,0.14)',
+    /** The outline of that tile. */
+    heroLine: 'rgba(255,255,255,0.28)',
     /** 1px dividers and borders. */
     hairline: 'rgba(21,34,48,0.12)',
     /**
@@ -74,6 +94,18 @@ export const palette = {
     danger: '#E06A5A',
     /** See the light palette's note. The dark `danger` at 16%, matching `badgeBg`'s weight here. */
     dangerBg: 'rgba(224,106,90,0.16)',
+    /** See the light palette's note. The dark `success` at 16%, matching `dangerBg`. */
+    successBg: 'rgba(71,183,132,0.16)',
+    /**
+     * Not in the handoff: the canvas draws the brand screens in light only. The
+     * same three blues, deepened, so a dark phone is not met by a bright slab.
+     */
+    heroFrom: '#082336',
+    heroVia: '#115B85',
+    heroTo: '#1F7892',
+    heroShade: '#03080E',
+    heroTint: 'rgba(255,255,255,0.14)',
+    heroLine: 'rgba(255,255,255,0.28)',
     hairline: 'rgba(255,255,255,0.10)',
     /** See the light palette's note. Darker, because the sheet above it is dark. */
     scrim: 'rgba(3,8,14,0.70)',
