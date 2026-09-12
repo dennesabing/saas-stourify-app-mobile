@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The Drafts delete test no longer times out on a busy machine (STOURIFY-282).** "throws one
+  away" failed in 3 of 4 full runs and passed alone. The delete takes about 5 ms; what used up
+  `waitFor`'s one-second budget was the test's own check. Every poll that landed before the re-draw
+  failed `expect(title).toBeNull()`, and a failing `expect` pretty-prints the element it received,
+  React's internal tree included, which costs about 600 ms per poll on this host. The new
+  `pressDeleteAndSettle` helper in `__tests__/screens/DraftsScreen.test.tsx` waits for the Delete
+  handler's own `deleteDraft` promise instead. It then does one database read that queues behind
+  the screen's re-query, and plain `expect` calls follow. No timer decides the result. The test also
+  now checks that "No drafts" appears. Test-only; the screen is unchanged.
 - **A post that fails to load now says so, instead of loading forever (STOURIFY-279).** The post
   screen had no failure state: it drew its grey placeholders whenever the post was missing, and a
   failed request leaves it missing for good. So a post the server refused, a post that no longer
