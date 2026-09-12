@@ -8,10 +8,9 @@ import { getBlocks, unblockUser, type Block } from '@/shared/api/blocks'
 import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { Avatar, Divider, EmptyState, Skeleton, Text } from '@/shared/components/ui'
 import { useTheme } from '@/theme/ThemeProvider'
+import { BLOCKS_QUERY_KEY } from '../queryKeys'
 
 type Props = NativeStackScreenProps<ProfileStackParamList, 'BlockedAccounts'>
-
-const BLOCKS_QUERY_KEY = ['blocks'] as const
 
 /**
  * Blocked accounts — the list, and the only place Unblock can live.

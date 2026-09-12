@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Settings → Appearance: System, Light or Dark (STOURIFY-290).** The app used to follow the
+  phone, with no way to choose otherwise. A new Appearance row under Preferences opens a sheet with
+  System (the default, which follows the phone), Light and Dark. The choice applies at once with no
+  restart, is saved on the device (`stourify_appearance` in AsyncStorage), and is read in
+  `RootNavigator`'s launch gate, so the first screen is already in the right colours.
+  `src/theme/appearance.ts` holds it; `ThemeProvider` paints from it; and
+  `Appearance.setColorScheme()` hands it to Android so system dialogs follow too. The status bar
+  now reads the theme instead of `style="auto"`. How it all fits: `docs/choosing-light-or-dark.md`.
+
+### Changed
+
+- **Settings matches the Settings design, and its privacy controls moved to a new Privacy &
+  security screen (STOURIFY-290).** The hub (artboard 1) has the round-back header, an account
+  card (avatar, name, "@username · home city") and grouped rows: Edit profile, Privacy & security,
+  Appearance, Offline & sync, and Terms & privacy policy, which opens a sheet with the same three
+  web pages as before. Log out sits on its own and now asks first; the sheet says how many unsent
+  changes signing out would delete, and that drafts go too. Private account, Show location on
+  spots, Blocked accounts (now with a count) and Delete account live on the new
+  `PrivacySecurityScreen` (artboard 3) and behave exactly as before. Rows the design draws with
+  nothing behind them are left out. Both screens take every colour from the theme, which closes
+  STOURIFY-169: Settings wrote 17 colour literals and stayed dark on a light phone. The
+  delete-account dialog follows the theme too. New token `dangerBg`; new meanings in `Icon`.
+
 ## [0.11.0] - 2026-09-12
 
 ### Fixed

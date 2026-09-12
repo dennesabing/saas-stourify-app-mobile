@@ -1,367 +1,367 @@
+import fs from 'fs'
+import path from 'path'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, fireEvent, waitFor, within } from '@testing-library/react-native'
+import { act, render, fireEvent, waitFor, within } from '@testing-library/react-native'
 import { StyleSheet } from 'react-native'
+import { SafeAreaProvider, type Metrics } from 'react-native-safe-area-context'
 import SettingsScreen from '@/features/profile/screens/SettingsScreen'
+import { ThemeProvider } from '@/theme/ThemeProvider'
+import { palette } from '@/theme/tokens'
 
 jest.mock('@/shared/api/auth', () => ({
   logout: jest.fn(() => Promise.resolve()),
 }))
 
-// The privacy row reads and writes the caller's OWN profile. Until
-// STOURIFY-156 it went through a `@/shared/api/settings` module that called
-// `/settings/account`, a route the server has never registered -- and this file
-// mocked that module, so the screen faithfully rendered the mock's fixture
-// while every real request 404'd. A mock of a function that calls a URL nobody
-// serves is a test of the mock.
 jest.mock('@/shared/api/profiles', () => ({
   getMyProfile: jest.fn(),
   updateMyProfile: jest.fn(),
 }))
 
-// The seam under test: SettingsScreen's Logout button MUST route through
-// `signOut` — the ONE teardown path (database wipe, cursor reset, cache
-// clear, navigate) — not through `useAuthStore.getState().clearAuth()`
-// directly. A handler that calls `clearAuth()` alone would never touch this
-// mock, so this test fails against that (pre-fix) implementation.
+// The seam the Log out tests guard: Settings MUST route through `signOut` — the
+// ONE teardown path (database wipe, cursor reset, cache clear, navigate) — not
+// through `useAuthStore.getState().clearAuth()` directly. A handler that called
+// `clearAuth()` alone would never touch this mock.
 jest.mock('@/sync/session', () => ({
   signOut: jest.fn(() => Promise.resolve()),
 }))
 
+// Android's night-mode switch, stood in for: the native module does not exist
+// under jest, and what matters is what the app ASKS Android for.
+jest.mock('react-native/Libraries/Utilities/Appearance', () => ({
+  getColorScheme: jest.fn(() => null),
+  setColorScheme: jest.fn(),
+  addChangeListener: jest.fn(() => ({ remove: jest.fn() })),
+}))
+
+import { Appearance } from 'react-native'
 import * as authApi from '@/shared/api/auth'
-import { getMyProfile, updateMyProfile } from '@/shared/api/profiles'
+import { getMyProfile } from '@/shared/api/profiles'
+import { useAuthStore } from '@/shared/store/auth'
 import { signOut } from '@/sync/session'
+import { useSyncStatusStore } from '@/sync/status'
+import { useAppearanceStore } from '@/theme/appearance'
 import { trackQueryClient } from '../support/queryClients'
 
-/**
- * A profile as `GET /profile` returns one, trimmed to what this screen reads.
- *
- * `shows_location_on_spots` defaults to `true` here because that is what the
- * database column defaults to and what the server sends for anybody who has
- * never touched the setting -- so the fixture describes the ordinary account
- * rather than a configured one.
- */
-const profile = (isPrivate: boolean, showsLocation = true) => ({
+/** A fixed frame, because `Sheet` reads the safe-area insets. */
+const SAFE_AREA_METRICS: Metrics = {
+  frame: { x: 0, y: 0, width: 390, height: 844 },
+  insets: { top: 47, left: 0, right: 0, bottom: 34 },
+}
+
+const city = {
+  uuid: 'city-1',
+  name: 'General Santos',
+  region: null,
+  country: null,
+  is_featured: false,
+}
+
+/** A profile as `GET /profile` returns one, trimmed to what Settings reads. */
+const profile = (overrides: Record<string, unknown> = {}) => ({
   uuid: 'profile-uuid-1',
   username: 'ziv',
-  is_private: isPrivate,
-  shows_location_on_spots: showsLocation,
+  name: 'Ziv Luck',
+  home_city: city,
+  is_private: false,
+  shows_location_on_spots: true,
+  ...overrides,
 })
 
-const mockNavigation = { goBack: jest.fn() } as any
+const mockNavigation = { goBack: jest.fn(), navigate: jest.fn() } as any
 
-/** The client the most recent render used, so a test can read the cache back. */
-let lastClient: QueryClient | null = null
-
-function renderSettings() {
-  // `gcTime: 0`, matching `__tests__/support/TestProviders.tsx`'s established
-  // convention: React Query's default garbage-collection timer otherwise
-  // leaves a handle open past the test, and jest never exits on its own.
+async function renderSettings(scheme: 'light' | 'dark' = 'light') {
+  // `gcTime: 0`, matching `__tests__/support/TestProviders.tsx`: React Query's
+  // default collection timer otherwise outlives the test and jest never exits.
   const qc = trackQueryClient(
     new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
   )
-  lastClient = qc
-  return render(
-    <QueryClientProvider client={qc}>
-      <SettingsScreen navigation={mockNavigation} route={{} as any} />
-    </QueryClientProvider>,
+  const utils = render(
+    <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
+      <ThemeProvider scheme={scheme}>
+        <QueryClientProvider client={qc}>
+          <SettingsScreen navigation={mockNavigation} route={{} as any} />
+        </QueryClientProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>,
   )
+  // Let the screen's first requests land inside act(): React Query hands
+  // results to a screen on a timer, so a test that ended before then would get
+  // a state update after it finished, which is what the act() warning reports.
+  await waitFor(() => expect(qc.isFetching()).toBe(0))
+  await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+  return utils
 }
 
 beforeEach(() => {
   jest.clearAllMocks()
-  ;(getMyProfile as jest.Mock).mockResolvedValue(profile(false))
-  // Merged rather than rebuilt, because the screen now has two switches: a save
-  // that carries one field must come back with the OTHER field untouched, which
-  // is exactly what the real endpoint does.
-  ;(updateMyProfile as jest.Mock).mockImplementation((changes: Record<string, unknown>) =>
-    Promise.resolve({ ...profile(false), ...changes }),
-  )
+  ;(getMyProfile as jest.Mock).mockResolvedValue(profile())
+  useAuthStore.setState({ user: null })
+  useAppearanceStore.setState({ choice: 'system' })
+  useSyncStatusStore.setState({ pendingCount: 0, pendingMediaCount: 0 })
 })
 
-test('the Logout button calls authApi.logout then routes teardown through signOut()', async () => {
-  const { getByText } = renderSettings()
+describe('the Settings hub (artboard 1)', () => {
+  it('has the round back header, and Back leaves Settings', async () => {
+    const { getByText, getByLabelText } = await renderSettings()
 
-  fireEvent.press(getByText('Logout'))
-
-  await waitFor(() => {
-    expect(authApi.logout).toHaveBeenCalled()
-    expect(signOut).toHaveBeenCalled()
-  })
-})
-
-test('the Logout button does not call clearAuth directly — signOut is the only teardown', async () => {
-  const { getByText } = renderSettings()
-
-  fireEvent.press(getByText('Logout'))
-
-  await waitFor(() => {
-    expect(signOut).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('the Private account row', () => {
-  /**
-   * The switch shows what the SERVER stored, not a local guess. `is_private` is
-   * the only privacy setting the backend actually enforces: it turns a follow
-   * into a request that must be accepted, and it refuses the follower and
-   * following lists to strangers.
-   */
-  it('shows Off for a public account and On for a private one', async () => {
-    const { getByLabelText, unmount } = renderSettings()
-
-    await waitFor(() => expect(getByLabelText('Private account').props.value).toBe(false))
-    unmount()
-
-    ;(getMyProfile as jest.Mock).mockResolvedValue(profile(true))
-    const second = renderSettings()
-    await waitFor(() => expect(second.getByLabelText('Private account').props.value).toBe(true))
+    expect(getByText('Settings')).toBeTruthy()
+    fireEvent.press(getByLabelText('Back'))
+    expect(mockNavigation.goBack).toHaveBeenCalled()
   })
 
-  /**
-   * One field and nothing else. `PATCH /profile` is an upsert that also
-   * validates `username`, so restating fields the user never touched invites a
-   * uniqueness failure on a save that had nothing to do with the handle.
-   */
-  it('saves through PATCH /profile carrying is_private and no other field', async () => {
-    const { getByLabelText } = renderSettings()
+  it('says who you are: your name, then @username · home city', async () => {
+    const { findByText, getByText } = await renderSettings()
 
-    await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
-    fireEvent(getByLabelText('Private account'), 'valueChange', true)
-
-    await waitFor(() => expect(updateMyProfile).toHaveBeenCalledWith({ is_private: true }))
+    expect(await findByText('Ziv Luck')).toBeTruthy()
+    expect(getByText('@ziv · General Santos')).toBeTruthy()
   })
 
-  /**
-   * The switch follows your finger rather than waiting for the round trip.
-   *
-   * This is the one the live run caught and the earlier tests missed. The save
-   * landed correctly in the database while the switch sat in its old position
-   * for several seconds, which reads as "it ignored my tap" — and on a switch,
-   * the natural response to that is to tap again, which would set it straight
-   * back. The save is deliberately left unresolved here, so the only thing that
-   * can move the switch is the optimistic write.
-   */
-  it('moves as soon as it is tapped, before the save comes back', async () => {
-    let release: (value: unknown) => void = () => {}
-    ;(updateMyProfile as jest.Mock).mockReturnValue(
-      new Promise((resolve) => {
-        release = resolve
-      }),
-    )
-    const { getByLabelText } = renderSettings()
+  it('leaves the city off when there is none, rather than a dangling dot', async () => {
+    ;(getMyProfile as jest.Mock).mockResolvedValue(profile({ home_city: null }))
+    const { findByText } = await renderSettings()
 
-    await waitFor(() => expect(getByLabelText('Private account').props.value).toBe(false))
-    fireEvent(getByLabelText('Private account'), 'valueChange', true)
-
-    await waitFor(() => expect(getByLabelText('Private account').props.value).toBe(true))
-    release(profile(true))
+    expect(await findByText('@ziv')).toBeTruthy()
   })
 
-  /**
-   * A privacy switch that silently keeps a value the server refused is the worst
-   * failure this row has: the user believes they are private and they are not.
-   * The rows this replaces had no error handler at all, which is a large part of
-   * why nobody noticed the 404s for months.
-   */
-  it('puts the switch back and says so when the save is refused', async () => {
-    ;(updateMyProfile as jest.Mock).mockRejectedValue(new Error('nope'))
-    const { getByLabelText, getByText } = renderSettings()
-
-    await waitFor(() => expect(getByLabelText('Private account').props.value).toBe(false))
-    fireEvent(getByLabelText('Private account'), 'valueChange', true)
-
-    await waitFor(() => expect(getByText(/could not be saved/i)).toBeTruthy())
-    expect(getByLabelText('Private account').props.value).toBe(false)
-  })
-
-  /**
-   * Somebody who registered and skipped onboarding has no profile row, so
-   * `GET /profile` resolves to null and `PATCH /profile` would demand a username
-   * they were never asked for. The row stays visible and disabled rather than
-   * disappearing: a privacy control that is present for some people and absent
-   * for others cannot be found, explained in a support answer, or audited.
-   */
-  it('is disabled, not hidden, when the caller has no profile yet', async () => {
+  it('falls back to the account name for somebody with no profile yet', async () => {
     ;(getMyProfile as jest.Mock).mockResolvedValue(null)
-    const { getByLabelText, getByText } = renderSettings()
+    useAuthStore.setState({
+      user: { id: '1', uuid: 'user-1', name: 'Ziv Luck', email: 'ziv@example.com' },
+    })
+    const { findByText, queryByText } = await renderSettings()
 
-    await waitFor(() => expect(getByLabelText('Private account').props.disabled).toBe(true))
-    expect(getByText(/set up your profile/i)).toBeTruthy()
+    expect(await findByText('Ziv Luck')).toBeTruthy()
+    expect(queryByText(/^@/)).toBeNull()
+  })
 
-    fireEvent(getByLabelText('Private account'), 'valueChange', true)
-    expect(updateMyProfile).not.toHaveBeenCalled()
+  it('offers the rows the app can back, in the design’s groups', async () => {
+    const { getByText } = await renderSettings()
+
+    for (const group of ['Account', 'Preferences', 'Offline', 'Legal']) {
+      expect(getByText(group)).toBeTruthy()
+    }
+    for (const row of [
+      'Edit profile',
+      'Privacy & security',
+      'Appearance',
+      'Offline & sync',
+      'Terms & privacy policy',
+      'Log out',
+    ]) {
+      expect(getByText(row)).toBeTruthy()
+    }
   })
 
   /**
-   * One cache entry, shared with the profile screen, which files the caller's
-   * own profile under this same key. Two keys for one fact is how Settings and
-   * Profile end up disagreeing about whether you are private.
+   * The design draws these, and nothing in the app backs them yet — no push
+   * notifications, one language, no subscriptions, no help articles or support
+   * inbox, no 2FA. A row that leads nowhere is a false promise (STOURIFY-75), so
+   * they are left out, and the card's spec names each one.
    */
-  it('files the profile under the key the profile screen already uses', async () => {
-    const { getByLabelText } = renderSettings()
+  it('draws no row for something the app cannot do yet', async () => {
+    const { queryByText } = await renderSettings()
 
-    await waitFor(() => expect(getByLabelText('Private account').props.value).toBe(false))
-    expect(lastClient!.getQueryData(['explorer-profile', 'me'])).toEqual(profile(false))
+    for (const row of [
+      'Notifications',
+      'Language',
+      'Offline downloads',
+      'Manage subscription',
+      'Help center',
+      'Contact support',
+      'About Stourify',
+      'Two-factor authentication',
+    ]) {
+      expect(queryByText(row)).toBeNull()
+    }
   })
 
-  it('no longer offers the two rows that were wired to a route nobody serves', async () => {
-    const { queryByText } = renderSettings()
+  it('moved the privacy controls and Delete account to Privacy & security', async () => {
+    const { queryByLabelText, queryByText } = await renderSettings()
 
-    await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
-    expect(queryByText('Account Visibility')).toBeNull()
-    expect(queryByText('Follow Mode')).toBeNull()
+    expect(queryByLabelText('Private account')).toBeNull()
+    expect(queryByLabelText('Show location on spots')).toBeNull()
+    expect(queryByText('Delete account')).toBeNull()
   })
-  /**
-   * STOURIFY-181. Settings used to hang everything off a plain `View`, which
-   * clips rather than scrolls, so on a 720x1280 phone the list stopped at Terms
-   * of Service and Logout and Delete account could not be reached by any
-   * gesture.
-   *
-   * These three cases are honest about what they are: PROXIES. A unit test
-   * renders into no viewport at all, so it finds every row whether or not a real
-   * screen could show them -- which is exactly why this bug shipped past a suite
-   * that already asserted both rows exist. What they pin is the STRUCTURE that
-   * makes scrolling possible, and they fail against the pre-fix file. The
-   * evidence that the bug is gone is the emulator run on the short device.
-   */
-  describe('the settings list can be scrolled (STOURIFY-181)', () => {
-    it('puts its content in a scrollable container', async () => {
-      const { getByTestId } = renderSettings()
 
-      await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
-      expect(getByTestId('settings-scroll')).toBeTruthy()
-    })
+  it.each([
+    ['Edit profile', 'EditProfile'],
+    ['Privacy & security', 'PrivacySecurity'],
+    ['Offline & sync', 'SyncStatus'],
+  ])('%s opens %s', async (row, route) => {
+    const { getByText } = await renderSettings()
 
-    it('keeps Logout and Delete account inside that container, not outside it', async () => {
-      const { getByTestId } = renderSettings()
+    fireEvent.press(getByText(row))
 
-      await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
-      const scroll = within(getByTestId('settings-scroll'))
-      expect(scroll.getByText('Logout')).toBeTruthy()
-      expect(scroll.getByText('Delete account')).toBeTruthy()
-    })
+    expect(mockNavigation.navigate).toHaveBeenCalledWith(route)
+  })
 
-    it('pads the bottom of the content, so the last row clears the tab bar', async () => {
-      const { getByTestId } = renderSettings()
+  it('still carries the build line the client-identity check reads', async () => {
+    const { getByTestId } = await renderSettings()
 
-      await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
-      const style = StyleSheet.flatten(getByTestId('settings-scroll').props.contentContainerStyle)
-      expect(style?.paddingBottom).toBeGreaterThan(0)
-    })
+    expect(getByTestId('build-identity')).toBeTruthy()
   })
 })
 
-describe('the Show location on spots row (STOURIFY-241)', () => {
-  /**
-   * Reads what the server stored, and treats "nothing stored" as ON.
-   *
-   * The default matters more than it looks. The column defaults to `true`, and
-   * an account that has never opened this screen gets that value -- so a switch
-   * that showed Off while the server was still handing out coordinates would be
-   * the same broken promise this whole feature exists to remove, told backwards.
-   */
-  it('shows On by default and Off once the account has turned it off', async () => {
-    const { getByLabelText, unmount } = renderSettings()
+describe('Appearance: System, Light or Dark (STOURIFY-290)', () => {
+  it('reads System on a fresh install', async () => {
+    const { getByText } = await renderSettings()
 
-    await waitFor(() => expect(getByLabelText('Show location on spots').props.value).toBe(true))
-    unmount()
+    expect(getByText('System')).toBeTruthy()
+  })
 
-    ;(getMyProfile as jest.Mock).mockResolvedValue(profile(false, false))
-    const second = renderSettings()
-    await waitFor(() =>
-      expect(second.getByLabelText('Show location on spots').props.value).toBe(false),
-    )
+  it('opens a sheet with the three choices, the current one marked', async () => {
+    const { getByText, getByLabelText } = await renderSettings()
+
+    fireEvent.press(getByText('Appearance'))
+
+    expect(getByLabelText('System').props.accessibilityState.selected).toBe(true)
+    expect(getByLabelText('Light').props.accessibilityState.selected).toBe(false)
+    expect(getByLabelText('Dark').props.accessibilityState.selected).toBe(false)
+  })
+
+  it('choosing Light applies it at once, closes the sheet and says so on the row', async () => {
+    const { getByText, getByLabelText, queryByLabelText } = await renderSettings()
+
+    fireEvent.press(getByText('Appearance'))
+    fireEvent.press(getByLabelText('Light'))
+
+    await waitFor(() => expect(useAppearanceStore.getState().choice).toBe('light'))
+    expect(Appearance.setColorScheme).toHaveBeenCalledWith('light')
+    await waitFor(() => expect(queryByLabelText('Dark')).toBeNull())
+    expect(getByText('Light')).toBeTruthy()
+  })
+
+  it('choosing System hands the decision back to the phone', async () => {
+    useAppearanceStore.setState({ choice: 'dark' })
+    const { getByText, getByLabelText } = await renderSettings()
+
+    fireEvent.press(getByText('Appearance'))
+    fireEvent.press(getByLabelText('System'))
+
+    await waitFor(() => expect(useAppearanceStore.getState().choice).toBe('system'))
+    expect(Appearance.setColorScheme).toHaveBeenCalledWith(null)
+  })
+})
+
+describe('Log out', () => {
+  it('asks before it signs anybody out', async () => {
+    const { getByText } = await renderSettings()
+
+    fireEvent.press(getByText('Log out'))
+
+    expect(getByText('Log out of Stourify?')).toBeTruthy()
+    expect(authApi.logout).not.toHaveBeenCalled()
+    expect(signOut).not.toHaveBeenCalled()
+  })
+
+  it('confirming calls authApi.logout, then routes teardown through signOut() alone', async () => {
+    const { getByText, getByTestId } = await renderSettings()
+
+    fireEvent.press(getByText('Log out'))
+    fireEvent.press(getByTestId('logout-confirm'))
+
+    await waitFor(() => {
+      expect(authApi.logout).toHaveBeenCalled()
+      expect(signOut).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('Stay logged in keeps you signed in', async () => {
+    const { getByText, queryByText } = await renderSettings()
+
+    fireEvent.press(getByText('Log out'))
+    fireEvent.press(getByText('Stay logged in'))
+
+    await waitFor(() => expect(queryByText('Log out of Stourify?')).toBeNull())
+    expect(signOut).not.toHaveBeenCalled()
   })
 
   /**
-   * One field and nothing else, for the same reason the Private account row
-   * sends one: `PATCH /profile` is an upsert that also validates `username`, so
-   * restating fields nobody touched lets an unrelated uniqueness failure block a
-   * save about location.
+   * The words have to be true (STOURIFY-214). Signing out wipes this phone's
+   * copy, so changes that have not reached the server yet are gone for good.
+   * The design's "Your offline downloads stay on this device" is the opposite
+   * of what happens, so the sheet counts what would be lost instead.
    */
-  it('saves through PATCH /profile carrying shows_location_on_spots and no other field', async () => {
-    const { getByLabelText } = renderSettings()
+  it('says how many unsent changes logging out would delete', async () => {
+    useSyncStatusStore.setState({ pendingCount: 2, pendingMediaCount: 1 })
+    const { getByText, getByTestId } = await renderSettings()
 
-    await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
-    fireEvent(getByLabelText('Show location on spots'), 'valueChange', false)
+    fireEvent.press(getByText('Log out'))
 
-    await waitFor(() =>
-      expect(updateMyProfile).toHaveBeenCalledWith({ shows_location_on_spots: false }),
-    )
-  })
-
-  /** Follows your finger, like the row above it. Same reasoning, same pattern. */
-  it('moves as soon as it is tapped, before the save comes back', async () => {
-    let release: (value: unknown) => void = () => {}
-    ;(updateMyProfile as jest.Mock).mockReturnValue(
-      new Promise((resolve) => {
-        release = resolve
-      }),
-    )
-    const { getByLabelText } = renderSettings()
-
-    await waitFor(() => expect(getByLabelText('Show location on spots').props.value).toBe(true))
-    fireEvent(getByLabelText('Show location on spots'), 'valueChange', false)
-
-    await waitFor(() => expect(getByLabelText('Show location on spots').props.value).toBe(false))
-    release(profile(false, false))
+    const copy = getByTestId('logout-copy').props.children as string
+    expect(copy).toMatch(/3 changes/)
+    expect(copy).toMatch(/delete/i)
+    expect(copy).toMatch(/drafts/i)
   })
 
   /**
-   * A switch that keeps a value the server refused tells somebody their location
-   * is hidden when it is not -- the single worst outcome this row has.
-   *
-   * The message names the location setting rather than the account, because the
-   * two switches sit one above the other and a shared sentence under both of
-   * them cannot say which save failed.
+   * Even with nothing queued, logging out is not free: drafts live only in this
+   * phone's database, and `signOut()` wipes it. So the empty case says what is
+   * safe (everything shared was sent) and still says what goes.
    */
-  it('puts the switch back and says which setting failed when the save is refused', async () => {
-    ;(updateMyProfile as jest.Mock).mockRejectedValue(new Error('nope'))
-    const { getByLabelText, getByText } = renderSettings()
+  it('says so when nothing is waiting to be sent, and still mentions drafts', async () => {
+    const { getByText, getByTestId } = await renderSettings()
 
-    await waitFor(() => expect(getByLabelText('Show location on spots').props.value).toBe(true))
-    fireEvent(getByLabelText('Show location on spots'), 'valueChange', false)
+    fireEvent.press(getByText('Log out'))
 
-    await waitFor(() => expect(getByText(/location setting is unchanged/i)).toBeTruthy())
-    expect(getByLabelText('Show location on spots').props.value).toBe(true)
+    const copy = getByTestId('logout-copy').props.children as string
+    expect(copy).toMatch(/everything you’ve shared has been sent/i)
+    expect(copy).toMatch(/drafts/i)
   })
 
-  /** Disabled rather than hidden, exactly like the Private account row. */
-  it('is disabled, not hidden, when the caller has no profile yet', async () => {
-    ;(getMyProfile as jest.Mock).mockResolvedValue(null)
-    const { getByLabelText } = renderSettings()
+  it('never promises that anything stays on the phone', async () => {
+    useSyncStatusStore.setState({ pendingCount: 1, pendingMediaCount: 0 })
+    const { getByText, queryByText } = await renderSettings()
 
-    await waitFor(() => expect(getByLabelText('Show location on spots').props.disabled).toBe(true))
+    fireEvent.press(getByText('Log out'))
 
-    fireEvent(getByLabelText('Show location on spots'), 'valueChange', false)
-    expect(updateMyProfile).not.toHaveBeenCalled()
+    expect(queryByText(/stay on this device/i)).toBeNull()
+  })
+})
+
+/**
+ * STOURIFY-181. Settings once hung everything off a plain `View`, which clips
+ * rather than scrolls, so on a 720x1280 phone the last rows could not be
+ * reached. These are proxies — a unit test has no viewport — for the structure
+ * that makes scrolling possible. The emulator run is the real evidence.
+ */
+describe('the settings list can be scrolled (STOURIFY-181)', () => {
+  it('keeps Log out inside a scrollable container', async () => {
+    const { getByTestId } = await renderSettings()
+
+    const scroll = within(getByTestId('settings-scroll'))
+    expect(scroll.getByText('Log out')).toBeTruthy()
   })
 
-  /**
-   * The copy is part of the deliverable, not decoration, so it is pinned like
-   * any other behaviour. Two things have to be said and both are easy to drop in
-   * a later tidy-up: that turning it off only works from now on, and that it
-   * costs the spot its place in nearby results.
-   */
-  it('says both of the things turning it off actually costs you', async () => {
-    const { getByTestId } = renderSettings()
+  it('pads the bottom of the content, so the last row clears the tab bar', async () => {
+    const { getByTestId } = await renderSettings()
 
-    await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
-    const copy = getByTestId('location-privacy-copy').props.children as string
+    const style = StyleSheet.flatten(getByTestId('settings-scroll').props.contentContainerStyle)
+    expect(style?.paddingBottom).toBeGreaterThan(0)
+  })
+})
 
-    expect(copy).toMatch(/from now on/i)
-    expect(copy).toMatch(/nearby/i)
+/**
+ * STOURIFY-169: Settings used to be the one screen that ignored the theme. It
+ * wrote 17 colour literals and never asked the theme for anything, so it
+ * stayed dark on a light phone.
+ */
+describe('colours come from the theme (STOURIFY-169)', () => {
+  it.each(['light', 'dark'] as const)('paints the page in the %s palette', async (scheme) => {
+    const { getByTestId } = await renderSettings(scheme)
+
+    const style = StyleSheet.flatten(getByTestId('settings-screen').props.style)
+    expect(style.backgroundColor).toBe(palette[scheme].surface)
   })
 
-  /**
-   * One control for one fact. A second switch somewhere else would be two
-   * answers to the same question, and whichever one somebody found last would
-   * be the one they believed.
-   */
-  it('is the only control for this fact on the screen', async () => {
-    const { getAllByLabelText } = renderSettings()
+  it.each([
+    'src/features/profile/screens/SettingsScreen.tsx',
+    'src/features/profile/screens/PrivacySecurityScreen.tsx',
+    'src/features/profile/components/SettingsRows.tsx',
+  ])('%s writes no colour literal of its own', async (file) => {
+    const source = fs.readFileSync(path.join(__dirname, '../..', file), 'utf8')
 
-    await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
-    expect(getAllByLabelText('Show location on spots')).toHaveLength(1)
+    expect(source).not.toMatch(/['"]#[0-9a-f]{3,8}['"]/i)
+    expect(source).not.toMatch(/rgba?\(/i)
   })
 })

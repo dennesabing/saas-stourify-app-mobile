@@ -1,152 +1,103 @@
 import { useState } from 'react'
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Modal,
-  StyleSheet,
-  Linking,
-  KeyboardAvoidingView,
-  Switch,
-  ScrollView,
-} from 'react-native'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Linking, ScrollView, View } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { ProfileStackParamList } from '@/shared/navigation/types'
-import { getMyProfile, updateMyProfile } from '@/shared/api/profiles'
+import { getMyProfile } from '@/shared/api/profiles'
 import * as authApi from '@/shared/api/auth'
-import { deleteAccount, deletionOutcomeIsUnknown } from '@/shared/api/account'
-import { signOut } from '@/sync/session'
 import { PRIVACY_POLICY_URL, TERMS_URL, ACCOUNT_DELETION_URL } from '@/shared/config/legal'
-import BuildIdentity from '@/shared/components/ui/BuildIdentity'
-import Input from '@/shared/components/ui/Input'
+import {
+  Avatar,
+  BarHeader,
+  BuildIdentity,
+  Button,
+  Sheet,
+  SheetOption,
+  Text,
+} from '@/shared/components/ui'
+import { useAuthStore } from '@/shared/store/auth'
+import { signOut } from '@/sync/session'
+import { useSyncStatusStore } from '@/sync/status'
+import { useAppearanceStore, type AppearanceChoice } from '@/theme/appearance'
+import { useTheme } from '@/theme/ThemeProvider'
+import { SettingsGroup, SettingsRow } from '../components/SettingsRows'
 
 type Props = NativeStackScreenProps<ProfileStackParamList, 'Settings'>
 
-export default function SettingsScreen({ navigation }: Props) {
-  const qc = useQueryClient()
+const APPEARANCE_OPTIONS: { key: AppearanceChoice; label: string; description: string }[] = [
+  { key: 'system', label: 'System', description: 'Match your phone’s setting' },
+  { key: 'light', label: 'Light', description: 'Always light' },
+  { key: 'dark', label: 'Dark', description: 'Always dark' },
+]
 
-  // Account deletion is confirmed in a sheet rather than by an Alert, because
-  // the server demands the account's own email and password and an Alert
-  // cannot collect them. Keeping the credentials in the confirmation — instead
-  // of reusing a stored session — is what makes a mis-tap survivable.
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleteEmail, setDeleteEmail] = useState('')
-  const [deletePassword, setDeletePassword] = useState('')
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [privacyError, setPrivacyError] = useState<string | null>(null)
-  // A second error slot rather than one shared with the row above. The two
-  // switches sit one on top of the other, and a single message underneath both
-  // of them cannot say which save failed -- which on a privacy control is the
-  // whole point of showing a message at all.
-  const [locationError, setLocationError] = useState<string | null>(null)
+const APPEARANCE_LABELS: Record<AppearanceChoice, string> = {
+  system: 'System',
+  light: 'Light',
+  dark: 'Dark',
+}
+
+/**
+ * What the Log out sheet says, and it has to be true (STOURIFY-214).
+ *
+ * The design's line — "Your offline downloads stay on this device" — says the
+ * opposite of what happens: `signOut()` wipes this phone's copy of the account,
+ * so changes that have not reached the server yet are deleted, and so are
+ * drafts, which never leave the phone at all. The count comes from the sync
+ * queue, the same numbers `signOut()` itself records before it wipes.
+ */
+function logoutCopy(unsent: number): string {
+  if (unsent === 0) {
+    return 'Everything you’ve shared has been sent. Logging out still clears this phone’s copy, including any drafts. You can log back in anytime.'
+  }
+
+  const changes = unsent === 1 ? '1 change' : `${unsent} changes`
+  const verb = unsent === 1 ? 'hasn’t' : 'haven’t'
+  const them = unsent === 1 ? 'it' : 'them'
+  return `${changes} on this phone ${verb} been sent yet. Logging out deletes ${them} for good, along with any drafts.`
+}
+
+/**
+ * Settings — the design's hub, artboard 1 of `docs/design/Stourify - Settings.dc.html`
+ * (STOURIFY-290).
+ *
+ * It shows only what the app can actually do. The design also draws
+ * Notifications, Language, subscriptions, offline map downloads, Help and
+ * Contact support; nothing backs any of them yet, and a row that leads nowhere
+ * is a promise the app breaks (STOURIFY-75). The card's spec names each one.
+ *
+ * The privacy switches and Delete account live one level down, on Privacy &
+ * security, where the design's artboard 3 draws them.
+ */
+export default function SettingsScreen({ navigation }: Props) {
+  const theme = useTheme()
+  const currentUser = useAuthStore((state) => state.user)
+  const appearance = useAppearanceStore((state) => state.choice)
+  const chooseAppearance = useAppearanceStore((state) => state.choose)
+  const unsent = useSyncStatusStore((state) => state.pendingCount + state.pendingMediaCount)
+
+  const [choosingAppearance, setChoosingAppearance] = useState(false)
+  const [showingLegal, setShowingLegal] = useState(false)
+  const [confirmingLogout, setConfirmingLogout] = useState(false)
 
   /**
-   * The caller's own profile, under the SAME key the profile screen uses.
-   *
-   * Sharing the key is the point rather than an economy: React Query files one
-   * cached value per key, so toggling privacy here and then opening your own
-   * profile shows one answer instead of two. A second key for the same fact is
-   * how two screens come to disagree about whether you are private.
-   *
-   * It resolves to `null` — not an error — for somebody who registered and
-   * skipped onboarding, which is why the row below is disabled rather than
-   * absent in that case.
+   * The caller's own profile, under the SAME key the profile screen uses, so
+   * the two screens read one cached answer instead of two. It resolves to
+   * `null` for somebody who registered and skipped onboarding; the account card
+   * then falls back to the account's own name.
    */
   const { data: profile } = useQuery({
     queryKey: ['explorer-profile', 'me'],
     queryFn: getMyProfile,
   })
 
-  const isPrivate = profile?.is_private ?? false
-  /**
-   * Defaults to ON, and the default is the load-bearing part.
-   *
-   * `sto_explorer_profiles.shows_location_on_spots` is a boolean column with a
-   * database default of `true`, so an account that has never touched this
-   * setting is sharing its spot coordinates. A switch that guessed `false` for
-   * that account would say "hidden" over a server that is still handing the
-   * position out -- the same broken promise this feature exists to remove, told
-   * backwards.
-   */
-  const showsLocation = profile?.shows_location_on_spots ?? true
-  const hasProfile = profile != null
+  const displayName = profile?.name ?? currentUser?.name ?? ''
+  const handle = profile
+    ? `@${profile.username}${profile.home_city ? ` · ${profile.home_city.name}` : ''}`
+    : null
 
-  /**
-   * One field per save. `PATCH /profile` is an upsert that also validates
-   * `username`, so restating fields nobody touched would let an unrelated
-   * uniqueness failure block a privacy change.
-   *
-   * **The switch moves first and is corrected afterwards** — the pattern React
-   * Query calls an *optimistic update*. `onMutate` writes the new value into
-   * the cache the switch reads, so the control follows your finger; `onError`
-   * puts the old value back and says why; `onSettled` refetches so the server
-   * always has the last word.
-   *
-   * Without that, the switch stays where it was for the whole round trip and
-   * looks like it refused the tap. That is not a theory: on the live run for
-   * STOURIFY-156 the save landed correctly in the database while the switch sat
-   * in the old position for several seconds. On a privacy control specifically,
-   * "looks like it ignored me" is the worst possible feedback — it invites a
-   * second tap, which would toggle it straight back.
-   *
-   * `onError` is not optional either. The two rows this replaces had no error
-   * handling at all, which is a large part of why every one of their requests
-   * could 404 for months without anybody noticing — and a switch that keeps a
-   * value the server refused tells somebody they are private when they are not.
-   */
-  const privacyMutation = useMutation({
-    mutationFn: (next: boolean) => updateMyProfile({ is_private: next }),
-    onMutate: async (next: boolean) => {
-      setPrivacyError(null)
-      // An in-flight read would otherwise land after this write and undo it.
-      await qc.cancelQueries({ queryKey: ['explorer-profile', 'me'] })
-      const previous = qc.getQueryData(['explorer-profile', 'me'])
-      qc.setQueryData(['explorer-profile', 'me'], (old: unknown) =>
-        old == null ? old : { ...(old as object), is_private: next },
-      )
-      return { previous }
-    },
-    onError: (_error, _next, context) => {
-      qc.setQueryData(['explorer-profile', 'me'], context?.previous)
-      setPrivacyError('That could not be saved. Your account is unchanged.')
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['explorer-profile', 'me'] }),
-  })
-
-  /**
-   * The same shape as `privacyMutation` above, pointed at a different field —
-   * deliberately, rather than for want of imagination.
-   *
-   * Two privacy switches sitting one above the other that behaved differently —
-   * one snapping to your finger, one lagging a round trip, one silent when a
-   * save fails — would read as a fault in whichever was slower. So this one
-   * writes optimistically, rolls back with its own message, and lets the server
-   * have the last word, exactly like its neighbour.
-   *
-   * One field per save, for the same reason: `PATCH /profile` is an upsert that
-   * also validates `username`, so restating fields nobody touched would let an
-   * unrelated uniqueness failure block a save about location.
-   */
-  const locationMutation = useMutation({
-    mutationFn: (next: boolean) => updateMyProfile({ shows_location_on_spots: next }),
-    onMutate: async (next: boolean) => {
-      setLocationError(null)
-      await qc.cancelQueries({ queryKey: ['explorer-profile', 'me'] })
-      const previous = qc.getQueryData(['explorer-profile', 'me'])
-      qc.setQueryData(['explorer-profile', 'me'], (old: unknown) =>
-        old == null ? old : { ...(old as object), shows_location_on_spots: next },
-      )
-      return { previous }
-    },
-    onError: (_error, _next, context) => {
-      qc.setQueryData(['explorer-profile', 'me'], context?.previous)
-      setLocationError('That could not be saved. Your location setting is unchanged.')
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['explorer-profile', 'me'] }),
-  })
-
-  const handleLogout = async () => {
+  const confirmLogout = async () => {
+    setConfirmingLogout(false)
     try {
       await authApi.logout()
     } catch {}
@@ -166,338 +117,189 @@ export default function SettingsScreen({ navigation }: Props) {
   // and a settings row that throws an unhandled rejection is worse than one that
   // does nothing.
   const openLegalPage = (url: string) => {
+    setShowingLegal(false)
     Linking.openURL(url).catch(() => {})
   }
 
-  const deleteMutation = useMutation({
-    mutationFn: () => deleteAccount(deleteEmail.trim(), deletePassword),
-    onSuccess: async () => {
-      setConfirmingDelete(false)
-      // The server has already revoked every token, so the local database and
-      // sync cursor are now orphaned state describing an account that no longer
-      // exists. signOut() is the one path that clears all of it.
-      await signOut(undefined, undefined, { trigger: 'account-closed' })
-    },
-    onError: async (error: any) => {
-      // A timeout is not a rejection — see DELETION_TIMEOUT_NOTE in
-      // `shared/api/account.ts`. With no response there is no way to know
-      // whether the account survived, and the observed case was that it did
-      // not: staying "signed in" then leaves a token the server has already
-      // revoked, and every retry answers 401.
-      if (deletionOutcomeIsUnknown(error)) {
-        setConfirmingDelete(false)
-        await signOut(undefined, undefined, { trigger: 'account-closed' })
-        return
-      }
-
-      // A real rejection — wrong password, wrong email — means the account is
-      // definitely still there, so stay signed in. Tearing the session down
-      // here would present a refused deletion as a successful one.
-      setDeleteError(
-        error?.response?.data?.message ?? 'Could not delete your account. Please try again.',
-      )
-    },
-  })
-
-  const submitDelete = () => {
-    setDeleteError(null)
-
-    // Checked before the request rather than after: an empty field would come
-    // back as a 422 that reads like a wrong password.
-    if (deleteEmail.trim() === '' || deletePassword === '') {
-      setDeleteError('Enter your email address and password to confirm.')
-      return
-    }
-
-    deleteMutation.mutate()
-  }
-
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Settings</Text>
-      </View>
-      {/*
-        STOURIFY-181: the content scrolls, the header does not. Everything below
-        used to hang off the container `View`, which CLIPS rather than scrolls —
-        so on a 720x1280 phone the list stopped at Terms of Service and Logout
-        and Delete account could not be reached by any gesture. They rendered
-        perfectly and were untouchable, which is also why the unit suite never
-        saw it: rendering has no viewport.
-
-        The back button stays put deliberately. Scrolling the way out of a
-        settings screen off the top is a smaller version of the same bug.
-      */}
-      <ScrollView
-        testID="settings-scroll"
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/*
-        Blocked accounts is the only place a block can be lifted from. The
-        obvious home — a toggle on the blocked person's profile — is unreachable
-        once the block stands, because the server refuses that profile to the
-        blocker as well, so the difference in responses cannot announce the block
-        (STOURIFY-36, STOURIFY-37).
-      */}
-        <Text style={styles.section}>PRIVACY</Text>
+    <View testID="settings-screen" style={{ flex: 1, backgroundColor: theme.colors.surface }}>
+      <SafeAreaView edges={['top']} style={{ flex: 1 }}>
+        <BarHeader title="Settings" onBack={() => navigation.goBack()} />
 
         {/*
-        The ONE privacy setting the server actually enforces. A private account
-        turns a follow into a request you have to accept, and hides your
-        follower and following lists from anyone who is not already following
-        you — one switch, both consequences, which is why there is no separate
-        "follow mode".
-
-        This row replaces two that read and wrote `/settings/account`, a route
-        that has never existed (STOURIFY-156, specced as STOURIFY-57). They
-        showed `–` forever and every tap 404'd in silence.
-      */}
-        <View style={styles.row}>
-          <Text style={styles.rowIcon}>🔐</Text>
-          <Text style={styles.rowLabel}>Private account</Text>
-          <Switch
-            accessibilityLabel="Private account"
-            value={isPrivate}
-            disabled={!hasProfile || privacyMutation.isPending}
-            onValueChange={(next) => privacyMutation.mutate(next)}
-          />
-        </View>
-
-        {!hasProfile && <Text style={styles.rowHint}>Set up your profile first to use this.</Text>}
-
-        {privacyError !== null && <Text style={styles.rowError}>{privacyError}</Text>}
-
-        {/*
-        The switch that finally makes `shows_location_on_spots` mean something.
-        The column has existed since M2 and was read by nothing at all, which is
-        why this row was held back rather than shipped alongside the setting
-        (STOURIFY-75). It is safe now because three cards closed the gap in
-        order: STOURIFY-185 stopped every REST path disclosing a hidden spot's
-        position, STOURIFY-187 pinned the offline sync delta with a test, and
-        STOURIFY-240 taught the app to render a spot that has no position.
-
-        It is deliberately the ONLY control for this fact in the app. A second
-        one anywhere else would be two answers to one question, and whichever a
-        person found last would be the one they believed.
-      */}
-        <View style={styles.row}>
-          <Text style={styles.rowIcon}>📍</Text>
-          <Text style={styles.rowLabel}>Show location on spots</Text>
-          <Switch
-            accessibilityLabel="Show location on spots"
-            value={showsLocation}
-            disabled={!hasProfile || locationMutation.isPending}
-            onValueChange={(next) => locationMutation.mutate(next)}
-          />
-        </View>
-
-        {/*
-        Standing text, not a confirmation dialog, and both halves of it are
-        required rather than helpful.
-
-        A dialog would only ever speak to somebody turning the setting OFF,
-        while the sentence people most need — that it works from now on — is for
-        somebody deciding whether to leave it ON, which is the default.
-
-        The nearby sentence is the one people are most likely to be surprised
-        by, and it is a real cost: a spot that still answers "am I within 2 km of
-        you?" has not hidden its position, so hiding the position means leaving
-        that search altogether (STOURIFY-75, first ASSUMPTION note).
-      */}
-        <Text testID="location-privacy-copy" style={styles.rowHint}>
-          Turn this off and your spots stop showing where they are, and they drop out of nearby
-          results — people can still find them in Discover, in search, on your profile, and from a
-          direct link. It works from now on: a position already downloaded onto a phone cannot be
-          called back.
-        </Text>
-
-        {locationError !== null && <Text style={styles.rowError}>{locationError}</Text>}
-
-        <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('BlockedAccounts')}>
-          <Text style={styles.rowIcon}>🚫</Text>
-          <Text style={styles.rowLabel}>Blocked accounts</Text>
-          <Text style={styles.rowValue}>›</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.section}>OFFLINE</Text>
-
-        <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('SyncStatus')}>
-          <Text style={styles.rowIcon}>🔄</Text>
-          <Text style={styles.rowLabel}>Offline & sync</Text>
-          <Text style={styles.rowValue}>›</Text>
-        </TouchableOpacity>
-
-        {/*
-        Play requires the privacy policy and terms to be reachable from inside the
-        app, not only from the store listing, and requires a web-reachable
-        account-deletion page in addition to the in-app path below. These sit
-        outside DANGER ZONE deliberately: reading a policy is not destructive, and
-        the only irreversible action on this screen should be the one in the red
-        section.
-      */}
-        <Text style={styles.section}>LEGAL</Text>
-
-        <TouchableOpacity style={styles.row} onPress={() => openLegalPage(PRIVACY_POLICY_URL)}>
-          <Text style={styles.rowIcon}>🔒</Text>
-          <Text style={styles.rowLabel}>Privacy Policy</Text>
-          <Text style={styles.rowValue}>↗</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.row} onPress={() => openLegalPage(TERMS_URL)}>
-          <Text style={styles.rowIcon}>📄</Text>
-          <Text style={styles.rowLabel}>Terms of Service</Text>
-          <Text style={styles.rowValue}>↗</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.row} onPress={() => openLegalPage(ACCOUNT_DELETION_URL)}>
-          <Text style={styles.rowIcon}>❓</Text>
-          <Text style={styles.rowLabel}>Request account deletion</Text>
-          <Text style={styles.rowValue}>↗</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.section}>DANGER ZONE</Text>
-
-        <TouchableOpacity style={styles.row} onPress={handleLogout}>
-          <Text style={styles.rowIcon}>🚪</Text>
-          <Text style={[styles.rowLabel, { color: '#ff6b6b' }]}>Logout</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.row} onPress={() => setConfirmingDelete(true)}>
-          <Text style={styles.rowIcon}>🗑</Text>
-          <Text style={[styles.rowLabel, { color: '#ff6b6b' }]}>Delete account</Text>
-        </TouchableOpacity>
-
-        {/* Same line the signed-out screens carry, so the build-identity check in
-          `.claude/docs/testing.md` also works on a device already signed in. */}
-        <BuildIdentity color="#8496a6" />
-      </ScrollView>
-
-      <Modal
-        visible={confirmingDelete}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setConfirmingDelete(false)}
-      >
-        {/* STOURIFY-100: a modal has its own window, and under edge-to-edge nothing
-            resizes it — without this the keyboard covers both confirmation fields. */}
-        <KeyboardAvoidingView style={styles.modalBackdrop} behavior="padding">
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Delete your account?</Text>
-            <Text style={styles.modalBody}>
-              Your spots, posts, reviews, wishlist and follows are removed. This cannot be undone
-              from the app. Enter your email address and password to confirm.
-            </Text>
-
-            {/*
-              Built from the shared `Input` rather than from a raw TextInput,
-              and that is the whole of STOURIFY-164. The Show / Hide toggle
-              STOURIFY-99 added lives INSIDE that component, so every field
-              built from it got the toggle for free and this one — hand-rolled
-              here with its own styles — silently did not. The same will be
-              true of the next shared improvement unless the field is part of
-              the set, which is the argument on STOURIFY-67 for not keeping a
-              private copy of a shared decision.
-
-              These two also had no accessible name at all: the only text on
-              either was the placeholder, and a placeholder is gone the moment
-              you type. `label` fixes that as well as captioning the field.
-
-              Known and accepted: `Input` follows the theme and this dialog
-              does not — it is painted dark whatever the system says, like the
-              other seventeen colour literals on this screen. In dark mode the
-              fields look as they always did; in light mode they are light on a
-              dark card. Theming the rest of the screen is its own card.
-            */}
-            <Input
-              label="Email"
-              placeholder="Your email address"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={deleteEmail}
-              onChangeText={setDeleteEmail}
-            />
-            <Input
-              label="Password"
-              placeholder="Your password"
-              autoCapitalize="none"
-              secureTextEntry
-              value={deletePassword}
-              onChangeText={setDeletePassword}
-            />
-
-            {deleteError !== null && <Text style={styles.modalError}>{deleteError}</Text>}
-
-            <TouchableOpacity
-              style={styles.destructiveButton}
-              onPress={submitDelete}
-              disabled={deleteMutation.isPending}
-            >
-              <Text style={styles.destructiveButtonLabel}>
-                {deleteMutation.isPending ? 'Deleting…' : 'Delete my account'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => {
-                setConfirmingDelete(false)
-                setDeleteError(null)
-                setDeletePassword('')
-              }}
-            >
-              <Text style={styles.cancelButtonLabel}>Cancel</Text>
-            </TouchableOpacity>
+          STOURIFY-181: the content scrolls, the header does not. Everything
+          below once hung off a plain `View`, which CLIPS rather than scrolls —
+          so on a 720x1280 phone the last rows could not be reached by any
+          gesture. The way out of the screen stays put for the same reason.
+        */}
+        <ScrollView
+          testID="settings-scroll"
+          style={{ flex: 1 }}
+          // Clears the tab bar sitting over the bottom of this stack: reaching
+          // the last row is not the same as being able to read it.
+          contentContainerStyle={{ paddingBottom: 48 }}
+        >
+          {/* The design's `.acct`. Not a button: the design wires it to
+              nothing, and Edit profile is the next row down. */}
+          <View
+            testID="settings-account"
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 13,
+              marginHorizontal: theme.gutter,
+              marginTop: 2,
+              marginBottom: theme.spacing[2],
+              padding: 14,
+              backgroundColor: theme.colors.card,
+              borderWidth: 1,
+              borderColor: theme.colors.hairline,
+              borderRadius: 16,
+            }}
+          >
+            <Avatar uri={currentUser?.avatar} name={displayName || profile?.username} size={56} />
+            <View style={{ flex: 1 }}>
+              {displayName ? (
+                <Text
+                  variant="h2"
+                  numberOfLines={1}
+                  style={{ fontFamily: theme.fontFamily.displayBold, fontSize: 17, lineHeight: 22 }}
+                >
+                  {displayName}
+                </Text>
+              ) : null}
+              {handle ? (
+                <Text
+                  variant="caption"
+                  color="muted"
+                  numberOfLines={1}
+                  style={{ fontFamily: theme.fontFamily.bodyRegular, fontSize: 12.5 }}
+                >
+                  {handle}
+                </Text>
+              ) : null}
+            </View>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+
+          <SettingsGroup label="Account">
+            <SettingsRow
+              icon="account"
+              label="Edit profile"
+              onPress={() => navigation.navigate('EditProfile')}
+            />
+            <SettingsRow
+              icon="lock"
+              label="Privacy & security"
+              onPress={() => navigation.navigate('PrivacySecurity')}
+            />
+          </SettingsGroup>
+
+          <SettingsGroup label="Preferences">
+            <SettingsRow
+              icon="appearance"
+              label="Appearance"
+              value={APPEARANCE_LABELS[appearance]}
+              onPress={() => setChoosingAppearance(true)}
+            />
+          </SettingsGroup>
+
+          <SettingsGroup label="Offline">
+            <SettingsRow
+              icon="sync"
+              label="Offline & sync"
+              onPress={() => navigation.navigate('SyncStatus')}
+            />
+          </SettingsGroup>
+
+          {/*
+            Play requires the privacy policy and terms to be reachable from
+            inside the app, plus a web-reachable account-deletion page as well as
+            the in-app path on Privacy & security. The design draws one row here;
+            the three pages sit one tap behind it.
+          */}
+          <SettingsGroup label="Legal">
+            <SettingsRow
+              icon="document"
+              label="Terms & privacy policy"
+              onPress={() => setShowingLegal(true)}
+            />
+          </SettingsGroup>
+
+          <View style={{ marginTop: 14 }}>
+            <SettingsGroup>
+              <SettingsRow
+                icon="logout"
+                label="Log out"
+                danger
+                chevron={false}
+                onPress={() => setConfirmingLogout(true)}
+              />
+            </SettingsGroup>
+          </View>
+
+          {/* Same line the signed-out screens carry, so the build-identity check in
+              `.claude/docs/testing.md` also works on a device already signed in. */}
+          <BuildIdentity style={{ marginTop: theme.spacing[5] }} />
+        </ScrollView>
+      </SafeAreaView>
+
+      <Sheet
+        visible={choosingAppearance}
+        onClose={() => setChoosingAppearance(false)}
+        title="Appearance"
+      >
+        {APPEARANCE_OPTIONS.map((option) => (
+          <SheetOption
+            key={option.key}
+            label={option.label}
+            description={option.description}
+            selected={appearance === option.key}
+            onPress={() => {
+              setChoosingAppearance(false)
+              void chooseAppearance(option.key)
+            }}
+          />
+        ))}
+      </Sheet>
+
+      <Sheet
+        visible={showingLegal}
+        onClose={() => setShowingLegal(false)}
+        title="Legal"
+        subtitle="These open in your browser."
+      >
+        <SheetOption label="Terms of Service" onPress={() => openLegalPage(TERMS_URL)} />
+        <SheetOption label="Privacy Policy" onPress={() => openLegalPage(PRIVACY_POLICY_URL)} />
+        <SheetOption
+          label="Request account deletion"
+          description="The web form, for when you can’t sign in to the app."
+          onPress={() => openLegalPage(ACCOUNT_DELETION_URL)}
+        />
+      </Sheet>
+
+      <Sheet
+        visible={confirmingLogout}
+        onClose={() => setConfirmingLogout(false)}
+        title="Log out of Stourify?"
+      >
+        <Text testID="logout-copy" variant="body" color="muted">
+          {logoutCopy(unsent)}
+        </Text>
+        <Button
+          testID="logout-confirm"
+          label="Log out"
+          variant="danger"
+          size="lg"
+          fullWidth
+          onPress={() => void confirmLogout()}
+        />
+        <Button
+          label="Stay logged in"
+          variant="ghost"
+          fullWidth
+          onPress={() => setConfirmingLogout(false)}
+        />
+      </Sheet>
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f1923', paddingTop: 48 },
-  scroll: { flex: 1 },
-  // Clears the tab bar sitting over the bottom of this stack: reaching the
-  // last row is not the same as being able to read it.
-  scrollContent: { paddingBottom: 48 },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
-  back: { color: '#00b4d8' },
-  title: { color: '#fff', fontWeight: '700', fontSize: 20 },
-  section: { color: '#888', fontSize: 11, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 8 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-    gap: 12,
-  },
-  rowIcon: { fontSize: 18 },
-  rowLabel: { flex: 1, color: '#fff', fontSize: 15 },
-  rowValue: { color: '#aaa', fontSize: 14 },
-  rowHint: { color: '#888', fontSize: 12, paddingHorizontal: 16, paddingTop: 8 },
-  rowError: { color: '#ff6b6b', fontSize: 12, paddingHorizontal: 16, paddingTop: 8 },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  modalCard: { backgroundColor: '#16232f', borderRadius: 14, padding: 20, gap: 12 },
-  modalTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  modalBody: { color: '#b9c4cf', fontSize: 14, lineHeight: 20 },
-  modalError: { color: '#ff6b6b', fontSize: 13 },
-  destructiveButton: {
-    backgroundColor: '#c0392b',
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  destructiveButtonLabel: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  cancelButton: { paddingVertical: 10, alignItems: 'center' },
-  cancelButtonLabel: { color: '#9fb0c0', fontSize: 15 },
-})

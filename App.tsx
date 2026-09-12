@@ -7,11 +7,24 @@ import { getDatabase } from '@/db'
 import RootNavigator from '@/shared/navigation/RootNavigator'
 import { startSyncScheduler } from '@/sync/scheduler'
 import { installSyncSessionHandlers } from '@/sync/session'
-import { ThemeProvider } from '@/theme/ThemeProvider'
+import { ThemeProvider, useTheme } from '@/theme/ThemeProvider'
 import { useAppFonts } from '@/theme/useAppFonts'
 import { persistOptions, queryClient } from '@/shared/queryClient'
 import UpdateRequiredScreen from '@/shared/update/UpdateRequiredScreen'
 import { useMinimumVersion } from '@/shared/update/useMinimumVersion'
+
+/**
+ * The status bar's clock and battery icons, drawn for the theme's scheme rather
+ * than the phone's (STOURIFY-290).
+ *
+ * `style="auto"` follows the phone, so with Settings → Appearance on Light and
+ * the phone dark, the icons would be white on a white page. Reading the theme
+ * makes the bar agree with whatever the app is actually painting.
+ */
+function ThemedStatusBar() {
+  const { scheme } = useTheme()
+  return <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+}
 
 export default function App() {
   const [database] = useState(() => getDatabase())
@@ -51,7 +64,7 @@ export default function App() {
             // a way past this would only lead into the silent dead app this
             // screen exists to replace (STOURIFY-190).
             <>
-              <StatusBar style="auto" />
+              <ThemedStatusBar />
               <UpdateRequiredScreen
                 downloadUrl={version.downloadUrl}
                 message={version.message}
@@ -66,7 +79,7 @@ export default function App() {
                 has one home that a test can read too. See `shouldPersistQuery`.
               */}
               <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
-                <StatusBar style="auto" />
+                <ThemedStatusBar />
                 <RootNavigator />
               </PersistQueryClientProvider>
             </>
