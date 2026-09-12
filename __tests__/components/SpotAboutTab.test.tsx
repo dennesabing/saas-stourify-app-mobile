@@ -1,5 +1,5 @@
 import { AxiosError, type AxiosResponse } from 'axios'
-import { render, screen, waitFor } from '@testing-library/react-native'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import SpotAboutTab from '@/features/spots/components/SpotAboutTab'
 import { createTestDatabase } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
@@ -14,7 +14,7 @@ jest.mock('@/shared/api/reactions', () => ({
   removeReaction: jest.fn(),
 }))
 
-import { getSpotAbouts } from '@/shared/api/spotAbouts'
+import { createSpotAbout, getSpotAbouts } from '@/shared/api/spotAbouts'
 
 function renderTab(spotUuid = 'spot-1') {
   return render(
@@ -74,6 +74,61 @@ describe('the failure it reports is the failure that happened', () => {
     await waitFor(() => expect(screen.getByText("Couldn't load the notes")).toBeTruthy())
 
     expect(screen.getByText(/check your connection/i)).toBeTruthy()
+  })
+})
+
+/**
+ * STOURIFY-252 — the composer's half of the same fault.
+ *
+ * A note that did not post was answered with "That didn't send. Check your
+ * connection and try again." whatever went wrong, including the server picking
+ * up and refusing. Both directions are asserted for the same reason as above:
+ * deleting the sentence would satisfy the first test on its own.
+ */
+describe('a note that did not post says why', () => {
+  const emptyPage = { data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } }
+
+  async function postNote() {
+    renderTab()
+    await waitFor(() => expect(screen.getByText('No notes yet')).toBeTruthy())
+
+    fireEvent.changeText(screen.getByTestId('spot-about-composer'), 'Go at sunrise.')
+    fireEvent.press(screen.getByLabelText('Post note'))
+  }
+
+  it('does not blame the connection when the server refused the note', async () => {
+    const config = { headers: {} } as never
+    ;(getSpotAbouts as jest.Mock).mockResolvedValue(emptyPage)
+    ;(createSpotAbout as jest.Mock).mockRejectedValue(
+      new AxiosError('Request failed with status code 403', '403', config, {}, {
+        status: 403,
+        statusText: 'Forbidden',
+        data: { message: 'This action is unauthorized.' },
+        headers: {},
+        config,
+      } as AxiosResponse),
+    )
+
+    await postNote()
+
+    await waitFor(() => expect(screen.getByText(/That didn't send/)).toBeTruthy())
+    expect(screen.getByText(/isn't allowed to post/)).toBeTruthy()
+    expect(screen.queryByText(/connection/i)).toBeNull()
+  })
+
+  it('still blames the connection when the note never reached the server', async () => {
+    ;(getSpotAbouts as jest.Mock).mockResolvedValue(emptyPage)
+    ;(createSpotAbout as jest.Mock).mockRejectedValue(
+      new AxiosError('Network Error', AxiosError.ERR_NETWORK, { headers: {} } as never, {}),
+    )
+
+    await postNote()
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("That didn't send. Check your connection and try again."),
+      ).toBeTruthy(),
+    )
   })
 })
 

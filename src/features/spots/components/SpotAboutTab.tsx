@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Pressable, View } from 'react-native'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { describeRequestFailure } from '@/shared/api/errorMessage'
+import { describeRequestFailure, describeSendFailure } from '@/shared/api/errorMessage'
 import { createSpotAbout, getSpotAbouts } from '@/shared/api/spotAbouts'
 import { addReaction, removeReaction } from '@/shared/api/reactions'
 import type { PaginatedResponse, SpotAbout } from '@/shared/api/types'
@@ -363,11 +363,10 @@ export default function SpotAboutTab({ spotUuid, onOpenThread }: Props) {
             onChangeText={setText}
             multiline
             maxLength={BODY_MAX}
-            error={
-              createMutation.isError
-                ? "That didn't send. Check your connection and try again."
-                : undefined
-            }
+            // Why it did not send, read off the failure itself (STOURIFY-252).
+            // This was one fixed sentence about the connection, shown even when
+            // the server picked up and refused the note.
+            error={createMutation.isError ? describeSendFailure(createMutation.error) : undefined}
           />
         </View>
 

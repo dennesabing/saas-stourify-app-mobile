@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A note that doesn't post now says why (STOURIFY-252).** The note box on a spot's About tab said
+  "That didn't send. Check your connection and try again." for every failure, even when the server
+  had answered and refused. Its words now come from a new `describeSendFailure()` in
+  `src/shared/api/errorMessage.ts`, a sibling of `describeRequestFailure()` that reads the failure
+  the same way and picks words for a send instead of a load. A refusal says the account isn't
+  allowed to post here. A timed-out send says to check whether the note appeared before posting it
+  again, because it may have landed. A rejected field passes on the server's own message. A genuine
+  lost connection keeps the original sentence word for word. The read screens' wording is
+  unchanged: both helpers now share one private step that works out what went wrong, and the read
+  helper's existing tests pass untouched.
 - **Search, the tag page and Discover now say what actually went wrong (STOURIFY-250).** All three
   answered every failure as if the phone had lost signal, even when the server had answered and
   refused. Their words now come from `describeRequestFailure()`, the same helper the feed, spot,
