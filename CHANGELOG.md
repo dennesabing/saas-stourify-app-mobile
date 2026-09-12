@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Search, the tag page and Discover now say what actually went wrong (STOURIFY-250).** All three
+  answered every failure as if the phone had lost signal, even when the server had answered and
+  refused. Their words now come from `describeRequestFailure()`, the same helper the feed, spot,
+  profile and social screens use. A refusal now says the account isn't allowed to see this; a
+  genuine lost connection still says to check it. Search keeps its headline, "Couldn't run your
+  search", and the tag page's headline is unchanged. Discover's "Can't reach Stourify" / "No
+  connection and nothing saved from last time" is gone, headline included, because the headline was
+  itself the wrong claim. It now reads "Couldn't load spots to explore" (or "Couldn't load nature
+  spots" with a chip selected) over the helper's sentence. The tag page also stops dropping the
+  error when only one of its two lists fails, so that half's real reason reaches the words. When a
+  failure panel appears is unchanged on all three screens. Each screen's tests pin both halves: a
+  `403` must not mention the connection, and a real network failure must.
 - **Five profile and social screens now say what actually went wrong (STOURIFY-249).** The profile
   screen (both its own-profile panel and its posts grid), Activity, Blocked accounts, Comments and
   the onboarding people search all answered every failure with "Check your connection and try

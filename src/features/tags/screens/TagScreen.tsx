@@ -1,9 +1,10 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { Pressable, SectionList, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
+import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { getPostsByTag, getSpotsByTag, getTag } from '@/shared/api/tags'
 import type { Post, Spot } from '@/shared/api/types'
 import { EmptyState, Text } from '@/shared/components/ui'
@@ -88,6 +89,21 @@ export default function TagScreen({ navigation, route }: Props) {
     retry: (count, error) => !isNotFound(error) && count < 1,
   })
 
+  /**
+   * Why a half of the content request failed, kept where the words can reach it.
+   *
+   * `allSettled` below folds a failed half into `halfFailed` and drops its
+   * error, so the failure panel had nothing to describe and said "check your
+   * connection" whatever the half had actually been told (STOURIFY-250).
+   *
+   * A ref and not the query's `data`, deliberately: the app writes query data
+   * to the phone (`shared/queryClient.ts`), and an axios error serialises its
+   * request config — the bearer token included. After a cold start the data is
+   * rehydrated without this, and the helper falls back to its generic sentence,
+   * which is true and does not blame the connection.
+   */
+  const halfFailureRef = useRef<unknown>(undefined)
+
   const contentQuery = useQuery({
     queryKey: ['tag-content', slug],
     queryFn: async () => {
@@ -100,6 +116,13 @@ export default function TagScreen({ navigation, route }: Props) {
       // holding. Ordering a starter and a main course does not mean going
       // hungry because the kitchen burnt the soup.
       const [posts, spots] = await Promise.allSettled([getPostsByTag(slug), getSpotsByTag(slug)])
+
+      halfFailureRef.current =
+        posts.status === 'rejected'
+          ? posts.reason
+          : spots.status === 'rejected'
+            ? spots.reason
+            : undefined
 
       return {
         posts: posts.status === 'fulfilled' ? (posts.value.data ?? []) : [],
@@ -211,6 +234,22 @@ export default function TagScreen({ navigation, route }: Props) {
   )
 
   /**
+   * The words for the `failed` branch, from the first failure this screen
+   * holds, in the order `failed` itself is built: the lookup (a `404` there is
+   * `missing`, never this), then the content request, then a half that
+   * `allSettled` swallowed. `Couldn't load this tag` is exactly the helper's
+   * headline for this subject, so the headline does not move (STOURIFY-250).
+   */
+  const failure = describeRequestFailure(
+    tagQuery.isError && !missing
+      ? tagQuery.error
+      : contentQuery.isError
+        ? contentQuery.error
+        : halfFailureRef.current,
+    'this tag',
+  )
+
+  /**
    * The order of these branches is the whole point, and each one is asked
    * before any branch it must beat.
    *
@@ -228,9 +267,9 @@ export default function TagScreen({ navigation, route }: Props) {
     />
   ) : failed ? (
     <EmptyState
-      icon="📡"
-      title="Couldn't load this tag"
-      subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+      icon={failure.icon}
+      title={failure.title}
+      subtitle={failure.subtitle}
       actionLabel="Try again"
       onAction={retry}
     />

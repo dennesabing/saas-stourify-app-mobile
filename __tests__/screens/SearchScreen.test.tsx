@@ -1,3 +1,4 @@
+import { AxiosError, type AxiosResponse } from 'axios'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { QueryClient } from '@tanstack/react-query'
 import SearchScreen from '@/features/search/screens/SearchScreen'
@@ -350,6 +351,50 @@ describe('an empty catalogue versus an empty result', () => {
     await waitFor(() => expect(screen.getByText(NOTHING_FOUND)).toBeTruthy(), { timeout: 3000 })
 
     expect(screen.queryByText('There is nothing to find yet')).toBeNull()
+  })
+})
+
+/**
+ * STOURIFY-250, following STOURIFY-225, -248 and -249. This screen answered
+ * every failure with one sentence about the connection, including the one where
+ * the server answered and refused. The pair is the point: the first test alone
+ * would pass if the connection sentence were deleted everywhere, which would
+ * break the one case where it is true. The headline is this screen's own and
+ * must not move — a search is not a load.
+ */
+describe('the failure it reports is the failure that happened', () => {
+  function forbidden() {
+    const config = { headers: {} } as never
+    return new AxiosError('Request failed with status code 403', '403', config, {}, {
+      status: 403,
+      statusText: 'Forbidden',
+      data: { message: 'This action is unauthorized.' },
+      headers: {},
+      config,
+    } as AxiosResponse)
+  }
+
+  it('does not blame the connection when the server answered 403', async () => {
+    ;(searchDiscover as jest.Mock).mockRejectedValue(forbidden())
+    renderScreen()
+    type('kalaklan')
+
+    await waitFor(() => expect(screen.getByText(FAILED)).toBeTruthy(), { timeout: 3000 })
+
+    expect(screen.queryByText(/check your connection/i)).toBeNull()
+    expect(screen.getByText(/isn't allowed/i)).toBeTruthy()
+  })
+
+  it('still blames the connection when there really was no answer', async () => {
+    ;(searchDiscover as jest.Mock).mockRejectedValue(
+      new AxiosError('Network Error', AxiosError.ERR_NETWORK, { headers: {} } as never, {}),
+    )
+    renderScreen()
+    type('kalaklan')
+
+    await waitFor(() => expect(screen.getByText(FAILED)).toBeTruthy(), { timeout: 3000 })
+
+    expect(screen.getByText(/check your connection/i)).toBeTruthy()
   })
 })
 
