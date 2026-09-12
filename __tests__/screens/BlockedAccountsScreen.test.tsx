@@ -1,3 +1,4 @@
+import { AxiosError, type AxiosResponse } from 'axios'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { SafeAreaProvider, type Metrics } from 'react-native-safe-area-context'
@@ -204,4 +205,45 @@ test('a row whose explorer relation never loaded still renders instead of crashi
   renderScreen()
 
   expect(await screen.findByText(/unknown explorer/i)).toBeTruthy()
+})
+
+/**
+ * STOURIFY-249, following STOURIFY-225 and STOURIFY-248. This screen answered
+ * every failure with one sentence about the connection, including the one where
+ * the server answered and refused. The pair is the point: the first test alone
+ * would pass if the connection sentence were deleted everywhere, which would
+ * break the one case where it is true.
+ */
+describe('the failure it reports is the failure that happened', () => {
+  function forbidden() {
+    const config = { headers: {} } as never
+    return new AxiosError('Request failed with status code 403', '403', config, {}, {
+      status: 403,
+      statusText: 'Forbidden',
+      data: { message: 'This action is unauthorized.' },
+      headers: {},
+      config,
+    } as AxiosResponse)
+  }
+
+  it('does not blame the connection when the server answered 403', async () => {
+    ;(getBlocks as jest.Mock).mockRejectedValue(forbidden())
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText("Couldn't load your blocked list")).toBeTruthy())
+
+    expect(screen.queryByText(/check your connection/i)).toBeNull()
+    expect(screen.getByText(/isn't allowed/i)).toBeTruthy()
+  })
+
+  it('still blames the connection when there really was no answer', async () => {
+    ;(getBlocks as jest.Mock).mockRejectedValue(
+      new AxiosError('Network Error', AxiosError.ERR_NETWORK, { headers: {} } as never, {}),
+    )
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText("Couldn't load your blocked list")).toBeTruthy())
+
+    expect(screen.getByText(/check your connection/i)).toBeTruthy()
+  })
 })

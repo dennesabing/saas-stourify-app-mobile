@@ -10,6 +10,7 @@ import {
   getComments,
   getSpotAboutComments,
 } from '@/shared/api/comments'
+import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { Avatar, BarHeader, EmptyState, Icon, Text } from '@/shared/components/ui'
 import { useAuthStore } from '@/shared/store/auth'
 import type { Comment, PaginatedResponse } from '@/shared/api/types'
@@ -147,10 +148,21 @@ export default function CommentsScreen({ route, navigation }: Props) {
   const noteBody = 'postId' in target ? undefined : target.noteBody
   const noteAuthor = 'postId' in target ? undefined : target.noteAuthor
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, error, isLoading, isError, refetch } = useQuery({
     queryKey: COMMENTS_QUERY_KEY(hostId),
     queryFn: () => host.list(),
   })
+
+  /**
+   * What the failure panel says, chosen from the failure that actually
+   * happened (STOURIFY-249, following STOURIFY-225).
+   *
+   * This used to be one fixed sentence about the connection, shown for every
+   * way a request can go wrong — including the one where the server picked up
+   * and refused. Only the wording moved; the branch below that decides WHETHER
+   * to show a failure at all is unchanged.
+   */
+  const failure = describeRequestFailure(error, 'the comments')
 
   const comments = data?.data ?? []
   const rows = useMemo(() => buildThread(comments), [comments])
@@ -241,9 +253,9 @@ export default function CommentsScreen({ route, navigation }: Props) {
    */
   const empty = isLoading ? null : isError ? (
     <EmptyState
-      icon="📡"
-      title="Couldn't load the comments"
-      subtitle="We couldn't reach Stourify just now. Check your connection and try again."
+      icon={failure.icon}
+      title={failure.title}
+      subtitle={failure.subtitle}
       actionLabel="Try again"
       onAction={() => void refetch()}
     />

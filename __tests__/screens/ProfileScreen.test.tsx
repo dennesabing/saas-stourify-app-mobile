@@ -1,3 +1,4 @@
+import { AxiosError, type AxiosResponse } from 'axios'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { SafeAreaProvider, type Metrics } from 'react-native-safe-area-context'
@@ -817,5 +818,92 @@ describe('a failed profile refresh does not throw away a profile already in hand
 
     expect(await screen.findByText('@santos_grace')).toBeTruthy()
     expect(screen.queryByText(/out of date/i)).toBeNull()
+  })
+})
+
+/**
+ * STOURIFY-249, following STOURIFY-225 and STOURIFY-248. Both of this screen's
+ * failure panels answered every failure with a sentence about the connection,
+ * including the one where the server answered and refused. Each panel gets the
+ * pair: the first test alone would pass if the connection sentence were deleted
+ * everywhere, which would break the one case where it is true.
+ *
+ * The own-profile panel keeps its headline, "We could not load your profile" —
+ * two tests above assert its ABSENCE, and renaming it would leave them passing
+ * whatever the screen did.
+ */
+describe('the failure it reports is the failure that happened', () => {
+  function forbidden() {
+    const config = { headers: {} } as never
+    return new AxiosError('Request failed with status code 403', '403', config, {}, {
+      status: 403,
+      statusText: 'Forbidden',
+      data: { message: 'This action is unauthorized.' },
+      headers: {},
+      config,
+    } as AxiosResponse)
+  }
+
+  function unreachable() {
+    return new AxiosError('Network Error', AxiosError.ERR_NETWORK, { headers: {} } as never, {})
+  }
+
+  const emptyPostsPage = { data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } }
+
+  describe('the posts grid', () => {
+    beforeEach(() => {
+      ;(getMyProfile as jest.Mock).mockResolvedValue(
+        profileFixture({
+          user_uuid: ME_UUID,
+          viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null },
+        }),
+      )
+    })
+
+    test('does not blame the connection when the server answered 403', async () => {
+      ;(getPosts as jest.Mock).mockRejectedValue(forbidden())
+
+      renderProfile()
+
+      expect(await screen.findByText("Couldn't load the posts")).toBeTruthy()
+      expect(screen.queryByText(/check your connection/i)).toBeNull()
+      expect(screen.getByText(/isn't allowed/i)).toBeTruthy()
+      // The header loaded, so only the grid reports the refusal.
+      expect(screen.getByText('@santos_grace')).toBeTruthy()
+    })
+
+    test('still blames the connection when there really was no answer', async () => {
+      ;(getPosts as jest.Mock).mockRejectedValue(unreachable())
+
+      renderProfile()
+
+      expect(await screen.findByText("Couldn't load the posts")).toBeTruthy()
+      expect(screen.getByText(/check your connection/i)).toBeTruthy()
+    })
+  })
+
+  describe('your own profile', () => {
+    beforeEach(() => {
+      ;(getPosts as jest.Mock).mockResolvedValue(emptyPostsPage)
+    })
+
+    test('does not blame the connection when the server answered 403', async () => {
+      ;(getMyProfile as jest.Mock).mockRejectedValue(forbidden())
+
+      renderProfile()
+
+      expect(await screen.findByText('We could not load your profile')).toBeTruthy()
+      expect(screen.queryByText(/check your connection/i)).toBeNull()
+      expect(screen.getByText(/isn't allowed/i)).toBeTruthy()
+    })
+
+    test('still blames the connection when there really was no answer', async () => {
+      ;(getMyProfile as jest.Mock).mockRejectedValue(unreachable())
+
+      renderProfile()
+
+      expect(await screen.findByText('We could not load your profile')).toBeTruthy()
+      expect(screen.getByText(/check your connection/i)).toBeTruthy()
+    })
   })
 })

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Five profile and social screens now say what actually went wrong (STOURIFY-249).** The profile
+  screen (both its own-profile panel and its posts grid), Activity, Blocked accounts, Comments and
+  the onboarding people search all answered every failure with "Check your connection and try
+  again", even when the server had answered and refused. Their words now come from
+  `describeRequestFailure()`, the same helper the feed and the spot screens use. A refusal now says
+  the account isn't allowed to see this; a genuine lost connection still says to check it. Every
+  headline is unchanged. When a failure panel appears is unchanged too; only its wording moved. Each
+  screen's tests now pin both halves: a `403` must not mention the connection, and a real network
+  failure must.
 - **The photo gallery's Back button no longer sits on the status-bar clock (STOURIFY-255).** The
   shared `OverlayHeader` pins itself 12 px from the top of the box it is in. On the spot page that
   box is the hero, which is already below the status bar. On the gallery it is the screen root, and
