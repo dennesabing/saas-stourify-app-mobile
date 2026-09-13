@@ -126,7 +126,11 @@ Two details keep it honest:
   of bringing the save back down, and the next push deletes it.
 
 On the Sync status screen, a removal still waiting reads "Removed a saved spot · Waiting to send". A
-save made and removed while offline leaves nothing there, because nothing is waiting.
+save made and removed while offline leaves nothing there, because nothing is waiting. Once the
+server acknowledges the delete, the row leaves the screen even while it's open. The acknowledgement
+destroys the removal mark in a way the database doesn't announce, so `useSyncQueue` also re-reads
+whenever the sync cycle publishes its result to the status store. Before STOURIFY-303 it didn't,
+and an open screen kept a sent delete on show until you left it.
 
 ```ts
 // Rejected: mark every unsaved row deleted, and let the server ignore unknown uuids.

@@ -339,6 +339,49 @@ it('says it once when the queue is clean', async () => {
   expect(screen.queryByText('Pending uploads')).toBeNull()
 })
 
+/**
+ * STOURIFY-303, found on the emulator. When the server acknowledges a delete,
+ * the phone destroys its removal mark straight through the adapter
+ * (`applyPushResults`), and that tells nobody. So the open screen kept
+ * "Removed a saved spot · Waiting to send" under "Last synced just now" until
+ * you left it and came back. The cycle publishing its result is the signal the
+ * screen was missing.
+ */
+it('drops a delete from the queue once the cycle reports it was sent', async () => {
+  const database = createTestDatabase()
+  const save = await database.write(async () =>
+    database.get('sto_wishlist_items').create((row: any) => {
+      row._raw.id = 'save-1'
+      row._raw.uuid = 'save-1'
+      row._raw.spot_uuid = 'spot-1'
+      row._raw.is_downloaded_offline = false
+      row._raw.created_at = 1
+      row._raw.updated_at = 1
+    }),
+  )
+  await markSynced(database, save)
+  await database.write(async () => {
+    await save.markAsDeleted()
+  })
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+  await waitFor(() => expect(screen.getByText('Removed a saved spot')).toBeTruthy())
+
+  // The acknowledgement exactly as `applyPushResults` applies it, then the
+  // cycle publishing what is left (`publishQueueState` in cycle.ts).
+  await act(async () => {
+    await database.adapter.destroyDeletedRecords('sto_wishlist_items', ['save-1'])
+    useSyncStatusStore.getState().setPendingCount(0)
+  })
+
+  await waitFor(() => expect(screen.getByText('Everything is synced')).toBeTruthy())
+  expect(screen.queryByText('Removed a saved spot')).toBeNull()
+})
+
 it('lists a pending photo under Pending uploads, beside the other waiting work', async () => {
   const database = createTestDatabase()
   await seedPendingMedia(database, { filename: 'beach.jpg' })

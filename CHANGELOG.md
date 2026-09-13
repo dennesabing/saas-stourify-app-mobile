@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   page's save controls are no longer disabled once saved; a screen reader hears that tapping removes
   the save. See `docs/where-saved-spots-come-from.md`.
 
+  One older fault surfaced on the emulator and is fixed here too. When the server acknowledged a
+  delete (a removed save, spot, review or follow), an open Sync status screen kept showing it as
+  "Waiting to send" until you left and came back. The acknowledgement clears the removal mark in a
+  way the database doesn't announce, so the screen now also re-reads the queue whenever the sync
+  cycle publishes its result.
+
 - **Change your password from the app (STOURIFY-302).** Settings → Privacy & security now has an
   Account security group with a Change password row. The screen has three fields: current, new and
   confirm. It calls the server's existing `PUT /me/password`. A wrong current password is named

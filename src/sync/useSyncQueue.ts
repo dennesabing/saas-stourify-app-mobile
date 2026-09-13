@@ -11,6 +11,7 @@ import {
   type FailedQueueRow,
   type PendingQueueRow,
 } from './queue'
+import { useSyncStatusStore } from './status'
 
 export interface SyncQueue {
   pending: PendingQueueRow[]
@@ -60,7 +61,7 @@ export function useSyncQueue(): SyncQueue {
   useEffect(() => {
     let cancelled = false
 
-    const subscription = database.withChangesForTables([...QUEUE_TABLES]).subscribe(() => {
+    const refresh = () => {
       void Promise.all([
         listPendingQueue(database),
         listFailedQueue(database),
@@ -72,11 +73,27 @@ export function useSyncQueue(): SyncQueue {
         if (cancelled) return
         setQueue({ pending, failed, mediaPending, mediaFailed, postPending, postFailed })
       })
-    })
+    }
+
+    const subscription = database.withChangesForTables([...QUEUE_TABLES]).subscribe(refresh)
+
+    /**
+     * The one change the database never announces (STOURIFY-303). When the
+     * server acknowledges a delete, `applyPushResults` destroys the removal
+     * mark through `adapter.destroyDeletedRecords`, which goes around
+     * WatermelonDB's change tracking entirely, so the subscription above stays
+     * silent and an open screen kept "Removed a saved spot · Waiting to send"
+     * under "Last synced just now". The sync cycle publishes its result to the
+     * status store straight after (`publishQueueState` in cycle.ts), so any
+     * change there is the cue to read the queue again. It fires a handful of
+     * times per cycle, and a read of the queue is cheap.
+     */
+    const unsubscribeStatus = useSyncStatusStore.subscribe(refresh)
 
     return () => {
       cancelled = true
       subscription.unsubscribe()
+      unsubscribeStatus()
     }
   }, [database])
 
