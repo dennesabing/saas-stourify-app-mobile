@@ -74,9 +74,18 @@ export async function getSpot(uuid: string): Promise<Spot> {
  * The server applies its visibility scope first, so this returns only what the
  * caller may already see, and orders by `published_at` newest-first. Twenty-
  * five to a page, and the screen renders the first page only.
+ *
+ * `sort` is the photo gallery's "Top rated" (STOURIFY-293): `likes_count` is on
+ * `PostIndexRequest::SORTABLE`, most liked first. Called without it, this sends
+ * exactly the request it always has — the spot page and the gallery's Most
+ * recent share that one answer under `['spot-posts', uuid]`.
  */
-export async function getSpotPosts(uuid: string): Promise<PaginatedResponse<Post>> {
-  const res = await client.get('/posts', { params: { spot_uuid: uuid } })
+export async function getSpotPosts(
+  uuid: string,
+  sort?: 'likes_count',
+): Promise<PaginatedResponse<Post>> {
+  const params = sort ? { spot_uuid: uuid, sort, direction: 'desc' } : { spot_uuid: uuid }
+  const res = await client.get('/posts', { params })
   return res.data
 }
 

@@ -15,6 +15,17 @@ interface Props {
   /** Merged over the defaults, so a screen keeps its own padding and gaps. */
   contentContainerStyle?: StyleProp<ViewStyle>
   backgroundColor?: string
+  /**
+   * Drawn above the scrolling part and never scrolled away — a back bar.
+   * Optional and additive, like `footer` (STOURIFY-293).
+   */
+  header?: ReactNode
+  /**
+   * Drawn under the scrolling part, pinned — Write a review's "Post review".
+   * It sits inside the keyboard-avoiding view, so it rides up on top of the
+   * keyboard instead of being covered by it.
+   */
+  footer?: ReactNode
   testID?: string
 }
 
@@ -48,6 +59,8 @@ export default function KeyboardAwareScreen({
   edges,
   contentContainerStyle,
   backgroundColor,
+  header,
+  footer,
   testID,
 }: Props) {
   const theme = useTheme()
@@ -58,6 +71,7 @@ export default function KeyboardAwareScreen({
       edges={edges}
       testID={testID}
     >
+      {header}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView
           contentContainerStyle={[
@@ -72,6 +86,7 @@ export default function KeyboardAwareScreen({
         >
           {children}
         </ScrollView>
+        {footer}
       </KeyboardAvoidingView>
     </SafeAreaView>
   )

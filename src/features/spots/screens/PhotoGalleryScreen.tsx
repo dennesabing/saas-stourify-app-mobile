@@ -1,150 +1,207 @@
-import { useState } from 'react'
-import { Dimensions, FlatList, Pressable, View, type ViewToken } from 'react-native'
+import { useMemo, useRef, useState } from 'react'
+import {
+  Dimensions,
+  FlatList,
+  Modal,
+  Pressable,
+  ScrollView,
+  View,
+  type ViewToken,
+} from 'react-native'
 import { Image } from 'expo-image'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
 import { describeRequestFailure } from '@/shared/api/errorMessage'
-import { getSpot } from '@/shared/api/spots'
-import { EmptyState, OverlayHeader, Skeleton, Text } from '@/shared/components/ui'
-import type { SpotMedia } from '@/shared/api/types'
+import { getSpot, getSpotPosts } from '@/shared/api/spots'
+import {
+  Avatar,
+  BarHeader,
+  EmptyState,
+  Icon,
+  OverlayButton,
+  SegmentedControl,
+  Skeleton,
+  Text,
+} from '@/shared/components/ui'
+import type { SegmentOption } from '@/shared/components/ui'
+import type { Post } from '@/shared/api/types'
+import { clampAspect, justifyRows } from '@/features/spots/utils/justifyRows'
 import { useTheme } from '@/theme/ThemeProvider'
-
-const { width, height } = Dimensions.get('window')
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'PhotoGallery'>
 
+type SortKey = 'recent' | 'top'
+
+const SORT_OPTIONS: SegmentOption<SortKey>[] = [
+  { key: 'recent', label: 'Most recent' },
+  { key: 'top', label: 'Top rated' },
+]
+
+/** One tile: a spot's own photo (`post: null`) or a photo from a post about it. */
+interface GalleryPhoto {
+  key: string
+  url: string
+  /** What the grid draws — the 400-point conversion, or the original until it exists. */
+  thumb: string
+  post: Post | null
+}
+
+/** The canvas's `.g-grid`: 12 points of padding and 4 between photos. */
+const GRID_PADDING = 12
+const GRID_GAP = 4
+/** Three squares to a row on a phone, which is where the canvas's grid sits. */
+const TARGET_ROW_HEIGHT = 120
+
 /**
- * Full-bleed, swipeable photo gallery — `media[].url` is the only populated
- * field (`thumb_url` is always null today, no conversion is registered), so
- * this renders `url` directly rather than pretending a thumbnail exists.
+ * Every photo of a spot, in the Spot Hub design's album grid (STOURIFY-293,
+ * artboard 2).
+ *
+ * ## Which photos
+ *
+ * Two kinds, and until this card the gallery showed only the first:
+ * - **the spot's own photos**, `spot.media`, from whoever put the spot on the
+ *   map. They come from `['spot', id]`, the same query as before.
+ * - **the photos people posted here**, from `['spot-posts', id]` — the very
+ *   request and key the spot page's Photos tab uses, so the two screens share
+ *   one answer. These have an author, a like count and a post to open, which is
+ *   what the lightbox's foot and "Top rated" are made of.
+ *
+ * The spot's own photos come first under Most recent (they are what the spot
+ * page's photo shows, so the gallery opens on something familiar) and last
+ * under Top rated, because they have no likes to rank by. "Top rated" asks the
+ * server for posts sorted by `likes_count`, which `PostIndexRequest` allows; it
+ * is its own key, `['spot-posts', id, 'top']`, and is fetched only once chosen.
+ *
+ * ## The grid
+ *
+ * Justified rows (`justifyRows`): every photo at its own shape, each full row
+ * filling the width. A photo's shape is learned from its thumbnail as it loads
+ * — the conversion keeps the photo's proportions — and a photo not yet loaded
+ * is laid out as a square meanwhile.
  */
 export default function PhotoGalleryScreen({ route, navigation }: Props) {
   const { spotId } = route.params
   const theme = useTheme()
   const insets = useSafeAreaInsets()
-  const [index, setIndex] = useState(0)
+  const window = Dimensions.get('window')
 
-  const {
-    data: spot,
-    error,
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
+  const [sort, setSort] = useState<SortKey>('recent')
+  const [openIndex, setOpenIndex] = useState<number | null>(null)
+  const [aspects, setAspects] = useState<Record<string, number>>({})
+  const [gridWidth, setGridWidth] = useState(window.width - GRID_PADDING * 2)
+
+  const spotQuery = useQuery({
     queryKey: ['spot', spotId],
     queryFn: () => getSpot(spotId),
   })
 
-  const media = spot?.media ?? []
+  const recentQuery = useQuery({
+    queryKey: ['spot-posts', spotId],
+    queryFn: () => getSpotPosts(spotId),
+  })
+
+  const topQuery = useQuery({
+    queryKey: ['spot-posts', spotId, 'top'],
+    queryFn: () => getSpotPosts(spotId, 'likes_count'),
+    enabled: sort === 'top',
+  })
+
+  const spot = spotQuery.data
+
+  // While the most-liked order is on its way, keep showing the posts already in
+  // hand rather than emptying the grid for a moment.
+  const posts = (sort === 'top' ? (topQuery.data ?? recentQuery.data) : recentQuery.data)?.data
+
+  const photos = useMemo<GalleryPhoto[]>(() => {
+    const own: GalleryPhoto[] = (spot?.media ?? []).map((media) => ({
+      key: media.uuid,
+      url: media.url,
+      thumb: media.thumb_url ?? media.url,
+      post: null,
+    }))
+
+    const posted: GalleryPhoto[] = (posts ?? []).flatMap((post) =>
+      (post.media ?? []).map((media) => ({
+        key: media.uuid,
+        url: media.url,
+        thumb: media.thumb_url ?? media.url,
+        post,
+      })),
+    )
+
+    const ordered = sort === 'top' ? [...posted, ...own] : [...own, ...posted]
+
+    // One tile per photo, whichever list it arrived in first.
+    const byKey = new Map<string, GalleryPhoto>()
+    for (const photo of ordered) if (!byKey.has(photo.key)) byKey.set(photo.key, photo)
+    return Array.from(byKey.values())
+  }, [spot, posts, sort])
 
   /**
-   * `media` is empty in three completely different situations — the spot has
-   * not come back yet, the request broke, and the spot genuinely has no photos
-   * — because `spot?.media ?? []` flattens all three into one value. Before
-   * STOURIFY-89 the screen printed the third one's sentence for all of them,
-   * so a reader on a dead connection was told a place has no photos, which is
-   * a claim about the place rather than about the network.
+   * The same four states the gallery has had since STOURIFY-89, asked in the
+   * same order, with a second request folded in.
    *
-   * These are the same two flags `SpotDetailScreen` was given by STOURIFY-64,
-   * deliberately: that screen reads the SAME query key, and two screens fed by
-   * one query must not disagree about whether that query has come back. This
-   * screen is not a list, so there is no `ListEmptyComponent` to put the
-   * branch inside — the placement rule the sibling list screens get for free
-   * has to be written out here instead, and `&& !spot` is how.
-   *
-   * **`&& !spot` is the load-bearing half.** React Query keeps serving a
-   * cached spot while a background refetch fails, so `isError` alone is true
-   * in the one situation where the reader is happily swiping photos — offline,
-   * on a spot they opened yesterday. Reaching for the failure panel there
-   * would take a readable gallery off the screen to announce that no spot
-   * could be fetched.
-   *
-   * `isWaiting` is computed after `hasFailed` and excludes it, so a request
-   * that came back broken never also reads as still in flight. The flag is
-   * `isLoading` rather than `isFetching`, again matching `SpotDetailScreen`:
-   * it is true only for a first fetch with nothing cached, so a pressed
-   * **Try again** holds the failure copy instead of flickering to a skeleton
-   * and back.
+   * - **Content wins.** Any photo in hand is shown, even while a refetch fails —
+   *   offline, on a spot opened yesterday, the reader keeps the photos. The one
+   *   condition is that the spot itself has answered (or failed), so the spot's
+   *   own photos never arrive late and shove the posted ones along.
+   * - **A failure is said only with nothing to show**, and "no photos" is said
+   *   only once BOTH requests have answered. A spot with no photos of its own
+   *   whose posts could not be fetched has not been shown to have no photos.
    */
-  const hasFailed = isError && !spot
-  const isWaiting = !hasFailed && (isLoading || !spot)
+  const spotFailed = spotQuery.isError && !spot
+  const hasContent = photos.length > 0 && (spot !== undefined || spotFailed)
+  const postsFailed = recentQuery.isError && !recentQuery.data
+  const hasFailed = !hasContent && (spotFailed || (spot !== undefined && postsFailed))
+  const isWaiting = !hasContent && !hasFailed && (!spot || recentQuery.isLoading)
 
-  /**
-   * What the failure panel says, chosen from the failure that actually
-   * happened (STOURIFY-248, following STOURIFY-225).
-   *
-   * This used to be one fixed sentence about the connection, shown for every
-   * way a request can go wrong — including the one where the server picked up
-   * and refused. `describeRequestFailure` reads the error this screen was
-   * already holding and picks words to match. Only the wording moved; the
-   * branch above that decides WHETHER to show a failure at all is unchanged.
-   */
-  const failure = describeRequestFailure(error, 'the photos')
+  /** Chosen from the failure that actually happened (STOURIFY-248). */
+  const failure = describeRequestFailure(
+    spotFailed ? spotQuery.error : recentQuery.error,
+    'the photos',
+  )
 
-  function onViewableItemsChanged({ viewableItems }: { viewableItems: ViewToken[] }) {
-    const first = viewableItems[0]
-    if (first && typeof first.index === 'number') setIndex(first.index)
+  const rows = useMemo(
+    () =>
+      justifyRows(
+        photos.map((photo) => aspects[photo.key] ?? 1),
+        gridWidth,
+        { targetHeight: TARGET_ROW_HEIGHT, gap: GRID_GAP },
+      ),
+    [photos, aspects, gridWidth],
+  )
+
+  function learnAspect(key: string, width: number, height: number) {
+    if (width <= 0 || height <= 0) return
+    setAspects((known) => (known[key] ? known : { ...known, [key]: width / height }))
+  }
+
+  function retry() {
+    void spotQuery.refetch()
+    void recentQuery.refetch()
   }
 
   return (
-    /*
-      One background, and it is the theme's own (STOURIFY-102).
-
-      This used to switch to `theme.colors.ink` as soon as there were photos to
-      show. `ink` is the role for *text*, so a light-themed app opened a
-      near-black screen — and because photos are drawn with `contentFit="contain"`,
-      every photo that is not exactly the screen's shape framed itself in that
-      near-black. Reusing the text colour for a surface is how a palette starts
-      meaning two things at once; if a deliberately dark viewer is ever wanted it
-      needs a token that says so.
-    */
     <SafeAreaView
       testID="gallery-root"
       style={{ flex: 1, backgroundColor: theme.colors.surface }}
-      edges={['top']}
+      edges={['top', 'bottom']}
     >
       {/*
-        Which spot these photos belong to, under the Back button (STOURIFY-199).
-
-        A full-bleed photo with a lone Back button says nothing about what you
-        are looking at. Arrive here from a search result, or come back to the
-        app a few minutes later, and there is no way to tell — the photo could
-        be of anywhere.
-
-        The name only appears once the spot has arrived. Rendering a plaque with
-        nothing on it, or with a placeholder, would be worse than rendering no
-        plaque: it would claim to answer the question and not answer it.
-
-        Back and the plaque are one shared component with the spot page, which
-        is the whole of "make it consistent with the spot page" — two copies of
-        the same layout drift the moment one is touched.
-
-        `topInset` is the status bar's height (STOURIFY-255). The header is
-        absolutely positioned, so this SafeAreaView's top padding does not reach
-        it, and without the inset the Back button sat on the status-bar clock.
-        Only the header moves; the photos keep the layout they had.
+        The design's round back bar, "Photos · N" (STOURIFY-293). The spot's name
+        rides on its second line, because a gallery of photos says nothing about
+        where they were taken (STOURIFY-199). The count appears once there is
+        something to count; before that the title claims no number.
       */}
-      <OverlayHeader
+      <BarHeader
         testID="gallery-header"
-        topInset={insets.top}
+        title={hasContent ? `Photos · ${photos.length}` : 'Photos'}
+        subtitle={spot?.title}
         onBack={() => navigation.goBack()}
-        title={spot?.title}
-        subtitle={media.length > 0 ? `Photo ${index + 1} of ${media.length}` : null}
       />
 
-      {/*
-        Four states, and the ORDER is the fix. Ask "did it come back broken?"
-        and "has it come back at all?" BEFORE "are there photos?", and the
-        three facts that used to share one sentence stop sharing it.
-
-        The failure panel replaces the gallery rather than sitting over it, and
-        that costs nothing here: `hasFailed` requires `!spot`, so there are no
-        photos to cover in the state where it renders. That is the same rule
-        the sibling list screens get from `ListEmptyComponent` — content always
-        wins over an error — expressed for a screen that holds one object.
-      */}
       {hasFailed ? (
         <View testID="gallery-error" style={{ flex: 1 }}>
           <EmptyState
@@ -152,14 +209,16 @@ export default function PhotoGalleryScreen({ route, navigation }: Props) {
             title={failure.title}
             subtitle={failure.subtitle}
             actionLabel="Try again"
-            onAction={() => void refetch()}
+            onAction={retry}
           />
         </View>
       ) : isWaiting ? (
-        <View testID="gallery-loading" style={{ flex: 1 }}>
-          <Skeleton height={height} radius={0} />
+        <View testID="gallery-loading" style={{ flex: 1, padding: GRID_PADDING, gap: GRID_GAP }}>
+          <Skeleton height={TARGET_ROW_HEIGHT} radius={0} />
+          <Skeleton height={TARGET_ROW_HEIGHT} radius={0} />
+          <Skeleton height={TARGET_ROW_HEIGHT} radius={0} />
         </View>
-      ) : media.length === 0 ? (
+      ) : !hasContent ? (
         <EmptyState
           icon="🖼"
           title="No photos yet"
@@ -167,41 +226,272 @@ export default function PhotoGalleryScreen({ route, navigation }: Props) {
         />
       ) : (
         <>
-          <FlatList
-            data={media}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(item) => item.uuid}
-            onViewableItemsChanged={onViewableItemsChanged}
-            viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
-            renderItem={({ item, index: itemIndex }: { item: SpotMedia; index: number }) => (
-              <Image
-                testID={`gallery-photo-${itemIndex}`}
-                source={{ uri: item.url }}
-                style={{ width, height, backgroundColor: theme.colors.surface }}
-                contentFit="contain"
-              />
-            )}
-          />
-
-          <View
-            style={{
-              position: 'absolute',
-              bottom: theme.spacing[5],
-              alignSelf: 'center',
-              backgroundColor: theme.colors.card,
-              borderRadius: theme.radius.chip,
-              paddingHorizontal: theme.spacing[4],
-              paddingVertical: theme.spacing[1],
-            }}
-          >
-            <Text variant="caption" color="ink">
-              {index + 1} / {media.length}
-            </Text>
+          <View style={{ paddingHorizontal: theme.gutter, paddingBottom: theme.spacing[1] }}>
+            <SegmentedControl
+              testID="gallery-sort"
+              options={SORT_OPTIONS}
+              value={sort}
+              onChange={setSort}
+            />
           </View>
+
+          <ScrollView contentContainerStyle={{ padding: GRID_PADDING }}>
+            <View
+              onLayout={(event) => setGridWidth(event.nativeEvent.layout.width)}
+              style={{ gap: GRID_GAP }}
+            >
+              {rows.map((row) => (
+                <View
+                  key={photos[row.items[0]].key}
+                  style={{ flexDirection: 'row', gap: GRID_GAP }}
+                >
+                  {row.items.map((index) => {
+                    const photo = photos[index]
+                    const likes = photo.post?.likes_count ?? 0
+
+                    return (
+                      <Pressable
+                        key={photo.key}
+                        testID={`gallery-tile-${photo.key}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Photo ${index + 1} of ${photos.length}`}
+                        onPress={() => setOpenIndex(index)}
+                        style={{
+                          width: clampAspect(aspects[photo.key]) * row.height,
+                          height: row.height,
+                          overflow: 'hidden',
+                          backgroundColor: theme.colors.surfaceAlt,
+                        }}
+                      >
+                        <Image
+                          source={{ uri: photo.thumb }}
+                          style={{ width: '100%', height: '100%' }}
+                          contentFit="cover"
+                          onLoad={(event) =>
+                            learnAspect(photo.key, event.source.width, event.source.height)
+                          }
+                        />
+
+                        {likes > 0 ? (
+                          <View
+                            testID={`gallery-tile-likes-${photo.key}`}
+                            style={{
+                              position: 'absolute',
+                              left: 6,
+                              bottom: 6,
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 3,
+                              paddingHorizontal: 5,
+                              paddingVertical: 1,
+                              borderRadius: theme.radius.chip,
+                              backgroundColor: theme.colors.overlay,
+                            }}
+                          >
+                            <Icon name="heart" size={11} color="onButton" fill="onButton" />
+                            <Text
+                              variant="caption"
+                              color="onButton"
+                              style={{ fontSize: 10, lineHeight: 14 }}
+                            >
+                              {`${likes}`}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </Pressable>
+                    )
+                  })}
+                </View>
+              ))}
+            </View>
+          </ScrollView>
         </>
       )}
+
+      {openIndex !== null && photos[openIndex] ? (
+        <Lightbox
+          photos={photos}
+          startIndex={openIndex}
+          spotTitle={spot?.title}
+          topInset={insets.top}
+          bottomInset={insets.bottom}
+          width={window.width}
+          onClose={() => setOpenIndex(null)}
+          onOpenPost={(postId) => {
+            setOpenIndex(null)
+            navigation.navigate('PostDetail', { postId })
+          }}
+        />
+      ) : null}
     </SafeAreaView>
+  )
+}
+
+interface LightboxProps {
+  photos: GalleryPhoto[]
+  startIndex: number
+  spotTitle?: string
+  topInset: number
+  bottomInset: number
+  width: number
+  onClose: () => void
+  onOpenPost: (postId: string) => void
+}
+
+/**
+ * One photo, whole, on a near-black ground (the canvas's `.lightbox`).
+ *
+ * Swipe to the next photo, as the gallery has let you since STOURIFY-201.
+ * The foot says whose photo it is and, for a posted photo, opens that post.
+ * Android's Back closes it, so Back from here still means "back to the grid",
+ * and Back from the grid still means "back to the spot".
+ *
+ * The ground is the same in both themes: it frames a photograph, not the page.
+ * It covers the status bar too, so its top row clears the status bar itself —
+ * the trap STOURIFY-255 found on the old gallery header.
+ */
+function Lightbox({
+  photos,
+  startIndex,
+  spotTitle,
+  topInset,
+  bottomInset,
+  width,
+  onClose,
+  onOpenPost,
+}: LightboxProps) {
+  const theme = useTheme()
+  const [index, setIndex] = useState(startIndex)
+  const photo = photos[Math.min(index, photos.length - 1)]
+
+  // FlatList refuses a viewability callback that changes between renders.
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    const first = viewableItems[0]
+    if (first && typeof first.index === 'number') setIndex(first.index)
+  }).current
+
+  const white = { color: theme.colors.onButton }
+
+  return (
+    <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+      <View testID="gallery-lightbox" style={{ flex: 1, backgroundColor: theme.colors.lightbox }}>
+        <View
+          testID="gallery-lightbox-top"
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingTop: topInset + theme.spacing[3],
+            paddingHorizontal: 18,
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text variant="body" style={[white, { fontFamily: theme.fontFamily.bodySemiBold }]}>
+              {photo.post ? 'Community photo' : 'Spot photo'}
+            </Text>
+            <Text variant="caption" style={[white, { opacity: 0.75 }]}>
+              {`${index + 1} / ${photos.length}`}
+            </Text>
+          </View>
+          <OverlayButton
+            testID="gallery-lightbox-close"
+            icon="close"
+            accessibilityLabel="Close"
+            onPress={onClose}
+          />
+        </View>
+
+        <FlatList
+          data={photos}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          initialScrollIndex={startIndex}
+          getItemLayout={(_, itemIndex) => ({
+            length: width,
+            offset: width * itemIndex,
+            index: itemIndex,
+          })}
+          keyExtractor={(item) => item.key}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+          style={{ flex: 1, marginVertical: 14 }}
+          renderItem={({ item, index: itemIndex }) => (
+            <Image
+              testID={`gallery-photo-${itemIndex}`}
+              source={{ uri: item.url }}
+              style={{ width, height: '100%' }}
+              contentFit="contain"
+            />
+          )}
+        />
+
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            paddingHorizontal: 18,
+            paddingBottom: bottomInset + theme.spacing[5],
+            minHeight: 44,
+          }}
+        >
+          {photo.post ? (
+            <>
+              <Avatar
+                uri={photo.post.author?.avatar_url}
+                name={photo.post.author?.name}
+                size={36}
+              />
+              <View style={{ flex: 1 }}>
+                <Text
+                  variant="body"
+                  numberOfLines={1}
+                  style={[white, { fontFamily: theme.fontFamily.bodySemiBold }]}
+                >
+                  {photo.post.author?.name ?? 'Explorer'}
+                </Text>
+                {photo.post.caption ? (
+                  <Text variant="caption" numberOfLines={1} style={[white, { opacity: 0.75 }]}>
+                    {photo.post.caption}
+                  </Text>
+                ) : null}
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => photo.post && onOpenPost(photo.post.uuid)}
+                style={({ pressed }) => ({
+                  minHeight: theme.minTouchTarget,
+                  justifyContent: 'center',
+                  paddingHorizontal: 14,
+                  borderRadius: theme.radius.chip,
+                  backgroundColor: theme.colors.lightboxControl,
+                  opacity: pressed ? 0.85 : 1,
+                })}
+              >
+                <Text
+                  variant="caption"
+                  style={[white, { fontFamily: theme.fontFamily.bodySemiBold }]}
+                >
+                  Open post
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            <View style={{ flex: 1 }}>
+              <Text
+                variant="body"
+                numberOfLines={1}
+                style={[white, { fontFamily: theme.fontFamily.bodySemiBold }]}
+              >
+                {spotTitle ?? 'This spot'}
+              </Text>
+              <Text variant="caption" style={[white, { opacity: 0.75 }]}>
+                From the spot’s own photos
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </Modal>
   )
 }

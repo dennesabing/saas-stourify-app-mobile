@@ -1,5 +1,5 @@
 import { AxiosError, type AxiosResponse } from 'axios'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native'
 import { QueryClient } from '@tanstack/react-query'
 import ReviewsScreen from '@/features/reviews/screens/ReviewsScreen'
 import { createLocalReview } from '@/features/reviews/api/createLocalReview'
@@ -9,15 +9,17 @@ import { trackQueryClient } from '../support/queryClients'
 
 jest.mock('@/shared/api/reviews', () => ({
   getSpotReviews: jest.fn(),
+  setReviewHelpful: jest.fn(),
 }))
 
 // The header names the spot the reviews are about (STOURIFY-209), read from the
 // same cache key the spot page fills.
 jest.mock('@/shared/api/spots', () => ({
-  getSpot: jest.fn().mockResolvedValue({ uuid: 'spot-1', title: 'Blue Cove' }),
+  getSpot: jest.fn(),
 }))
 
-import { getSpotReviews } from '@/shared/api/reviews'
+import { getSpotReviews, setReviewHelpful } from '@/shared/api/reviews'
+import { getSpot } from '@/shared/api/spots'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 
@@ -27,6 +29,7 @@ function makeServerReview(overrides: Partial<any> = {}) {
     rating: 5,
     body: 'Stunning sunrise.',
     helpful_count: 3,
+    marked_helpful: false,
     spot_uuid: 'spot-1',
     author_uuid: 'u1',
     author: { uuid: 'u1', name: 'Ana Martinez', username: 'ana', avatar_url: null },
@@ -37,6 +40,10 @@ function makeServerReview(overrides: Partial<any> = {}) {
   }
 }
 
+function page(data: unknown[]) {
+  return { data, links: {}, meta: { current_page: 1, last_page: 1, total: data.length } }
+}
+
 function renderScreen(database = createTestDatabase(), spotId = 'spot-1') {
   return render(
     <TestProviders database={database}>
@@ -45,14 +52,15 @@ function renderScreen(database = createTestDatabase(), spotId = 'spot-1') {
   )
 }
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => {
+  jest.clearAllMocks()
+  // Set here rather than in the mock factory: `clearAllMocks` clears calls, not
+  // implementations, so a test that overrides this would leak into the next.
+  ;(getSpot as jest.Mock).mockResolvedValue({ uuid: 'spot-1', title: 'Blue Cove' })
+})
 
 it('renders the server review with the reviewer name, rating and body', async () => {
-  ;(getSpotReviews as jest.Mock).mockResolvedValue({
-    data: [makeServerReview()],
-    links: {},
-    meta: { current_page: 1, last_page: 1, total: 1 },
-  })
+  ;(getSpotReviews as jest.Mock).mockResolvedValue(page([makeServerReview()]))
 
   renderScreen()
 
@@ -60,16 +68,15 @@ it('renders the server review with the reviewer name, rating and body', async ()
     expect(screen.getByText('Ana Martinez')).toBeTruthy()
     expect(screen.getByText('Stunning sunrise.')).toBeTruthy()
   })
+  expect(screen.getByLabelText('Rated 5 out of 5')).toBeTruthy()
 })
 
 it('merges a queued local review with the server list, newest first, with a queued badge', async () => {
   const database = createTestDatabase()
 
-  ;(getSpotReviews as jest.Mock).mockResolvedValue({
-    data: [makeServerReview({ created_at: '2020-01-01T00:00:00Z' })],
-    links: {},
-    meta: { current_page: 1, last_page: 1, total: 1 },
-  })
+  ;(getSpotReviews as jest.Mock).mockResolvedValue(
+    page([makeServerReview({ created_at: '2020-01-01T00:00:00Z' })]),
+  )
 
   await createLocalReview(database, {
     spotId: null,
@@ -94,11 +101,7 @@ it('merges a queued local review with the server list, newest first, with a queu
 })
 
 it('shows an empty state when there are no reviews at all', async () => {
-  ;(getSpotReviews as jest.Mock).mockResolvedValue({
-    data: [],
-    links: {},
-    meta: { current_page: 1, last_page: 1, total: 0 },
-  })
+  ;(getSpotReviews as jest.Mock).mockResolvedValue(page([]))
 
   renderScreen()
 
@@ -109,17 +112,8 @@ it('shows an empty state when there are no reviews at all', async () => {
 
 /**
  * The three situations this screen used to answer with one sentence
- * (STOURIFY-85).
- *
- * "We are still asking", "we could not ask" and "we asked and there is
- * nothing" are different facts with different remedies, and only the middle
- * one has an action worth offering. Before this card a failed request fell
- * into the empty branch and told the reader the spot had no reviews — a claim
- * about the spot, made on the strength of a timeout.
- *
- * Each case asserts the presence of its own copy AND the absence of the
- * others'. Presence alone would pass against a screen that stacked all three,
- * which is not a screen that tells them apart.
+ * (STOURIFY-85): still asking, could not ask, and asked and there is nothing.
+ * Each case asserts its own copy AND the absence of the others'.
  */
 describe('a failed review request is not an unreviewed spot', () => {
   it('says the request failed, and offers a retry that re-runs the query', async () => {
@@ -139,11 +133,7 @@ describe('a failed review request is not an unreviewed spot', () => {
   })
 
   it('still says there are no reviews when the request succeeds with none', async () => {
-    ;(getSpotReviews as jest.Mock).mockResolvedValue({
-      data: [],
-      links: {},
-      meta: { current_page: 1, last_page: 1, total: 0 },
-    })
+    ;(getSpotReviews as jest.Mock).mockResolvedValue(page([]))
 
     renderScreen()
 
@@ -155,7 +145,6 @@ describe('a failed review request is not an unreviewed spot', () => {
   })
 
   it('claims neither while the request is still in flight', async () => {
-    // Never settles, so the screen stays in its first-load state.
     ;(getSpotReviews as jest.Mock).mockReturnValue(new Promise(() => {}))
 
     renderScreen()
@@ -167,13 +156,9 @@ describe('a failed review request is not an unreviewed spot', () => {
   })
 
   /**
-   * The one thing that makes this screen different from its siblings.
-   *
-   * `useSpotReviews` merges rows out of the local WatermelonDB collection with
-   * the server list, so somebody who has just written a review offline has
-   * something to look at even when the server fetch fails. The error branch
-   * lives inside `ListEmptyComponent`, which never renders while there are
-   * rows — so it must not cover their own review with a network message.
+   * `rows` merges the local `sto_reviews` collection with the server list, so
+   * somebody who wrote a review offline has their own words on screen while
+   * the server fetch fails. The error must not cover them.
    */
   it('keeps showing a queued local review when the server fetch fails', async () => {
     const database = createTestDatabase()
@@ -199,24 +184,16 @@ describe('a failed review request is not an unreviewed spot', () => {
     expect(screen.queryByText('No reviews yet')).toBeNull()
   })
 
-  /**
-   * The same protection from the other direction: rows React Query already
-   * holds. Keep it as a regression guard, but know what it does NOT prove —
-   * `isLoading` goes false as soon as anything is cached, so a hoisted branch
-   * is never reached here and this test passes either way (STOURIFY-87's
-   * finding). The cold-load assertion above is what discriminates.
-   */
   it('keeps showing cached server reviews when a later fetch fails', async () => {
     ;(getSpotReviews as jest.Mock).mockRejectedValue(new Error('offline'))
 
     const seeded = trackQueryClient(
       new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
     )
-    seeded.setQueryData(['spot-reviews', 'spot-1'], {
-      data: [makeServerReview({ body: 'Cached from earlier.' })],
-      links: {},
-      meta: { current_page: 1, last_page: 1, total: 1 },
-    })
+    seeded.setQueryData(
+      ['spot-reviews', 'spot-1'],
+      page([makeServerReview({ body: 'Cached from earlier.' })]),
+    )
 
     render(
       <TestProviders database={createTestDatabase()} queryClient={seeded}>
@@ -233,10 +210,8 @@ describe('a failed review request is not an unreviewed spot', () => {
 })
 
 /**
- * STOURIFY-209 — "Reviews" does not say whose reviews.
- *
- * Arrive from a search result, or put the phone down and pick it up again, and
- * the page could be about anywhere.
+ * STOURIFY-209 — "Reviews" does not say whose reviews. Since STOURIFY-293 the
+ * header is the design's round back bar, and the spot's name is its second line.
  */
 describe('the reviews header', () => {
   it('names the spot the reviews are about', async () => {
@@ -253,29 +228,172 @@ describe('the reviews header', () => {
     renderScreen()
 
     await waitFor(() => expect(screen.getByText('Reviews')).toBeTruthy())
-    expect(screen.getByLabelText('Back')).toBeTruthy()
+    fireEvent.press(screen.getByLabelText('Back'))
+    expect(navigation.goBack).toHaveBeenCalled()
   })
 })
 
 /**
- * STOURIFY-211 — the button to write a review moved here from the spot page.
- *
- * It used to sit on the spot page, one line under the rating row that leads
- * here: the comment cards by the front door, the guest book in the back room.
- * Now it is on the page that shows you what other people wrote.
- *
- * It is pinned under the list rather than drawn inside it, so the three states
- * this screen has — loading, empty, and a list long enough to scroll — all
- * still show it. A list header would have scrolled away from the one person
- * most likely to press it: whoever just read to the bottom.
+ * Artboard 3 of the Spot Hub design, "Reviews" (STOURIFY-293): the rating
+ * summary at the top.
+ */
+describe('the rating summary', () => {
+  it('shows the big average, its stars and how many reviews it comes from', async () => {
+    ;(getSpot as jest.Mock).mockResolvedValue({
+      uuid: 'spot-1',
+      title: 'Blue Cove',
+      rating_average: 4.8,
+      reviews_count: 12,
+    })
+    ;(getSpotReviews as jest.Mock).mockResolvedValue(page([makeServerReview()]))
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('reviews-summary')).toBeTruthy())
+    const summary = screen.getByTestId('reviews-summary')
+    expect(within(summary).getByText('4.8')).toBeTruthy()
+    expect(within(summary).getByText('12 reviews')).toBeTruthy()
+    expect(within(summary).getByLabelText('Rated 4.8 out of 5')).toBeTruthy()
+  })
+
+  it('says "1 review", not "1 reviews"', async () => {
+    ;(getSpot as jest.Mock).mockResolvedValue({
+      uuid: 'spot-1',
+      title: 'Blue Cove',
+      rating_average: 4,
+      reviews_count: 1,
+    })
+    ;(getSpotReviews as jest.Mock).mockResolvedValue(page([makeServerReview({ rating: 4 })]))
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('reviews-summary')).toBeTruthy())
+    expect(within(screen.getByTestId('reviews-summary')).getByText('1 review')).toBeTruthy()
+  })
+
+  it('draws no summary, and no "0.0", for a spot nobody has rated', async () => {
+    // A spot with no reviews comes back with `rating_average: 0` (`ratingFor`).
+    ;(getSpot as jest.Mock).mockResolvedValue({
+      uuid: 'spot-1',
+      title: 'Blue Cove',
+      rating_average: 0,
+      reviews_count: 0,
+    })
+    ;(getSpotReviews as jest.Mock).mockResolvedValue(page([]))
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('No reviews yet')).toBeTruthy())
+    expect(screen.queryByTestId('reviews-summary')).toBeNull()
+    expect(screen.queryByText('0.0')).toBeNull()
+  })
+})
+
+describe('a review card', () => {
+  it('says who wrote it and how long ago', async () => {
+    ;(getSpotReviews as jest.Mock).mockResolvedValue(page([makeServerReview()]))
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Ana Martinez')).toBeTruthy())
+    expect(screen.getByText(/^@ana · \d+ days? ago$/)).toBeTruthy()
+  })
+
+  it('does not draw what nothing backs: Reply, star filters, photo filters, ranks', async () => {
+    ;(getSpotReviews as jest.Mock).mockResolvedValue(page([makeServerReview()]))
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Ana Martinez')).toBeTruthy())
+    expect(screen.queryByText('Reply')).toBeNull()
+    expect(screen.queryByText('With photos')).toBeNull()
+    expect(screen.queryByText('★ 5')).toBeNull()
+    expect(screen.queryByText(/local expert/i)).toBeNull()
+  })
+})
+
+/**
+ * "Helpful · N" — online only (STOURIFY-293). Reactions are not a synced table,
+ * so there is deliberately no offline path: a vote with no signal says so and
+ * changes nothing.
+ */
+describe('Helpful', () => {
+  it('marks a review helpful and shows the count the server answers with', async () => {
+    ;(getSpotReviews as jest.Mock).mockResolvedValue(page([makeServerReview()]))
+    ;(setReviewHelpful as jest.Mock).mockResolvedValue({ helpful: true, helpful_count: 4 })
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Helpful · 3')).toBeTruthy())
+    fireEvent.press(screen.getByTestId('review-helpful-review-server-1'))
+
+    await waitFor(() => expect(screen.getByText('Helpful · 4')).toBeTruthy())
+    expect(setReviewHelpful).toHaveBeenCalledWith('review-server-1', true)
+    expect(
+      screen.getByTestId('review-helpful-review-server-1').props.accessibilityState,
+    ).toMatchObject({ selected: true })
+  })
+
+  it('takes the vote back when it is already marked', async () => {
+    ;(getSpotReviews as jest.Mock).mockResolvedValue(
+      page([makeServerReview({ marked_helpful: true })]),
+    )
+    ;(setReviewHelpful as jest.Mock).mockResolvedValue({ helpful: false, helpful_count: 2 })
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Helpful · 3')).toBeTruthy())
+    fireEvent.press(screen.getByTestId('review-helpful-review-server-1'))
+
+    await waitFor(() => expect(screen.getByText('Helpful · 2')).toBeTruthy())
+    expect(setReviewHelpful).toHaveBeenCalledWith('review-server-1', false)
+  })
+
+  it('says it could not reach the server, and leaves the count alone, with no signal', async () => {
+    ;(getSpotReviews as jest.Mock).mockResolvedValue(page([makeServerReview()]))
+    ;(setReviewHelpful as jest.Mock).mockRejectedValue(
+      new AxiosError('Network Error', AxiosError.ERR_NETWORK, { headers: {} } as never, {}),
+    )
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Helpful · 3')).toBeTruthy())
+    fireEvent.press(screen.getByTestId('review-helpful-review-server-1'))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('review-helpful-error-review-server-1')).toBeTruthy(),
+    )
+    expect(screen.getByText("Couldn't reach the server")).toBeTruthy()
+    expect(screen.getByText('Helpful · 3')).toBeTruthy()
+  })
+
+  it('offers no Helpful on a review still waiting to upload', async () => {
+    const database = createTestDatabase()
+    ;(getSpotReviews as jest.Mock).mockResolvedValue(page([]))
+
+    const localId = await createLocalReview(database, {
+      spotId: null,
+      spotUuid: 'spot-1',
+      rating: 5,
+      body: 'Not on the server yet.',
+    })
+
+    renderScreen(database)
+
+    await waitFor(() => expect(screen.getByText('Not on the server yet.')).toBeTruthy())
+    expect(screen.getByText('Queued ↑')).toBeTruthy()
+    expect(screen.queryByTestId(`review-helpful-${localId}`)).toBeNull()
+    expect(screen.queryByText(/^Helpful/)).toBeNull()
+  })
+})
+
+/**
+ * STOURIFY-211 — the button to write a review lives on this page, pinned under
+ * the list, so all three states still show it.
  */
 describe('the write-a-review button', () => {
   it('is on the page when the spot already has reviews', async () => {
-    ;(getSpotReviews as jest.Mock).mockResolvedValue({
-      data: [makeServerReview()],
-      links: {},
-      meta: { current_page: 1, last_page: 1, total: 1 },
-    })
+    ;(getSpotReviews as jest.Mock).mockResolvedValue(page([makeServerReview()]))
 
     renderScreen()
 
@@ -284,26 +402,16 @@ describe('the write-a-review button', () => {
   })
 
   it('is still on the page when the spot has none, which is where it is needed most', async () => {
-    ;(getSpotReviews as jest.Mock).mockResolvedValue({
-      data: [],
-      links: {},
-      meta: { current_page: 1, last_page: 1, total: 0 },
-    })
+    ;(getSpotReviews as jest.Mock).mockResolvedValue(page([]))
 
     renderScreen()
 
-    // The empty state says "Be the first to write one." Before this card that
-    // sentence was a dead end — there was nothing on the screen to write with.
     await waitFor(() => expect(screen.getByText('No reviews yet')).toBeTruthy())
     expect(screen.getByText('Write a review')).toBeTruthy()
   })
 
   it('opens the write-review form for the spot this page is about', async () => {
-    ;(getSpotReviews as jest.Mock).mockResolvedValue({
-      data: [],
-      links: {},
-      meta: { current_page: 1, last_page: 1, total: 0 },
-    })
+    ;(getSpotReviews as jest.Mock).mockResolvedValue(page([]))
 
     renderScreen(createTestDatabase(), 'spot-77')
 
@@ -315,10 +423,7 @@ describe('the write-a-review button', () => {
 })
 
 /**
- * STOURIFY-248, following STOURIFY-225. The reviews list answered every
- * failure with one sentence about the connection, including the one where the
- * server answered and refused. See `SpotDetailScreen.test.tsx` for the full
- * story; the two halves are asserted here for the same reason.
+ * STOURIFY-248, following STOURIFY-225: say what actually failed.
  */
 describe('the failure it reports is the failure that happened', () => {
   function forbidden() {

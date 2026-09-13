@@ -33,6 +33,8 @@ import {
   Search,
   Send,
   Settings,
+  Star,
+  ThumbsUp,
   Ticket,
   Trash2,
   User,
@@ -124,6 +126,10 @@ const GLYPHS = {
   bookmark: Bookmark,
   /** Change something you wrote — the profile's Edit profile button. */
   edit: Pencil,
+  /** One star of a rating you give — Write a review's star picker (STOURIFY-293). */
+  star: Star,
+  /** A review you found useful — the reviews list's "Helpful · N" (STOURIFY-293). */
+  thumbsUp: ThumbsUp,
 } as const
 
 export type IconName = keyof typeof GLYPHS
