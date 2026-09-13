@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **PNG photos lose their hidden metadata before they leave the phone (STOURIFY-45).** A PNG, which
+  is what a screenshot is, can carry the same GPS label a camera JPEG does, in an `eXIf` card.
+  `stripImageMetadata` now removes the `eXIf`, `iTXt` (XMP), `tEXt`, `zTXt` and `tIME` cards, and any
+  bytes hidden after the end card. Colour and pixel cards are copied untouched, and nothing is
+  re-encoded. All three upload paths pick this up with no change: post photos, the offline outbox
+  and the drain. A PNG that can't be read fails the upload instead of going up uncleaned, the same
+  as a broken JPEG.
+
+### Changed
+
+- **New Post offers photos only; no more videos (STOURIFY-45).** A video can hold the place it was
+  recorded, nothing in the app can remove that, and no screen can play a video anyway. So picking
+  one uploaded a location for a post nobody could watch. Video comes back together with playback
+  and a video strip (STOURIFY-314).
+
 - **The spot's Photos, Reviews and Write a review screens follow the Spot Hub design's artboards 2,
   3 and 4 (STOURIFY-293).**
   - **Photos:** a round back bar reading "Photos · N" with the spot's name under it, then Most

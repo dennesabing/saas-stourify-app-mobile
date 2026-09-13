@@ -15,7 +15,12 @@ export default function MediaPickerScreen({ navigation }: Props) {
       .then(({ status }) => {
         if (cancelled || status !== 'granted') return
         return ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.All,
+          // Photos only. A video can carry the place it was recorded in a
+          // metadata box `stripImageMetadata` cannot reach, and no screen can
+          // play one back yet — so offering video meant uploading a location
+          // for a post nobody could watch (STOURIFY-45). Whichever card adds
+          // video playback brings the video strip with it (STOURIFY-314).
+          mediaTypes: ['images'],
           allowsMultipleSelection: true,
           selectionLimit: 10,
           quality: 0.8,
