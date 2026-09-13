@@ -6,6 +6,8 @@ interface Props {
   icon: IconName
   /** Required: the disc carries no words, so this is the only name it has. */
   accessibilityLabel: string
+  /** What tapping it will do, when the label alone does not say — "Saved" does not say "tap to remove". */
+  accessibilityHint?: string
   onPress: () => void
   /** Draw the glyph solid — a bookmark once the spot is saved. */
   filled?: boolean
@@ -29,6 +31,7 @@ const SIZE = 40
 export default function OverlayButton({
   icon,
   accessibilityLabel,
+  accessibilityHint,
   onPress,
   filled = false,
   disabled,
@@ -43,6 +46,7 @@ export default function OverlayButton({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       accessibilityState={selected === undefined ? undefined : { selected }}
       disabled={disabled}
       onPress={onPress}

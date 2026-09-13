@@ -1,5 +1,6 @@
 import { AxiosError, type AxiosResponse } from 'axios'
 import type { Database } from '@nozbe/watermelondb'
+import { FlatList } from 'react-native'
 import { act, render, screen, waitFor, fireEvent } from '@testing-library/react-native'
 import { onlineManager } from '@tanstack/react-query'
 import SavedSpotsScreen from '@/features/spots/screens/SavedSpotsScreen'
@@ -429,5 +430,123 @@ describe('a save the phone has not sent yet', () => {
 
     expect(await screen.findByText('Nothing saved yet')).toBeTruthy()
     expect(screen.queryByTestId('saved-spot-queued')).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Removing a save from the list (STOURIFY-303)
+// ---------------------------------------------------------------------------
+
+/**
+ * Artboard 3 draws a filled bookmark at the right end of every row, and
+ * tapping it takes the spot off the list. The server hears about it on the next
+ * sync, so these tests also pin what the list does in between: the save must
+ * stay gone even if the server's list is fetched again before it has heard.
+ */
+describe('removing a save from the list', () => {
+  async function seedRow(
+    database: Database,
+    {
+      id,
+      spotUuid,
+      sent,
+      snapshot = null,
+    }: {
+      id: string
+      spotUuid: string
+      sent: boolean
+      snapshot?: Record<string, unknown> | null
+    },
+  ): Promise<void> {
+    const row = await database.write(async () =>
+      database.get<WishlistItem>('sto_wishlist_items').create((r: any) => {
+        r._raw.id = id
+        r._raw.uuid = id
+        r._raw.spot_id = null
+        r._raw.spot_uuid = spotUuid
+        r._raw.note = null
+        r._raw.is_downloaded_offline = false
+        r._raw.spot_snapshot = snapshot === null ? null : JSON.stringify(snapshot)
+        r._raw.created_at = 1_757_000_000_000
+        r._raw.updated_at = 1_757_000_000_000
+      }),
+    )
+    if (sent) await markSynced(database, row)
+  }
+
+  it('removes a save at once, without opening the spot', async () => {
+    const database = createTestDatabase()
+    await seedRow(database, { id: 'wish-1', spotUuid: 'spot-1', sent: true })
+    mockGetWishlist.mockResolvedValue([savedItem()])
+
+    renderScreen(database)
+    fireEvent.press(await screen.findByLabelText('Remove Blue Cove from your wishlist'))
+
+    await waitFor(() => expect(screen.queryByText('Blue Cove')).toBeNull())
+    expect(navigation.navigate).not.toHaveBeenCalled()
+    expect(await database.adapter.getDeletedRecords('sto_wishlist_items')).toEqual(['wish-1'])
+  })
+
+  it('stays gone when the list is refreshed before the removal has been sent', async () => {
+    const database = createTestDatabase()
+    await seedRow(database, { id: 'wish-1', spotUuid: 'spot-1', sent: true })
+    mockGetWishlist.mockResolvedValue([savedItem()])
+
+    renderScreen(database)
+    fireEvent.press(await screen.findByLabelText('Remove Blue Cove from your wishlist'))
+    await waitFor(() => expect(screen.queryByText('Blue Cove')).toBeNull())
+
+    // The server has not heard yet, so it still lists the save.
+    await act(async () => {
+      fireEvent(screen.UNSAFE_getByType(FlatList), 'refresh')
+    })
+
+    await waitFor(() => expect(mockGetWishlist).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText('Blue Cove')).toBeNull()
+  })
+
+  it('removes a save the phone had not sent yet, leaving nothing to send', async () => {
+    const database = createTestDatabase()
+    await seedRow(database, {
+      id: 'local-spot-9',
+      spotUuid: 'spot-9',
+      sent: false,
+      snapshot: {
+        uuid: 'spot-9',
+        title: 'Hidden Falls',
+        categories: ['Nature'],
+        address: null,
+        thumb_url: null,
+      },
+    })
+    mockGetWishlist.mockResolvedValue([])
+
+    renderScreen(database)
+    fireEvent.press(await screen.findByLabelText('Remove Hidden Falls from your wishlist'))
+
+    expect(await screen.findByText('Nothing saved yet')).toBeTruthy()
+    expect(await database.get('sto_wishlist_items').query().fetchCount()).toBe(0)
+    expect(await database.adapter.getDeletedRecords('sto_wishlist_items')).toEqual([])
+  })
+
+  it('removes a save the phone never pulled down, by leaving a removal marker', async () => {
+    const database = createTestDatabase()
+    mockGetWishlist.mockResolvedValue([savedItem()])
+
+    renderScreen(database)
+    fireEvent.press(await screen.findByLabelText('Remove Blue Cove from your wishlist'))
+
+    await waitFor(() => expect(screen.queryByText('Blue Cove')).toBeNull())
+    expect(await database.adapter.getDeletedRecords('sto_wishlist_items')).toEqual(['wish-1'])
+  })
+
+  it('can remove a save whose spot no longer exists', async () => {
+    const database = createTestDatabase()
+    mockGetWishlist.mockResolvedValue([savedItem({ spot: undefined })])
+
+    renderScreen(database)
+    fireEvent.press(await screen.findByLabelText('Remove this saved spot from your wishlist'))
+
+    await waitFor(() => expect(screen.queryByTestId('saved-spot-missing')).toBeNull())
   })
 })

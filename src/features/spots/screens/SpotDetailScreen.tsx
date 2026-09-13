@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   Dimensions,
   FlatList,
@@ -12,6 +12,7 @@ import {
 import { Image } from 'expo-image'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery } from '@tanstack/react-query'
+import { Q } from '@nozbe/watermelondb'
 import { useDatabase } from '@nozbe/watermelondb/react'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { HomeStackParamList } from '@/shared/navigation/types'
@@ -37,6 +38,7 @@ import { openInMaps } from '@/features/spots/api/openInMaps'
 import SpotAboutTab from '@/features/spots/components/SpotAboutTab'
 import SpotReviewsTab from '@/features/spots/components/SpotReviewsTab'
 import { useIsSpotSaved } from '@/features/spots/hooks/useIsSpotSaved'
+import { useUnsaveSpot } from '@/features/spots/hooks/useUnsaveSpot'
 import { useTheme } from '@/theme/ThemeProvider'
 import { gutter } from '@/theme/tokens'
 
@@ -174,14 +176,40 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
     void openInMaps(coordinate.latitude, coordinate.longitude, spot?.title)
   }
 
-  // The spot goes along so the save can keep a small copy of it: the Saved
-  // list reads the server, and until the sync sends this save, the copy is
-  // the only thing on the phone that can name somebody else's spot
-  // (STOURIFY-207).
-  const onSave = useCallback(async () => {
-    if (isSaved) return
-    await createLocalWishlistItem(database, { spotId: null, spotUuid: spotId, spot })
-  }, [database, isSaved, spotId, spot])
+  const unsave = useUnsaveSpot()
+  const saveBusy = useRef(false)
+
+  /**
+   * Save and unsave are one switch (STOURIFY-303); before it, a saved spot's
+   * controls were disabled and a save could never be taken back.
+   *
+   * The phone's rows decide which way it goes, not `isSaved`: that state
+   * arrives from a subscription a moment after each write, so a quick second
+   * tap would read the old answer and save the spot twice. `saveBusy` turns a
+   * tap away while the previous one is still writing.
+   *
+   * The spot goes along on a save so it can keep a small copy of it: the Saved
+   * list reads the server, and until the sync sends this save, the copy is the
+   * only thing on the phone that can name somebody else's spot (STOURIFY-207).
+   */
+  const onToggleSave = useCallback(async () => {
+    if (saveBusy.current) return
+    saveBusy.current = true
+
+    try {
+      const saves = await database
+        .get('sto_wishlist_items')
+        .query(Q.where('spot_uuid', spotId))
+        .fetchCount()
+
+      if (saves > 0) await unsave({ spotUuid: spotId })
+      else await createLocalWishlistItem(database, { spotId: null, spotUuid: spotId, spot })
+    } finally {
+      saveBusy.current = false
+    }
+  }, [database, spotId, spot, unsave])
+
+  const unsaveHint = isSaved ? 'Removes this spot from your wishlist' : undefined
 
   /**
    * The spot's public web page, which is what Share hands out (STOURIFY-301).
@@ -435,9 +463,9 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                   accessibilityLabel={
                     isSaved ? (isQueued ? 'Saved, waiting to sync' : 'Saved') : 'Save this spot'
                   }
+                  accessibilityHint={unsaveHint}
                   selected={isSaved}
-                  disabled={isSaved}
-                  onPress={onSave}
+                  onPress={onToggleSave}
                 />
               )}
             </View>
@@ -569,9 +597,9 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                 icon={isQueued ? 'sync' : 'bookmark'}
                 iconTestID={isQueued ? 'spot-save-queued' : undefined}
                 label={isSaved ? 'Saved' : 'Save'}
+                accessibilityHint={unsaveHint}
                 selected={isSaved}
-                disabled={isSaved}
-                onPress={onSave}
+                onPress={onToggleSave}
               />
               {shareUrl ? (
                 <ActionButton

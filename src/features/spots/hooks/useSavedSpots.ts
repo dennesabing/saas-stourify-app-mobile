@@ -118,7 +118,17 @@ async function readLocalSaves(database: Database): Promise<LocalSave[]> {
  * copy and are already sent, so they are the server's to report and are never
  * added here.
  */
-export function mergeSavedSpots(server: ServerSave[], local: LocalSave[]): SavedSpot[] {
+export function mergeSavedSpots(
+  allServer: ServerSave[],
+  local: LocalSave[],
+  removed: ReadonlySet<string> = new Set(),
+): SavedSpot[] {
+  // A save you removed stays off the list even while the server still reports
+  // it — its removal is queued on the phone and has not been sent yet
+  // (STOURIFY-303). The phone's own rows need no filter: a row marked for
+  // removal is invisible to every query.
+  const server = allServer.filter((save) => !removed.has(save.uuid))
+
   const onServerBySpot = new Set(
     server.map((save) => save.spot?.uuid).filter((uuid): uuid is string => Boolean(uuid)),
   )
@@ -179,6 +189,7 @@ export function useSavedSpots({ enabled = true }: { enabled?: boolean } = {}) {
   })
 
   const [local, setLocal] = useState<LocalSave[]>([])
+  const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set())
   const [isLocalRead, setIsLocalRead] = useState(false)
 
   useEffect(() => {
@@ -189,12 +200,21 @@ export function useSavedSpots({ enabled = true }: { enabled?: boolean } = {}) {
     // sent flips `_status` without touching a column, which a column-keyed
     // observer would never see. `sto_spots` too, so a pulled spot can name a
     // save that had nothing to name it with.
+    //
+    // The saves marked for removal are read alongside (STOURIFY-303). Once the
+    // server acknowledges one, its mark is destroyed without a change event, so
+    // this set can hold a uuid a little longer than the phone does — which only
+    // keeps hiding a save that is gone anyway.
     const subscription = database
       .withChangesForTables(['sto_wishlist_items', 'sto_spots'])
       .subscribe(() => {
-        void readLocalSaves(database).then((saves) => {
+        void Promise.all([
+          readLocalSaves(database),
+          database.adapter.getDeletedRecords('sto_wishlist_items'),
+        ]).then(([saves, removedIds]) => {
           if (cancelled) return
           setLocal(saves)
+          setRemoved(new Set(removedIds))
           setIsLocalRead(true)
         })
       })
@@ -226,7 +246,10 @@ export function useSavedSpots({ enabled = true }: { enabled?: boolean } = {}) {
     if (before.split('\n').some((id) => !now.has(id))) void refetch()
   }, [enabled, queuedIds, refetch])
 
-  const items = useMemo(() => mergeSavedSpots(query.data ?? [], local), [query.data, local])
+  const items = useMemo(
+    () => mergeSavedSpots(query.data ?? [], local, removed),
+    [query.data, local, removed],
+  )
 
   const rest: SavedSpotsRest =
     items.length === 0 || query.data !== undefined

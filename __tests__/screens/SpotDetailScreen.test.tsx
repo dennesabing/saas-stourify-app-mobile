@@ -1574,10 +1574,120 @@ describe('the Spot Profile design', () => {
       expect(await database.get<WishlistItem>('sto_wishlist_items').query().fetchCount()).toBe(1)
     })
 
-    // Saved once, both controls say so, and neither will save it a second time.
+    // Saved once, and both controls say so. Neither is disabled any more:
+    // tapping either again unsaves (STOURIFY-303).
     await waitFor(() => expect(screen.getByText('Saved')).toBeTruthy())
-    expect(screen.getByTestId('spot-save')).toBeDisabled()
-    expect(screen.getByTestId('spot-save-action')).toBeDisabled()
+    expect(screen.getByTestId('spot-save')).not.toBeDisabled()
+    expect(screen.getByTestId('spot-save-action')).not.toBeDisabled()
+  })
+
+  // -------------------------------------------------------------------------
+  // Unsaving (STOURIFY-303): the saved state is a switch, not a dead end
+  // -------------------------------------------------------------------------
+
+  /** A save the server already has, as the pull brings it down. */
+  async function seedSentSave(database: ReturnType<typeof createTestDatabase>) {
+    const save = await database.write(async () =>
+      database.get<WishlistItem>('sto_wishlist_items').create((row: any) => {
+        row._raw.id = 'wish-9'
+        row._raw.uuid = 'wish-9'
+        row._raw.spot_id = null
+        row._raw.spot_uuid = 'spot-1'
+        row._raw.is_downloaded_offline = false
+        row._raw.created_at = 1
+        row._raw.updated_at = 1
+      }),
+    )
+    await database.write(async () => {
+      await save.update((row: any) => {
+        row._raw._status = 'synced'
+        row._raw._changed = ''
+      })
+    })
+  }
+
+  it('unsaves when a saved control is tapped again, and both controls flip back at once', async () => {
+    const database = createTestDatabase()
+    mockSpot()
+    renderScreen(database)
+
+    await waitFor(() => expect(screen.getByTestId('spot-save-action')).toBeTruthy())
+    fireEvent.press(screen.getByTestId('spot-save-action'))
+    await waitFor(() => expect(screen.getByText('Saved')).toBeTruthy())
+
+    fireEvent.press(screen.getByTestId('spot-save'))
+
+    await waitFor(() => expect(screen.getByText('Save')).toBeTruthy())
+    expect(screen.getByLabelText('Save this spot')).toBeTruthy()
+    // It was never sent, so it is simply gone: nothing waits to tell the server.
+    expect(await database.get('sto_wishlist_items').query().fetchCount()).toBe(0)
+    expect(await database.adapter.getDeletedRecords('sto_wishlist_items')).toEqual([])
+  })
+
+  it('tells a screen reader that tapping Saved removes it', async () => {
+    const database = createTestDatabase()
+    await seedSentSave(database)
+    mockSpot()
+    renderScreen(database)
+
+    await waitFor(() => expect(screen.getByText('Saved')).toBeTruthy())
+    expect(screen.getByTestId('spot-save').props.accessibilityHint).toBe(
+      'Removes this spot from your wishlist',
+    )
+    expect(screen.getByTestId('spot-save-action').props.accessibilityHint).toBe(
+      'Removes this spot from your wishlist',
+    )
+  })
+
+  it('queues the removal of a save the server already has', async () => {
+    const database = createTestDatabase()
+    await seedSentSave(database)
+    mockSpot()
+    renderScreen(database)
+
+    await waitFor(() => expect(screen.getByText('Saved')).toBeTruthy())
+    fireEvent.press(screen.getByTestId('spot-save-action'))
+
+    await waitFor(() => expect(screen.getByText('Save')).toBeTruthy())
+    expect(await database.adapter.getDeletedRecords('sto_wishlist_items')).toEqual(['wish-9'])
+  })
+
+  it('takes the save out of the cached Saved list at once', async () => {
+    const database = createTestDatabase()
+    await seedSentSave(database)
+    mockSpot()
+    const queryClient = trackQueryClient(
+      new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+    )
+    queryClient.setQueryData(
+      ['wishlist'],
+      [
+        { uuid: 'wish-9', spot: { uuid: 'spot-1', title: 'Blue Cove' } },
+        { uuid: 'wish-2', spot: { uuid: 'spot-2', title: 'Quiet Pier' } },
+      ],
+    )
+    renderScreen(database, 'spot-1', queryClient)
+
+    await waitFor(() => expect(screen.getByText('Saved')).toBeTruthy())
+    fireEvent.press(screen.getByTestId('spot-save-action'))
+
+    await waitFor(() => {
+      const cached = queryClient.getQueryData<{ uuid: string }[]>(['wishlist']) ?? []
+      expect(cached.map((save) => save.uuid)).toEqual(['wish-2'])
+    })
+  })
+
+  it('makes one write when tapped twice before the first has finished', async () => {
+    const database = createTestDatabase()
+    mockSpot()
+    renderScreen(database)
+
+    await waitFor(() => expect(screen.getByTestId('spot-save-action')).toBeTruthy())
+    fireEvent.press(screen.getByTestId('spot-save-action'))
+    fireEvent.press(screen.getByTestId('spot-save-action'))
+
+    await waitFor(() => expect(screen.getByText('Saved')).toBeTruthy())
+    expect(await database.get('sto_wishlist_items').query().fetchCount()).toBe(1)
   })
 
   it('shows the shared photos on the Photos tab, and each opens its post', async () => {

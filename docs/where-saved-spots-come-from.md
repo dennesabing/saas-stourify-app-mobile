@@ -93,9 +93,51 @@ and "Nothing saved yet".
 > **Lesson.** A loading message is a promise. When the screen can't keep it, say what will actually
 > happen instead.
 
-## Not covered
+## Taking a save back
 
-Unsaving is STOURIFY-303. This change leaves saving and unsaving exactly as they were.
+You can unsave in two places: on the spot page, by tapping the filled Saved button again, and on
+the Wishlist screen, with the filled bookmark at the right end of a row (STOURIFY-303). The Wishlist
+tab on your profile has no remove button, because its artboard draws none.
+
+Think of the letter again. If it's still on your desk, you bin it and nobody ever knows. If it's
+already posted, binning your copy isn't enough; you send a second letter saying "ignore the first".
+`src/features/spots/api/removeLocalWishlistItem.ts` makes that choice:
+
+| The save is… | What the phone does | What the server hears |
+|---|---|---|
+| Still waiting to send | Destroys the row outright | Nothing, ever |
+| Already sent | Marks the row deleted | The next push sends its uuid under `deleted` |
+| Waiting to send, but a sync is running right now | Marks the row deleted | The create, if it was already on the wire, then the delete |
+| Only on the server (never pulled down) | Writes a removal marker for it | The next push sends its uuid under `deleted` |
+
+Nothing new is sent to the server. The delete uses the push this app already makes
+(`POST /stourify/sync/push`); the server treats a delete of something already gone as success. That
+is why the REST `DELETE /api/v1/wishlist/{id}` stays unused: it only works online.
+
+Two details keep it honest:
+
+- **A removal is a mark, and the mark is the queue.** WatermelonDB hides a row marked deleted from
+  every query, so the spot page flips to "Save" at once. `useSavedSpots` also reads the marked ids
+  and drops those saves from the server's list, so a refresh before the server has heard can't bring
+  one back. `useUnsaveSpot` takes it out of React Query's cached copy of the list at the same time.
+- **A save removed mid-flight stays removed.** If the push carrying the save is already on the wire,
+  the server creates it. When that push's "created" comes back, `applyPushResults` sees the row is now
+  marked deleted, leaves it, and doesn't count it as acknowledged. So the pull waits a cycle instead
+  of bringing the save back down, and the next push deletes it.
+
+On the Sync status screen, a removal still waiting reads "Removed a saved spot · Waiting to send". A
+save made and removed while offline leaves nothing there, because nothing is waiting.
+
+```ts
+// Rejected: mark every unsaved row deleted, and let the server ignore unknown uuids.
+//   await row.markAsDeleted()
+// Tempting because: one line, one path, and the server's delete is idempotent.
+// Why it lost HERE: a save made and removed offline would still cause a request
+// about a save the server never had, and the card forbids exactly that.
+```
+
+> **Lesson.** "The server ignores it" isn't the same as "it never reaches the server". If a request
+> mustn't happen, prevent it on the phone.
 
 ## Lessons
 
@@ -105,6 +147,8 @@ Unsaving is STOURIFY-303. This change leaves saving and unsaving exactly as they
    record.
 3. A loading message is a promise. When the screen can't keep it, say what will actually happen
    instead.
+4. "The server ignores it" isn't the same as "it never reaches the server". If a request mustn't
+   happen, prevent it on the phone.
 
 ## Glossary
 
