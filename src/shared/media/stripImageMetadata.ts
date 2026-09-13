@@ -16,7 +16,8 @@
  * Stourify's photos go straight from the phone to public object storage, and the
  * original file is served at a public URL alongside its thumbnails. So the only
  * place that can guarantee the coordinates never become public is the phone,
- * before the bytes leave it — which is this file (STOURIFY-40).
+ * before the bytes leave it — which is this file (STOURIFY-40, and PNG since
+ * STOURIFY-45).
  *
  * ## How it works, and why there is no image library involved
  *
@@ -25,11 +26,15 @@
  * how long it is, and **the metadata rides in carriages of its own** — nothing
  * in the picture data refers to them.
  *
- * So the whole job is to copy the train and uncouple three carriages. No
- * decoding, no re-encoding, no native image library, and therefore no rebuild of
- * the packaged development client. It is also lossless in a way a re-encode
- * could never be: the picture bytes that come out are the exact bytes that went
- * in.
+ * A PNG is the same idea in a different shape: a stack of index cards, each
+ * with a length, a four-letter name, its contents and a checksum over its own
+ * name and contents. The label rides on cards of its own there too.
+ *
+ * So the whole job is to copy the train, or the stack, and leave some pieces
+ * out. No decoding, no re-encoding, no native image library, and therefore no
+ * rebuild of the packaged development client. It is also lossless in a way a
+ * re-encode could never be: the picture bytes that come out are the exact bytes
+ * that went in.
  *
  * The alternative was `expo-image-manipulator`, which re-encodes the image and
  * drops the metadata as a side effect. It would have worked. It lost because it
@@ -37,10 +42,16 @@
  * shipping a new development client before any test result can be trusted — and
  * because re-encoding degrades every photo slightly to achieve something that
  * copying achieves exactly.
+ *
+ * The server runs the same two walks again as a backstop
+ * (`saas-boilerplate/app/Services/Media/JpegMetadataStripper.php` and
+ * `PngMetadataStripper.php`). The drop lists match piece for piece; change one
+ * and change the other.
  */
 
 /**
- * Thrown when the file claims to be a JPEG but its structure cannot be walked.
+ * Thrown when the file claims to be a JPEG or a PNG but its structure cannot be
+ * walked.
  *
  * Failing is deliberate, and it is the one design decision here worth arguing
  * about. The tempting alternative is to hand back the original bytes when the
@@ -90,8 +101,34 @@ const RESTART_LAST = 0xd7
  */
 const DROPPED_MARKERS: ReadonlySet<number> = new Set([0xe1, 0xed, 0xfe])
 
+/** `89 50 4E 47 0D 0A 1A 0A` — the eight bytes every PNG opens with. */
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+
+/** The last card in every PNG. */
+const PNG_END = 'IEND'
+
+/**
+ * The PNG cards that get left out.
+ *
+ * - `eXIf` holds an EXIF block — the same one a JPEG's `APP1` carries, GPS and
+ *   all.
+ * - `iTXt` holds international text, which is where XMP lives, and XMP can
+ *   repeat the location.
+ * - `tEXt` and `zTXt` hold plain and compressed text — the PNG `COM`.
+ * - `tIME` holds a timestamp, part of the label the privacy policy promises to
+ *   remove.
+ *
+ * Everything else stays: `iCCP`, `sRGB`, `gAMA`, `cHRM` and `pHYs` decide how
+ * the picture looks, and an animated PNG's frame cards are the picture.
+ */
+const DROPPED_PNG_CHUNKS: ReadonlySet<string> = new Set(['eXIf', 'iTXt', 'tEXt', 'zTXt', 'tIME'])
+
 function isJpeg(bytes: Uint8Array): boolean {
   return bytes.length >= 2 && bytes[0] === MARKER_PREFIX && bytes[1] === START_OF_IMAGE
+}
+
+function isPng(bytes: Uint8Array): boolean {
+  return bytes.length >= PNG_SIGNATURE.length && PNG_SIGNATURE.every((byte, i) => bytes[i] === byte)
 }
 
 function carriesNoPayload(marker: number): boolean {
@@ -104,37 +141,58 @@ function carriesNoPayload(marker: number): boolean {
 }
 
 /**
- * Returns the same picture with its metadata carriages removed.
- *
- * Anything that is not a JPEG comes back byte-for-byte unchanged. That is a
- * known limitation rather than an oversight: a PNG can hold an `eXIf` chunk and
- * a video can hold coordinates in its own metadata box, and neither is handled
- * here. The privacy policy says so in as many words, and the follow-up is its
- * own card.
- *
- * Calling this twice is safe and costs nothing the second time — a file with no
- * metadata carriages has none to remove, and the output equals the input.
+ * Every run of bytes worth keeping, collected as [start, end) pairs into the
+ * input rather than copied one piece at a time — a photo is megabytes and there
+ * is no reason to touch them more than once.
  */
-export function stripImageMetadata(bytes: Uint8Array): Uint8Array {
-  if (!isJpeg(bytes)) return bytes
+class KeptRuns {
+  private readonly runs: Array<[number, number]> = []
+  private length = 0
 
-  // Every run of bytes worth keeping, collected as [start, end) pairs into the
-  // input rather than copied one carriage at a time — a photo is megabytes and
-  // there is no reason to touch them more than once.
-  const kept: Array<[number, number]> = [[0, 2]]
-  let keptLength = 2
-
-  let cursor = 2
-
-  const keep = (from: number, to: number): void => {
-    const last = kept[kept.length - 1]
-    if (last[1] === from) {
+  keep(from: number, to: number): void {
+    const last = this.runs[this.runs.length - 1]
+    if (last !== undefined && last[1] === from) {
       last[1] = to
     } else {
-      kept.push([from, to])
+      this.runs.push([from, to])
     }
-    keptLength += to - from
+    this.length += to - from
   }
+
+  copyFrom(bytes: Uint8Array): Uint8Array {
+    const output = new Uint8Array(this.length)
+    let written = 0
+    for (const [from, to] of this.runs) {
+      output.set(bytes.subarray(from, to), written)
+      written += to - from
+    }
+    return output
+  }
+}
+
+/**
+ * Returns the same picture with its metadata removed.
+ *
+ * JPEG and PNG are handled. Anything else comes back byte-for-byte unchanged,
+ * and that is a known limit rather than an oversight: a HEIC has its own
+ * container, and a video can hold coordinates in its own metadata box. The app
+ * does not offer videos at all for that reason (STOURIFY-45), and the privacy
+ * policy names what is still not covered.
+ *
+ * Calling this twice is safe and costs nothing the second time — a file with no
+ * metadata has none to remove, and the output equals the input.
+ */
+export function stripImageMetadata(bytes: Uint8Array): Uint8Array {
+  if (isJpeg(bytes)) return stripJpeg(bytes)
+  if (isPng(bytes)) return stripPng(bytes)
+  return bytes
+}
+
+function stripJpeg(bytes: Uint8Array): Uint8Array {
+  const kept = new KeptRuns()
+  kept.keep(0, 2)
+
+  let cursor = 2
 
   while (cursor < bytes.length) {
     if (bytes[cursor] !== MARKER_PREFIX) {
@@ -160,12 +218,12 @@ export function stripImageMetadata(bytes: Uint8Array): Uint8Array {
       // The picture data starts after this carriage's header and runs to the end
       // of the file, with no further lengths to trust. Copy the remainder as-is;
       // this is the byte-for-byte guarantee.
-      keep(cursor, bytes.length)
+      kept.keep(cursor, bytes.length)
       break
     }
 
     if (carriesNoPayload(marker)) {
-      keep(cursor, markerAt + 2)
+      kept.keep(cursor, markerAt + 2)
       cursor = markerAt + 2
       continue
     }
@@ -191,21 +249,68 @@ export function stripImageMetadata(bytes: Uint8Array): Uint8Array {
     }
 
     if (!DROPPED_MARKERS.has(marker)) {
-      keep(cursor, end)
+      kept.keep(cursor, end)
     } else if (markerAt > cursor) {
       // Drop the carriage but not the padding that preceded it.
-      keep(cursor, markerAt)
+      kept.keep(cursor, markerAt)
     }
 
     cursor = end
   }
 
-  const output = new Uint8Array(keptLength)
-  let written = 0
-  for (const [from, to] of kept) {
-    output.set(bytes.subarray(from, to), written)
-    written += to - from
+  return kept.copyFrom(bytes)
+}
+
+/**
+ * Walks a PNG card by card, leaving out the label cards.
+ *
+ * Each card's checksum covers only that card, so removing a whole card needs no
+ * checksum recalculated. The walk stops after the end card, and anything after
+ * it is dropped: every reader ignores those bytes, which is exactly what makes
+ * them a place to hide something.
+ */
+function stripPng(bytes: Uint8Array): Uint8Array {
+  const kept = new KeptRuns()
+  kept.keep(0, PNG_SIGNATURE.length)
+
+  let cursor = PNG_SIGNATURE.length
+
+  for (;;) {
+    // Length (4) + name (4) + checksum (4) is the smallest card there is.
+    if (cursor + 12 > bytes.length) {
+      throw new MetadataStripError(
+        `The file ends at byte ${cursor} without an end card — it is truncated.`,
+      )
+    }
+
+    // Multiplied rather than shifted: `<< 24` on a byte of 0x80 or more goes
+    // negative in JavaScript's 32-bit signed arithmetic.
+    const declared =
+      bytes[cursor] * 0x1000000 +
+      (bytes[cursor + 1] << 16) +
+      (bytes[cursor + 2] << 8) +
+      bytes[cursor + 3]
+    const name = String.fromCharCode(...bytes.subarray(cursor + 4, cursor + 8))
+    const end = cursor + 12 + declared
+
+    if (!/^[A-Za-z]{4}$/.test(name)) {
+      throw new MetadataStripError(`The card at byte ${cursor} has no readable name.`)
+    }
+
+    if (end > bytes.length) {
+      throw new MetadataStripError(
+        `The ${name} card at byte ${cursor} claims to run to ${end}, past the end of a ${bytes.length}-byte file.`,
+      )
+    }
+
+    if (!DROPPED_PNG_CHUNKS.has(name)) {
+      kept.keep(cursor, end)
+    }
+
+    cursor = end
+
+    if (name === PNG_END) break
   }
 
-  return output
+  return kept.copyFrom(bytes)
 }

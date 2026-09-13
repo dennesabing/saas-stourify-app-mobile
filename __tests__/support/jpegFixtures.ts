@@ -84,6 +84,22 @@ export function segment(marker: number, payload: number[]): number[] {
  * Everything is little-endian, which is what the leading `II` declares.
  */
 function exifPayloadWithGps(): number[] {
+  return [
+    0x45,
+    0x78,
+    0x69,
+    0x66,
+    0x00,
+    0x00, // "Exif\0\0"
+    ...tiffWithGps(),
+  ]
+}
+
+/**
+ * The bare TIFF document of `exifPayloadWithGps` — which is exactly what a PNG
+ * `eXIf` card holds, since PNG drops the `Exif\0\0` introduction.
+ */
+export function tiffWithGps(): number[] {
   const GPS_IFD_OFFSET = 26
   const LATITUDE_VALUES_OFFSET = 80
   const LONGITUDE_VALUES_OFFSET = 104
@@ -132,19 +148,7 @@ function exifPayloadWithGps(): number[] {
   const latitude = dms(14, 35, 30)
   const longitude = dms(121, 0, 0)
 
-  return [
-    0x45,
-    0x78,
-    0x69,
-    0x66,
-    0x00,
-    0x00, // "Exif\0\0"
-    ...tiffHeader,
-    ...mainTable,
-    ...gpsTable,
-    ...latitude,
-    ...longitude,
-  ]
+  return [...tiffHeader, ...mainTable, ...gpsTable, ...latitude, ...longitude]
 }
 
 /** The `APP1` carriage, EXIF payload and all. */
@@ -201,7 +205,103 @@ export function markersOf(bytes: Uint8Array): number[] {
   return found
 }
 
-/** A PNG's opening bytes — used to prove non-JPEG input is left alone. */
-export function pngBytes(): Uint8Array {
-  return new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x01, 0x02, 0x03])
+/*
+ * ---------------------------------------------------------------------------
+ * PNG (STOURIFY-45)
+ *
+ * A PNG is a stack of index cards after an eight-byte signature. Each card is
+ * four bytes of length (big-endian), a four-letter name, the contents, and a
+ * CRC-32 checksum over the name and contents. The checksums here are real, so a
+ * strict reader would accept these files.
+ * ---------------------------------------------------------------------------
+ */
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+
+const CRC_TABLE: number[] = Array.from({ length: 256 }, (_, n) => {
+  let c = n
+  for (let k = 0; k < 8; k++) {
+    c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+  }
+  return c >>> 0
+})
+
+function crc32(bytes: number[]): number {
+  let crc = 0xffffffff
+  for (const byte of bytes) {
+    crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8)
+  }
+  return (crc ^ 0xffffffff) >>> 0
+}
+
+function u32be(value: number): number[] {
+  return [(value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff]
+}
+
+function ascii(text: string): number[] {
+  return Array.from(text, (ch) => ch.charCodeAt(0))
+}
+
+/** One card: length, name, contents, CRC-32 over name and contents. */
+export function pngChunk(name: string, contents: number[]): number[] {
+  const named = [...ascii(name), ...contents]
+  return [...u32be(contents.length), ...named, ...u32be(crc32(named))]
+}
+
+/** A 1x1 greyscale header: width, height, bit depth 8, colour type 0, no interlace. */
+const IHDR = pngChunk('IHDR', [...u32be(1), ...u32be(1), 0x08, 0x00, 0x00, 0x00, 0x00])
+
+/** Stand-in pixel data. Nothing here decodes it; the tests check it comes out unchanged. */
+export const PNG_PIXELS = [0x78, 0x9c, 0x63, 0x60, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01]
+
+/** A PNG carrying whatever extra cards you name, between the header and the pixels. */
+export function pngWith(chunks: number[][]): Uint8Array {
+  return new Uint8Array([
+    ...PNG_SIGNATURE,
+    ...IHDR,
+    ...chunks.flat(),
+    ...pngChunk('IDAT', PNG_PIXELS),
+    ...pngChunk('IEND', []),
+  ])
+}
+
+/** A PNG whose `eXIf` card holds the same GPS-carrying TIFF a JPEG's `APP1` would. */
+export function pngWithGps(): Uint8Array {
+  return pngWith([pngChunk('eXIf', tiffWithGps())])
+}
+
+/** The text of a card, as bytes — for `tEXt`, `iTXt` and friends. */
+export function textChunk(name: string, text: string): number[] {
+  return pngChunk(name, ascii(text))
+}
+
+/**
+ * The names of a PNG's cards, in order, read without the code under test.
+ */
+export function chunkNamesOf(bytes: Uint8Array): string[] {
+  const names: string[] = []
+  let i = PNG_SIGNATURE.length
+
+  while (i + 8 <= bytes.length) {
+    const length = bytes[i] * 0x1000000 + (bytes[i + 1] << 16) + (bytes[i + 2] << 8) + bytes[i + 3]
+    names.push(String.fromCharCode(...bytes.subarray(i + 4, i + 8)))
+    i += 12 + length
+  }
+
+  return names
+}
+
+/** The contents of the first card with this name, or null. */
+export function chunkContentsOf(bytes: Uint8Array, name: string): number[] | null {
+  let i = PNG_SIGNATURE.length
+
+  while (i + 8 <= bytes.length) {
+    const length = bytes[i] * 0x1000000 + (bytes[i + 1] << 16) + (bytes[i + 2] << 8) + bytes[i + 3]
+    if (String.fromCharCode(...bytes.subarray(i + 4, i + 8)) === name) {
+      return Array.from(bytes.subarray(i + 8, i + 8 + length))
+    }
+    i += 12 + length
+  }
+
+  return null
 }
