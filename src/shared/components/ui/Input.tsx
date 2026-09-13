@@ -41,6 +41,14 @@ export interface InputProps {
    * above it. `md`, the default, is every other field in the app, unchanged.
    */
   size?: 'md' | 'lg'
+  /**
+   * What goes in the field, for the phone's password manager and autofill —
+   * `current-password` offers the saved one, `new-password` offers to make and
+   * save a new one (STOURIFY-302). Android reads this prop.
+   */
+  autoComplete?: 'current-password' | 'new-password' | 'email' | 'off'
+  /** The same hint for iOS, which reads this prop instead. */
+  textContentType?: 'password' | 'newPassword' | 'emailAddress' | 'none'
   testID?: string
 }
 
@@ -60,19 +68,20 @@ const PREFIX_GAP = 4
  * field itself beyond the border.
  *
  * **A password field carries its own Show / Hide button** (STOURIFY-99). It
- * lives here rather than on the screens so that all six password fields in the
- * app — Login, Register's two, Reset password's two, and the one that confirms
- * account deletion on Settings — behave identically without any screen deciding
- * anything.
+ * lives here rather than on the screens so that every password field in the
+ * app — Login, Register's two, Reset password's two, the one that confirms
+ * account deletion, and Change password's three (STOURIFY-302) — behaves
+ * identically without any screen deciding anything. The same goes for
+ * autocorrect, which is switched off for every password field here: a
+ * keyboard's suggestion strip learns what you type, and "correcting" a
+ * password changes it without saying so.
  *
- * That last one was only true from STOURIFY-164, and the gap is the reason this
- * paragraph is worth reading. The claim was written here when STOURIFY-99
- * landed, and it was wrong twice over: that field was built from a raw
+ * The deletion field was only covered from STOURIFY-164, and the gap is the
+ * reason this paragraph is worth reading. The claim was written here when
+ * STOURIFY-99 landed, and it was wrong: that field was built from a raw
  * `TextInput` on its own screen rather than from this component, so it never
- * got the button — and it is not a change-password box, which does not exist,
- * but the confirmation for an irreversible deletion. A shared fix reaches
- * exactly the callers that are actually shared, and a sentence in a docstring
- * cannot make a screen one of them.
+ * got the button. A shared fix reaches exactly the callers that are actually
+ * shared, and a sentence in a docstring cannot make a screen one of them.
  *
  * Three properties are load-bearing:
  *
@@ -103,6 +112,8 @@ export default function Input({
   prefix,
   counter,
   size = 'md',
+  autoComplete,
+  textContentType,
   testID,
 }: InputProps) {
   const theme = useTheme()
@@ -156,6 +167,9 @@ export default function Input({
           secureTextEntry={secureTextEntry && !revealed}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
+          autoCorrect={secureTextEntry ? false : undefined}
+          autoComplete={autoComplete}
+          textContentType={textContentType}
           multiline={multiline}
           maxLength={maxLength}
           accessibilityLabel={label}

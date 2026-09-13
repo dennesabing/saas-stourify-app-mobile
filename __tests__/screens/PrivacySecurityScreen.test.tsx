@@ -106,9 +106,17 @@ describe('the Privacy & security screen (artboard 3)', () => {
     const { queryByText } = await renderScreen()
 
     await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
-    for (const row of ['Change password', 'Two-factor authentication', 'Download my data']) {
+    for (const row of ['Two-factor authentication', 'Download my data']) {
       expect(queryByText(row)).toBeNull()
     }
+  })
+
+  it('opens Change password from the Account security group (STOURIFY-302)', async () => {
+    const { getByText } = await renderScreen()
+
+    expect(getByText('Account security')).toBeTruthy()
+    fireEvent.press(getByText('Change password'))
+    expect(mockNavigation.navigate).toHaveBeenCalledWith('ChangePassword')
   })
 
   it('keeps its content in a scrollable container that clears the tab bar', async () => {

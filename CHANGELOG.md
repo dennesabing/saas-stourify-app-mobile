@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Change your password from the app (STOURIFY-302).** Settings → Privacy & security now has an
+  Account security group with a Change password row. The screen has three fields: current, new and
+  confirm. It calls the server's existing `PUT /me/password`. A wrong current password is named
+  under that field in plain words. Too many tries (the server allows five a minute) says to wait a
+  minute. A mismatched confirmation is caught before anything is sent. On success, the fields empty
+  and the screen confirms the change. The server signs every other phone and browser out and keeps
+  this one, and the screen says so before you press the button. The request is sent straight to the
+  server and never queued offline, so a password is never stored on the phone. Every password field
+  in the app now has autocorrect off, and the new fields tell the password manager which one is the
+  current password and which is the new one.
+
 - **Share a spot from its page (STOURIFY-301).** A Share button now sits between Save and
   Directions. It opens the phone's own share sheet with the spot's name and its public web link,
   which opens a readable page on any phone, with or without the app. It appears only when the

@@ -266,6 +266,11 @@ export type ProfileStackParamList = {
    */
   PrivacySecurity: undefined
   /**
+   * Current, new and confirm — reached from Privacy & security → Account
+   * security, calling `PUT /me/password` (STOURIFY-302). Online only on purpose.
+   */
+  ChangePassword: undefined
+  /**
    * Which build this is and who made it — the design's artboard 8, reached
    * from Settings → Legal (STOURIFY-291). Reads nothing from the server.
    */
