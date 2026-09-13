@@ -17,33 +17,55 @@ import type { HomeStackParamList } from '@/shared/navigation/types'
 import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { getSpot, getSpotPosts } from '@/shared/api/spots'
 import {
+  Button,
   Card,
   EmptyState,
   HashtagText,
-  OverlayHeader,
+  Icon,
+  OverlayButton,
   Rating,
   Skeleton,
   Tag,
   Text,
 } from '@/shared/components/ui'
+import type { IconName } from '@/shared/components/ui'
 import type { Post } from '@/shared/api/types'
+import { ratingFor } from '@/features/discover/api/exploreSpots'
 import { createLocalWishlistItem } from '@/features/spots/api/createLocalWishlistItem'
 import { openInMaps } from '@/features/spots/api/openInMaps'
 import SpotAboutTab from '@/features/spots/components/SpotAboutTab'
+import SpotReviewsTab from '@/features/spots/components/SpotReviewsTab'
 import { useIsSpotSaved } from '@/features/spots/hooks/useIsSpotSaved'
 import { useTheme } from '@/theme/ThemeProvider'
+import { gutter } from '@/theme/tokens'
 
 const { width } = Dimensions.get('window')
-const THUMB = (width - 4) / 3
+/** The canvas's `.mini-grid`: three columns, 4 apart, inside the page gutter. */
+const GRID_GAP = 4
+const THUMB = (width - gutter * 2 - GRID_GAP * 2) / 3
 /** A hero page is exactly one screen wide, so `pagingEnabled` lands on photo boundaries. */
 const SCREEN_WIDTH = width
-const HERO_HEIGHT = 240
+/** The canvas's `.sp-hero` height. */
+const HERO_HEIGHT = 330
 const HERO_VIEWABILITY = { itemVisiblePercentThreshold: 60 }
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'SpotDetail'>
+type SpotTab = 'About' | 'Photos' | 'Reviews'
 
 /**
- * The Spot Hub landing screen — rebuilt on the design system.
+ * The design's three tabs, in its order. Its fourth, Events, has nothing
+ * behind it — `docs/what-the-spot-page-leaves-out.md` says why.
+ */
+const TABS: SpotTab[] = ['About', 'Photos', 'Reviews']
+
+/**
+ * The Spot Hub landing screen — artboard 1, "Spot Profile", of
+ * `docs/design/Stourify - Spot Hub.dc.html` (STOURIFY-292).
+ *
+ * Top to bottom: the swipeable photo with its counter and its round Back and
+ * Save; the title block; Save and Directions; then About | Photos | Reviews.
+ * Same data and the same behaviour as before, laid out the way the canvas
+ * draws it.
  *
  * Wishlist save is a genuine offline-first WatermelonDB write
  * (`createLocalWishlistItem`), NOT a React Query mutation: `sto_wishlist_items`
@@ -54,12 +76,12 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
   const theme = useTheme()
   const database = useDatabase()
   /*
-   * Defaults to Posts, as it always has. A deep link
-   * (`stourify://spot/<uuid>?tab=about`) is the only thing that passes
-   * anything else — see `shared/navigation/linking.ts` (STOURIFY-253).
+   * Opens on About, the design's default (STOURIFY-292; it opened on Posts
+   * before). A deep link (`stourify://spot/<uuid>?tab=photos`) is the only
+   * thing that passes anything else — see `shared/navigation/linking.ts`.
    */
-  const [tab, setTab] = useState<'Posts' | 'About'>(initialTab ?? 'Posts')
-  /** Which hero photo is showing, so the dots can say so. */
+  const [tab, setTab] = useState<SpotTab>(initialTab ?? 'About')
+  /** Which hero photo is showing, so the counter can say so. */
   const [heroIndex, setHeroIndex] = useState(0)
 
   const onHeroViewableChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -120,6 +142,12 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
   const media = spot?.media ?? []
   const categories = spot?.categories ?? []
   const title = spot?.title ?? '...'
+  /**
+   * Stars only when somebody has actually reviewed the spot. The server sends
+   * `rating_average: 0` for a spot nobody has rated, and "★ 0.0" reads as
+   * "rated terribly" — `ratingFor` is the app's one rule for that (STOURIFY-259).
+   */
+  const rating = spot ? ratingFor(spot) : null
 
   /**
    * The spot's position, or `null` when the server did not send one — a
@@ -128,7 +156,7 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
    *
    * Resolved once, here, rather than checked again inside the JSX. A `typeof`
    * guard written in the markup narrows the expression it guards and nothing
-   * else: the `onPress` handler below is a closure, and TypeScript rightly
+   * else: the `onPress` handlers below are closures, and TypeScript rightly
    * refuses to assume `spot.latitude` is still a number by the time somebody
    * taps. One `const` makes the narrowing outlive the branch.
    *
@@ -140,29 +168,39 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
       ? { latitude: spot.latitude, longitude: spot.longitude }
       : null
 
+  const openDirections = () => {
+    if (!coordinate) return
+    void openInMaps(coordinate.latitude, coordinate.longitude, spot?.title)
+  }
+
   const onSave = useCallback(async () => {
     if (isSaved) return
     await createLocalWishlistItem(database, { spotId: null, spotUuid: spotId })
   }, [database, isSaved, spotId])
 
-  const renderThumb = useCallback(
-    ({ item }: { item: Post }) => (
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => navigation.navigate('PostDetail', { postId: item.uuid })}
-      >
-        {item.media?.[0]?.url ? (
-          <Image
-            source={{ uri: item.media[0].url }}
-            style={{ width: THUMB, height: THUMB }}
-            contentFit="cover"
-          />
-        ) : (
-          <View style={{ width: THUMB, height: THUMB, backgroundColor: theme.colors.surfaceAlt }} />
-        )}
-      </Pressable>
-    ),
-    [navigation, theme.colors.surfaceAlt],
+  const renderThumb = (item: Post) => (
+    <Pressable
+      key={item.uuid}
+      testID="spot-post-thumb"
+      accessibilityRole="button"
+      accessibilityLabel="Open this post"
+      onPress={() => navigation.navigate('PostDetail', { postId: item.uuid })}
+      style={{
+        width: THUMB,
+        height: THUMB,
+        borderRadius: 8,
+        overflow: 'hidden',
+        backgroundColor: theme.colors.surfaceAlt,
+      }}
+    >
+      {item.media?.[0]?.url ? (
+        <Image
+          source={{ uri: item.media[0].url }}
+          style={{ width: THUMB, height: THUMB }}
+          contentFit="cover"
+        />
+      ) : null}
+    </Pressable>
   )
 
   return (
@@ -188,362 +226,243 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
           contentContainerStyle={{ paddingBottom: theme.spacing[7] }}
           keyboardShouldPersistTaps="handled"
         >
-          {/*
-            Shared with the photo gallery (STOURIFY-199), so the two cannot
-            drift apart. No title here: the spot's name is already set in full a
-            few lines down, and saying it twice on one screen is noise.
+          <View>
+            {/*
+            A request that came back broken gets words and a button, not a shape
+            that pulses forever. Before STOURIFY-64 a failed fetch left the hero
+            and the rating as grey placeholders with no message and no way out —
+            a lift button that lights up and stays lit.
+
+            The panel REPLACES the hero rather than rendering inside it, because
+            `EmptyState` contains a `Button` and a touch target nested inside
+            another touch target is an arrangement that works until a platform
+            decides otherwise. There is nothing to open in this state anyway.
           */}
-          <OverlayHeader onBack={() => navigation.goBack()} />
+            {hasFailed ? (
+              <View
+                testID="spot-hero-error"
+                style={{
+                  minHeight: HERO_HEIGHT,
+                  justifyContent: 'center',
+                  backgroundColor: theme.colors.surfaceAlt,
+                }}
+              >
+                <EmptyState
+                  icon={failure.icon}
+                  title={failure.title}
+                  subtitle={failure.subtitle}
+                  actionLabel="Try again"
+                  onAction={() => void refetch()}
+                />
+              </View>
+            ) : (
+              <Pressable
+                testID="spot-hero"
+                accessibilityRole="button"
+                accessibilityLabel="View photos"
+                onPress={() => navigation.navigate('PhotoGallery', { spotId })}
+                disabled={media.length === 0}
+              >
+                {/*
+                Three states, and the ORDER is the fix. `media` is `spot?.media ?? []`,
+                so it is empty both for a spot with no photos and for a spot nobody has
+                heard back about yet. Asking "are there photos?" first answered the
+                second case with the first case's sentence — "No photos yet" over a spot
+                that may well have twenty (STOURIFY-63). Ask "has it arrived?" first and
+                the two facts stop sharing an answer.
+              */}
+                {isWaiting ? (
+                  <View testID="spot-hero-loading">
+                    <Skeleton height={HERO_HEIGHT} radius={0} />
+                  </View>
+                ) : media.length > 0 ? (
+                  /*
+                    Every photo, swipeable, rather than the first one and a hint
+                    that there might be others (STOURIFY-201). Tapping still opens
+                    the full-screen gallery: this is the preview, that is the
+                    reading room.
 
-          {/*
-            Save, as a mark on the photo rather than a labelled button in the
-            column below (STOURIFY-197, direction A).
+                    `scrollEnabled` is off for a single photo so the one-photo
+                    case cannot be dragged around, which reads as broken rather
+                    than as "there is only one".
+                  */
+                  <View>
+                    <FlatList
+                      testID="spot-hero-pager"
+                      data={media}
+                      horizontal
+                      pagingEnabled
+                      scrollEnabled={media.length > 1}
+                      showsHorizontalScrollIndicator={false}
+                      keyExtractor={(photo) => photo.uuid}
+                      onViewableItemsChanged={onHeroViewableChanged}
+                      viewabilityConfig={HERO_VIEWABILITY}
+                      renderItem={({ item: photo }) => (
+                        <Image
+                          testID="spot-hero-image"
+                          source={{ uri: photo.url }}
+                          style={{
+                            width: SCREEN_WIDTH,
+                            height: HERO_HEIGHT,
+                            backgroundColor: theme.colors.surfaceAlt,
+                          }}
+                          contentFit="cover"
+                          transition={theme.motion.fast}
+                        />
+                      )}
+                    />
 
-            It is a SIBLING of the hero, not a child of it, and absolutely
-            positioned the same way Back is. The hero is itself a button that
-            opens the gallery, and a touch target inside another touch target is
-            an arrangement that works right up until a platform decides
-            otherwise — the note on the error panel a few lines down makes the
-            same point about the same hero.
+                    {/*
+                      The canvas's "1 / N" (`.pc`), where STOURIFY-201 drew dots.
+                      A number says how many there are, which a row of dots stops
+                      doing at about six. On a single photo it says "1 / 1": the
+                      truth, and no promise of a second one to swipe to.
+                    */}
+                    <View
+                      testID="spot-hero-counter"
+                      pointerEvents="none"
+                      style={{
+                        position: 'absolute',
+                        bottom: 14,
+                        right: 14,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 5,
+                        paddingHorizontal: 11,
+                        paddingVertical: 6,
+                        borderRadius: theme.radius.chip,
+                        backgroundColor: theme.colors.overlayStrong,
+                      }}
+                    >
+                      <Icon name="camera" size={13} color="onButton" />
+                      <Text
+                        variant="caption"
+                        color="onButton"
+                        style={{ fontFamily: theme.fontFamily.bodySemiBold }}
+                      >
+                        {`${heroIndex + 1} / ${media.length}`}
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View
+                    style={{
+                      width: '100%',
+                      height: HERO_HEIGHT,
+                      backgroundColor: theme.colors.surfaceAlt,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: theme.spacing[1],
+                    }}
+                  >
+                    <Text variant="h2" color="muted">
+                      🖼
+                    </Text>
+                    <Text variant="body" color="muted">
+                      No photos yet
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+            )}
 
-            The trade this makes: a mark is less self-explanatory than the word
-            "Save". It carries an accessibility label saying what it does, and it
-            fills in once saved so the state is readable at a glance.
-          */}
-          {hasFailed ? null : (
-            <Pressable
-              testID="spot-save"
-              accessibilityRole="button"
-              accessibilityLabel={isSaved ? 'Saved' : 'Save this spot'}
-              accessibilityState={{ selected: isSaved }}
-              disabled={isSaved}
-              onPress={onSave}
+            {/*
+              Back and Save, as the canvas's round dark discs on the photo.
+
+              They are SIBLINGS of the hero, not children of it, and float over
+              it from here. The hero is itself a button that opens the gallery,
+              and a touch target inside another touch target is an arrangement
+              that works right up until a platform decides otherwise
+              (STOURIFY-197).
+
+              The canvas also draws Share beside Save. A spot has no public web
+              address to share, so it is left out (STOURIFY-301 owns it).
+            */}
+            <View
+              pointerEvents="box-none"
               style={{
                 position: 'absolute',
                 top: theme.spacing[3],
-                right: theme.spacing[3],
+                left: 14,
+                right: 14,
                 zIndex: 10,
-                minWidth: theme.minTouchTarget,
-                minHeight: theme.minTouchTarget,
-                borderRadius: theme.radius.chip,
-                backgroundColor: theme.colors.card,
-                alignItems: 'center',
-                justifyContent: 'center',
-                paddingHorizontal: theme.spacing[3],
+                flexDirection: 'row',
+                justifyContent: 'space-between',
               }}
             >
-              <Text variant="body" color={isSaved ? 'primary' : 'ink'}>
-                {isSaved ? (isQueued ? '🔖 ↑' : '🔖') : '🔖'}
-              </Text>
-            </Pressable>
-          )}
-
-          {/*
-          A request that came back broken gets words and a button, not a shape
-          that pulses forever. Before STOURIFY-64 a failed fetch left the hero
-          and the rating as grey placeholders with no message and no way out —
-          a lift button that lights up and stays lit.
-
-          The panel REPLACES the hero rather than rendering inside it, because
-          `EmptyState` contains a `Button` and a touch target nested inside
-          another touch target is an arrangement that works until a platform
-          decides otherwise. There is nothing to open in this state anyway.
-        */}
-          {hasFailed ? (
-            <View
-              testID="spot-hero-error"
-              style={{ minHeight: HERO_HEIGHT, backgroundColor: theme.colors.surfaceAlt }}
-            >
-              <EmptyState
-                icon={failure.icon}
-                title={failure.title}
-                subtitle={failure.subtitle}
-                actionLabel="Try again"
-                onAction={() => void refetch()}
+              <OverlayButton
+                icon="back"
+                accessibilityLabel="Back"
+                onPress={() => navigation.goBack()}
               />
-            </View>
-          ) : (
-            <Pressable
-              testID="spot-hero"
-              accessibilityRole="button"
-              accessibilityLabel="View photos"
-              onPress={() => navigation.navigate('PhotoGallery', { spotId })}
-              disabled={media.length === 0}
-            >
-              {/*
-              Three states, and the ORDER is the fix. `media` is `spot?.media ?? []`,
-              so it is empty both for a spot with no photos and for a spot nobody has
-              heard back about yet. Asking "are there photos?" first answered the
-              second case with the first case's sentence — "No photos yet" over a spot
-              that may well have twenty (STOURIFY-63). Ask "has it arrived?" first and
-              the two facts stop sharing an answer.
 
-              The test is `isWaiting`, matching the rating below rather than inventing
-              a second opinion: two elements fed by one query must not disagree about
-              whether that query has come back.
-            */}
-              {isWaiting ? (
-                <View testID="spot-hero-loading">
-                  <Skeleton height={HERO_HEIGHT} radius={0} />
-                </View>
-              ) : media.length > 0 ? (
-                /*
-                  Every photo, swipeable, rather than the first one and a hint
-                  that there might be others (STOURIFY-201).
-
-                  It drew `media[0]` and nothing else, so a spot with five
-                  photos looked exactly like a spot with one. The only way to
-                  learn otherwise was to tap through to the gallery, which is
-                  something you do when you already believe there is more to
-                  see.
-
-                  Tapping still opens the full-screen gallery. This is the
-                  preview; that is the reading room.
-
-                  `scrollEnabled` is off for a single photo so the one-photo
-                  case cannot be dragged around, which reads as broken rather
-                  than as "there is only one".
-                */
-                <View>
-                  <FlatList
-                    testID="spot-hero-pager"
-                    data={media}
-                    horizontal
-                    pagingEnabled
-                    scrollEnabled={media.length > 1}
-                    showsHorizontalScrollIndicator={false}
-                    keyExtractor={(photo) => photo.uuid}
-                    onViewableItemsChanged={onHeroViewableChanged}
-                    viewabilityConfig={HERO_VIEWABILITY}
-                    renderItem={({ item: photo }) => (
-                      <Image
-                        testID="spot-hero-image"
-                        source={{ uri: photo.url }}
-                        style={{
-                          width: SCREEN_WIDTH,
-                          height: HERO_HEIGHT,
-                          backgroundColor: theme.colors.surfaceAlt,
-                        }}
-                        contentFit="cover"
-                        transition={theme.motion.fast}
-                      />
-                    )}
-                  />
-
-                  {/*
-                    Dots, only when there is more than one. A single dot under a
-                    single photo is a claim that there is something to swipe to.
-                  */}
-                  {media.length > 1 ? (
-                    <View
-                      testID="spot-hero-dots"
-                      style={{
-                        position: 'absolute',
-                        bottom: theme.spacing[3],
-                        alignSelf: 'center',
-                        flexDirection: 'row',
-                        gap: theme.spacing[1],
-                      }}
-                    >
-                      {media.map((photo, dotIndex) => (
-                        <View
-                          key={photo.uuid}
-                          style={{
-                            width: 6,
-                            height: 6,
-                            borderRadius: 3,
-                            backgroundColor:
-                              dotIndex === heroIndex ? theme.colors.card : theme.colors.hairline,
-                          }}
-                        />
-                      ))}
-                    </View>
-                  ) : null}
-                </View>
-              ) : (
-                <View
-                  style={{
-                    width: '100%',
-                    height: HERO_HEIGHT,
-                    backgroundColor: theme.colors.surfaceAlt,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: theme.spacing[1],
-                  }}
-                >
-                  <Text variant="h2" color="muted">
-                    🖼
-                  </Text>
-                  <Text variant="body" color="muted">
-                    No photos yet
-                  </Text>
-                </View>
+              {hasFailed ? null : (
+                <OverlayButton
+                  testID="spot-save"
+                  icon="bookmark"
+                  filled={isSaved}
+                  accessibilityLabel={
+                    isSaved ? (isQueued ? 'Saved, waiting to sync' : 'Saved') : 'Save this spot'
+                  }
+                  selected={isSaved}
+                  disabled={isSaved}
+                  onPress={onSave}
+                />
               )}
-            </Pressable>
-          )}
+            </View>
+          </View>
 
           {/*
           Nothing in this block survives a failed request, and that is one
           decision rather than five. Every child of it either states a fact
           about the spot — its name, its Verified tag, its categories, its
-          rating — or acts on the spot: see its reviews, write one, save it.
-          With no spot and nothing cached, none of them has anything true to
-          say, and there is no second source that could fill any of them in.
+          rating — or acts on the spot: save it, go there. With no spot and
+          nothing cached, none of them has anything true to say, and there is
+          no second source that could fill any of them in (STOURIFY-65).
 
-          Before STOURIFY-65 they rendered their `??` fallbacks under the error
-          panel: a title of "...", a "See all 0 reviews" button, and two
-          buttons offering to review and bookmark a place the app had just
-          admitted it could not identify.
-
-          The line this stops at is the block below, which is fed by a
+          The line this stops at is the tabs below, whose Photos tab is fed by a
           SEPARATE request (`getSpotPosts`) that may well have succeeded.
           Hiding posts that loaded fine, because the spot's own details did
           not, is the same mistake as covering a cached spot — STOURIFY-64
-          rejected exactly that, and this card does not reopen it.
+          rejected exactly that.
+
+          It sits UNDER the photo, where the canvas prints it on the photo over
+          a dark scrim: the rating line below is a button, the photo is a
+          button, and one inside the other is the nesting rule above. Text on a
+          contributor's photo is also only legible until somebody photographs a
+          pale sky (STOURIFY-292, ASSUMPTION note).
         */}
           {hasFailed ? null : (
-            <View style={{ padding: theme.gutter, gap: theme.spacing[2] }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2] }}>
-                <Text variant="h1" style={{ flex: 1 }} numberOfLines={2}>
-                  {title}
-                </Text>
-                {spot?.is_verified && <Tag label="✓ Verified" />}
-              </View>
-
-              {categories.length > 0 && (
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing[1] }}>
+            <View
+              style={{
+                paddingHorizontal: theme.gutter,
+                paddingTop: theme.spacing[4],
+                gap: theme.spacing[2],
+              }}
+            >
+              {categories.length > 0 || spot?.is_verified ? (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                   {categories.map((category) => (
                     <Tag key={category} label={category} />
                   ))}
-                </View>
-              )}
-
-              {/*
-                Where this place is, and a way to go there (STOURIFY-210).
-
-                It sits under the title because that is the question a spot page
-                exists to answer, and it used to be inside a tab the screen does
-                not open on.
-
-                **Only rendered when there is a coordinate to open**, checked
-                with `typeof === 'number'` rather than truthiness: latitude 0 is
-                the equator and longitude 0 is Greenwich, and both are real
-                places that a `spot?.latitude &&` guard would hide (STOURIFY-65).
-
-                The address is shown when there is one and the coordinate reads
-                as the second line, because "Coastal Road" tells a person more
-                than six decimal places do. When there is no address the
-                coordinate carries the row alone rather than leaving it empty.
-              */}
-              {coordinate ? (
-                <Pressable
-                  testID="spot-location"
-                  accessibilityRole="button"
-                  accessibilityLabel={`Open ${spot?.title ?? 'this spot'} in maps`}
-                  accessibilityHint="Opens your map app at this location"
-                  onPress={() =>
-                    void openInMaps(coordinate.latitude, coordinate.longitude, spot?.title)
-                  }
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: theme.spacing[2],
-                    minHeight: theme.minTouchTarget,
-                  }}
-                >
-                  <Text variant="body">📍</Text>
-
-                  <View style={{ flex: 1 }}>
-                    {spot?.address ? (
-                      <Text variant="body" color="primary" numberOfLines={2}>
-                        {spot.address}
-                      </Text>
-                    ) : null}
-                    <Text
-                      testID="spot-coordinates"
-                      variant="caption"
-                      color={spot?.address ? 'muted' : 'primary'}
-                    >
-                      {coordinate.latitude.toFixed(4)}, {coordinate.longitude.toFixed(4)}
-                    </Text>
-                  </View>
-
-                  {/*
-                    The same chevron the rating row uses. Without it this is a
-                    line of grey text that happens to be tappable, which is the
-                    same as not being tappable at all.
-                  */}
-                  <Text variant="body" color="muted">
-                    ›
-                  </Text>
-                </Pressable>
-              ) : spot?.address ? (
-                /*
-                  An address but no coordinate, which is a state this app
-                  deliberately produces: a contributor can hide where their spot
-                  is, and then the coordinates are withheld from everyone else
-                  (STOURIFY-185).
-
-                  It still says roughly where the place is, and it is NOT
-                  tappable — there is nothing to open. A control that looks
-                  identical to the one above and does nothing when pressed is
-                  worse than plain text.
-                */
-                <View
-                  testID="spot-location-static"
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2] }}
-                >
-                  <Text variant="body">📍</Text>
-                  <Text variant="body" color="muted" numberOfLines={2} style={{ flex: 1 }}>
-                    {spot.address}
-                  </Text>
-                </View>
-              ) : spot ? (
-                /*
-                  Neither a coordinate nor an address (STOURIFY-240).
-
-                  This used to render nothing, and nothing is the same shape as
-                  a screen that failed to load — a reader cannot tell "this
-                  place has no location on it" from "the app is broken". One
-                  plain line is the difference.
-
-                  It says what happened, not why. The response simply has no
-                  `latitude` key, and absence carries no reason with it, so
-                  "hidden by the contributor" would be a guess printed as a
-                  fact — on the one screen where guessing about location is the
-                  failure being designed out. STOURIFY-242 would have the
-                  server say which it is.
-                */
-                <View
-                  testID="spot-location-hidden"
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing[2] }}
-                >
-                  <Text variant="body">📍</Text>
-                  <Text variant="body" color="muted" style={{ flex: 1 }}>
-                    Location not shown
-                  </Text>
+                  {spot?.is_verified ? <Tag label="✓ Verified" /> : null}
                 </View>
               ) : null}
 
-              {/*
-              Nothing at all in the failed state, rather than a second failure
-              message six lines under the first. One request went wrong; two
-              notices about it read as two separate faults. What matters is that
-              the skeleton goes: it carries `accessibilityLabel="Loading"`, so a
-              skeleton nobody can resolve keeps announcing a request that
-              finished — badly — minutes ago.
-            */}
-              {/*
-              The rating and Save share one line, the way a shelf edge carries
-              both a price and the button you press to take the item
-              (STOURIFY-102). Save used to be a full-width row of its own below
-              the review buttons, with the whole right-hand side of this line
-              left empty.
+              <Text variant="display" numberOfLines={2}>
+                {title}
+              </Text>
 
-              The row renders in the waiting state too, with a skeleton standing
-              in for the rating, so Save does not appear late and shift
-              everything under it downwards once the request lands.
-            */}
+              {/*
+                "★★★★★ 4.8 · 212 reviews · Kadayawan Hills", the canvas's `.rt`
+                line. It stays the way into the reviews (STOURIFY-197), and the
+                chevron is what makes it look like one: a rating that silently
+                became tappable would be a rating nobody ever pressed.
+
+                The row renders in the waiting state too, with a skeleton for
+                the rating, so the buttons under it do not arrive late and shift
+                everything down once the request lands.
+              */}
               <Pressable
                 testID="spot-rating-row"
                 accessibilityRole="button"
@@ -553,69 +472,104 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
-                  gap: theme.spacing[3],
+                  gap: theme.spacing[2],
                   minHeight: theme.minTouchTarget,
                 }}
               >
-                <View style={{ flex: 1 }}>
+                <View
+                  style={{
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: theme.spacing[1],
+                  }}
+                >
                   {isWaiting ? (
                     <Skeleton height={20} width="40%" />
+                  ) : rating !== null ? (
+                    <Rating value={rating} reviewCount={spot?.reviews_count} />
                   ) : (
-                    <Rating
-                      value={spot?.rating_average ?? 0}
-                      reviewCount={spot?.reviews_count ?? 0}
-                    />
+                    <Text variant="caption" color="muted">
+                      No reviews yet
+                    </Text>
                   )}
+
+                  {!isWaiting && spot?.address ? (
+                    <Text
+                      variant="caption"
+                      color="muted"
+                      numberOfLines={1}
+                      style={{ flexShrink: 1 }}
+                    >
+                      {`· ${spot.address}`}
+                    </Text>
+                  ) : null}
                 </View>
 
-                {/*
-                  The chevron is not decoration — it is the only thing making
-                  this row look like a way through (STOURIFY-197). A rating that
-                  silently became tappable would be a rating nobody ever pressed,
-                  and "See all reviews" would have been deleted rather than
-                  moved. It is hidden while the request is in flight, because the
-                  row is not pressable then either.
-                */}
-                {isWaiting ? null : (
-                  <Text variant="body" color="muted">
-                    ›
-                  </Text>
-                )}
+                {isWaiting ? null : <Icon name="forward" size={18} color="muted" />}
               </Pressable>
+            </View>
+          )}
 
-              {/*
-              The count is gone from this label on purpose. At half the row's
-              width there is room for about fifteen characters, and
-              "See all 12 reviews" is eighteen — so it either wrapped onto a
-              second line (the reported defect) or would now be cut short by an
-              ellipsis. The number is already one line above, in the rating row's
-              "· 12 reviews", so nothing is lost by saying it once.
-            */}
-              {/*
-                No review buttons left on this page at all, and that took two
-                cards. STOURIFY-197 removed "See all reviews", because the
-                rating row directly above it already carried the count and
-                already led to the same place. STOURIFY-211 removed the survivor,
-                "Write a review", by moving it to the reviews page itself —
-                comment cards belong beside the guest book, not by the front
-                door. Nothing was lost: the rating row still leads to the
-                reviews, and the button is now pinned to the foot of the page it
-                leads to.
-              */}
+          {/*
+            Save and Directions, the canvas's `.sp-act` row. Its middle button,
+            Share, is left out for the reason on the photo above.
+
+            Save here and the mark on the photo are one action drawn twice, so
+            they write the same wishlist row and both read "saved" from the same
+            hook. Directions hands off to the phone's own map app, and is only
+            drawn when there is a position to hand it — a contributor can hide
+            theirs (STOURIFY-185).
+          */}
+          {hasFailed ? null : (
+            <View
+              testID="spot-actions"
+              style={{
+                flexDirection: 'row',
+                gap: 9,
+                paddingHorizontal: theme.gutter,
+                paddingTop: 14,
+                paddingBottom: 6,
+              }}
+            >
+              <ActionButton
+                testID="spot-save-action"
+                icon={isQueued ? 'sync' : 'bookmark'}
+                iconTestID={isQueued ? 'spot-save-queued' : undefined}
+                label={isSaved ? 'Saved' : 'Save'}
+                selected={isSaved}
+                disabled={isSaved}
+                onPress={onSave}
+              />
+              {coordinate ? (
+                <ActionButton
+                  testID="spot-directions"
+                  icon="navigate"
+                  label="Directions"
+                  primary
+                  accessibilityHint="Opens your map app at this location"
+                  onPress={openDirections}
+                />
+              ) : null}
             </View>
           )}
 
           <View
+            accessibilityRole="tablist"
             style={{
               flexDirection: 'row',
+              gap: 2,
+              paddingHorizontal: 14,
+              paddingTop: theme.spacing[3],
               borderBottomWidth: 1,
               borderBottomColor: theme.colors.hairline,
             }}
           >
-            {(['Posts', 'About'] as const).map((t) => (
+            {TABS.map((t) => (
               <Pressable
                 key={t}
-                accessibilityRole="button"
+                accessibilityRole="tab"
+                accessibilityLabel={t}
                 accessibilityState={{ selected: tab === t }}
                 onPress={() => setTab(t)}
                 style={{
@@ -627,25 +581,25 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                   borderBottomColor: theme.colors.primary,
                 }}
               >
-                <Text variant="body" color={tab === t ? 'primary' : 'muted'}>
+                <Text
+                  variant="caption"
+                  color={tab === t ? 'primary' : 'muted'}
+                  style={{ fontFamily: theme.fontFamily.bodySemiBold }}
+                >
                   {t}
                 </Text>
               </Pressable>
             ))}
           </View>
 
-          {tab === 'Posts' ? (
-            <FlatList
-              data={posts}
-              numColumns={3}
-              keyExtractor={(p) => p.uuid}
-              renderItem={renderThumb}
-              contentContainerStyle={{ gap: 2 }}
-              columnWrapperStyle={{ gap: 2 }}
-              scrollEnabled={false}
-            />
-          ) : (
-            <View style={{ padding: theme.gutter, gap: theme.spacing[2] }}>
+          {tab === 'About' ? (
+            <View
+              style={{
+                paddingHorizontal: theme.gutter,
+                paddingTop: theme.spacing[4],
+                gap: theme.spacing[3],
+              }}
+            >
               {/*
               The description is the only text on this tab written by whoever
               added the spot; everything below it was pinned up by other
@@ -653,15 +607,9 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               without its brass plate (STOURIFY-213) -- so it gets the app's own
               flat surface to sit on.
 
-              `raised={false}` rather than the default: a raised card carries a
-              shadow and reads as something you can tap, and this is not
-              tappable. A hairline border says "a distinct thing" without
-              promising an action that does not exist.
-
               Note the Card is INSIDE the truthy branch, not around the ternary.
               Around it, every spot without a description would render an empty
-              bordered rectangle -- a label with nothing on it, which is worse
-              than the problem being fixed.
+              bordered rectangle -- a label with nothing on it.
             */}
               {spot?.description ? (
                 <Card raised={false} testID="spot-description">
@@ -672,19 +620,39 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                   />
                 </Card>
               ) : null}
+
               {/*
-              Where the spot is used to be here, under the description. It has
-              moved up beneath the title (STOURIFY-210): the About tab is not
-              the tab this screen opens on, so the one fact everybody wants from
-              a place — where it is — was behind a tap, and on a spot with no
-              description this tab looked empty enough to seem broken.
-            */}
+                Where this place is, and a way to go there: the canvas's
+                Location row and map card.
+
+                Three states, one at a time. A coordinate gives the tappable
+                map card. An address alone — a contributor hid the position
+                (STOURIFY-185) — gives a plain row that is NOT tappable, because
+                a control that looks openable and does nothing is worse than
+                text. Neither gives one plain line (STOURIFY-240), which says
+                what happened and not why: absence carries no reason with it.
+
+                With no spot at all (a failed request) all three are skipped —
+                there is nothing true to say about where an unknown place is.
+              */}
+              {coordinate ? (
+                <MapCard
+                  title={spot?.title}
+                  address={spot?.address}
+                  latitude={coordinate.latitude}
+                  longitude={coordinate.longitude}
+                  onPress={openDirections}
+                />
+              ) : spot?.address ? (
+                <LocationRow testID="spot-location-static" value={spot.address} />
+              ) : spot ? (
+                <LocationRow testID="spot-location-hidden" value="Location not shown" muted />
+              ) : null}
 
               {/*
               The corkboard, hung beside the plaque above rather than over it
-              (STOURIFY-147). The three lines above are the spot's own facts,
-              written once by whoever added it; below are the notes other
-              visitors have pinned up since, most-liked first.
+              (STOURIFY-147): notes other visitors have pinned up, most-liked
+              first.
 
               It is fed by its OWN request, so it is deliberately outside the
               `hasFailed` rule that hides the details block: a spot whose details
@@ -692,6 +660,12 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               well, and hiding them would repeat the mistake STOURIFY-64 fixed
               for the posts grid.
             */}
+              <Text
+                variant="body"
+                style={{ fontFamily: theme.fontFamily.displayBold, marginTop: theme.spacing[1] }}
+              >
+                Notes from visitors
+              </Text>
               <SpotAboutTab
                 spotUuid={spotId}
                 onOpenThread={(about) =>
@@ -707,9 +681,265 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                 }
               />
             </View>
+          ) : tab === 'Photos' ? (
+            /*
+              The posts people shared here, in the canvas's rounded tiles — the
+              tab was called Posts until STOURIFY-292, and to a visitor they are
+              the photos. Then the way into the spot's own photo gallery.
+
+              "Nobody has shared a photo" is said only when there is truly
+              nothing: no posts, and no photos on the spot either. With photos
+              on the spot the gallery button is the answer, and a sentence
+              denying photos above it would contradict the page.
+            */
+            <View
+              style={{
+                paddingHorizontal: theme.gutter,
+                paddingTop: theme.spacing[3],
+                gap: theme.spacing[3],
+              }}
+            >
+              {posts.length > 0 ? (
+                <View
+                  testID="spot-photos-grid"
+                  style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GRID_GAP }}
+                >
+                  {posts.map(renderThumb)}
+                </View>
+              ) : postsData && media.length === 0 && !isWaiting ? (
+                <Text testID="spot-photos-empty" variant="body" color="muted">
+                  Nobody has shared a photo here yet.
+                </Text>
+              ) : null}
+
+              {media.length > 0 ? (
+                <Button
+                  label={media.length === 1 ? 'View the photo' : `View all ${media.length} photos`}
+                  variant="secondary"
+                  fullWidth
+                  onPress={() => navigation.navigate('PhotoGallery', { spotId })}
+                />
+              ) : null}
+            </View>
+          ) : (
+            <View style={{ paddingHorizontal: theme.gutter, paddingTop: theme.spacing[3] }}>
+              <SpotReviewsTab
+                spotUuid={spotId}
+                reviewsCount={spot?.reviews_count}
+                onOpenReviews={() => navigation.navigate('Reviews', { spotId })}
+              />
+            </View>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  )
+}
+
+interface ActionButtonProps {
+  label: string
+  icon: IconName
+  onPress: () => void
+  /** The canvas's slate-filled button — Directions. */
+  primary?: boolean
+  /** Drawn in the brand colour once done — a saved Save (`.sp-act button.on`). */
+  selected?: boolean
+  disabled?: boolean
+  accessibilityHint?: string
+  iconTestID?: string
+  testID?: string
+}
+
+/**
+ * One button of the canvas's action row: an icon over a short label, on a card
+ * with a hairline edge, 50 tall. Local to this screen because nothing else in
+ * the app draws the shape yet.
+ */
+function ActionButton({
+  label,
+  icon,
+  onPress,
+  primary = false,
+  selected = false,
+  disabled,
+  accessibilityHint,
+  iconTestID,
+  testID,
+}: ActionButtonProps) {
+  const theme = useTheme()
+  const tint = primary ? 'onButton' : selected ? 'primary' : 'ink'
+
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ selected }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flex: 1,
+        minHeight: 50,
+        borderRadius: theme.radius.button,
+        borderWidth: 1,
+        borderColor: primary
+          ? theme.colors.button
+          : selected
+            ? theme.colors.primary
+            : theme.colors.hairline,
+        backgroundColor: primary ? theme.colors.button : theme.colors.card,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 3,
+        opacity: pressed ? 0.85 : 1,
+      })}
+    >
+      {/* The icon set drops a testID, so the wrapper carries it. */}
+      <View testID={iconTestID}>
+        <Icon
+          name={icon}
+          size={20}
+          color={tint}
+          fill={selected && icon === 'bookmark' ? 'primary' : undefined}
+        />
+      </View>
+      <Text variant="caption" color={tint} style={{ fontFamily: theme.fontFamily.bodySemiBold }}>
+        {label}
+      </Text>
+    </Pressable>
+  )
+}
+
+interface MapCardProps {
+  title?: string
+  address?: string
+  latitude: number
+  longitude: number
+  onPress: () => void
+}
+
+/**
+ * The canvas's `.map-snip` and Location row, as one tappable card that opens
+ * the phone's map app.
+ *
+ * The map is DRAWN, not loaded: a brand-tinted panel with a pin. A real map
+ * tile would add a Google Maps load to every spot opened and show nothing
+ * offline, where this page otherwise works (STOURIFY-292, ASSUMPTION note). The
+ * coordinate is printed under the address, because six decimal places are what
+ * a person can paste somewhere else.
+ */
+function MapCard({ title, address, latitude, longitude, onPress }: MapCardProps) {
+  const theme = useTheme()
+
+  return (
+    <Pressable
+      testID="spot-location"
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${title ?? 'this spot'} in maps`}
+      accessibilityHint="Opens your map app at this location"
+      onPress={onPress}
+      style={({ pressed }) => ({
+        borderRadius: 14,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: theme.colors.hairline,
+        backgroundColor: theme.colors.card,
+        opacity: pressed ? 0.9 : 1,
+      })}
+    >
+      <View
+        style={{
+          height: 110,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: theme.colors.badgeBg,
+        }}
+      >
+        <Icon name="pin" size={34} color="accent" strokeWidth={2.2} />
+        <View
+          style={[
+            {
+              position: 'absolute',
+              right: 10,
+              bottom: 10,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 5,
+              paddingHorizontal: theme.spacing[3],
+              paddingVertical: theme.spacing[2],
+              borderRadius: theme.radius.chip,
+              backgroundColor: theme.colors.card,
+            },
+            theme.elevation.raised,
+          ]}
+        >
+          <Icon name="navigate" size={13} color="primary" />
+          <Text
+            variant="caption"
+            color="primary"
+            style={{ fontFamily: theme.fontFamily.bodySemiBold }}
+          >
+            Get directions
+          </Text>
+        </View>
+      </View>
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }}>
+        <Icon name="pin" size={19} color="primary" />
+        <View style={{ flex: 1 }}>
+          <Text variant="micro" color="muted">
+            Location
+          </Text>
+          {address ? (
+            <Text variant="body" numberOfLines={2}>
+              {address}
+            </Text>
+          ) : null}
+          <Text testID="spot-coordinates" variant="caption" color="muted">
+            {latitude.toFixed(4)}, {longitude.toFixed(4)}
+          </Text>
+        </View>
+      </View>
+    </Pressable>
+  )
+}
+
+/** The canvas's `.info-row`, for a Location that cannot be opened. */
+function LocationRow({
+  value,
+  muted = false,
+  testID,
+}: {
+  value: string
+  muted?: boolean
+  testID: string
+}) {
+  const theme = useTheme()
+
+  return (
+    <View
+      testID={testID}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingHorizontal: 14,
+        paddingVertical: 13,
+        borderRadius: theme.radius.button,
+        borderWidth: 1,
+        borderColor: theme.colors.hairline,
+        backgroundColor: theme.colors.card,
+      }}
+    >
+      <Icon name="pin" size={19} color="muted" />
+      <View style={{ flex: 1 }}>
+        <Text variant="micro" color="muted">
+          Location
+        </Text>
+        <Text variant="body" color={muted ? 'muted' : 'ink'} numberOfLines={2}>
+          {value}
+        </Text>
+      </View>
+    </View>
   )
 }

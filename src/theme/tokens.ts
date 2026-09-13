@@ -76,6 +76,16 @@ export const palette = {
      * names a scrim, this is the one line to correct.
      */
     scrim: 'rgba(21,34,48,0.55)',
+    /**
+     * The dark wash under a control that floats on a photo: the Spot Hub's round
+     * Back and Save buttons (`.cbtn`, 42%) and its "1 / N" counter (`.pc`, 60%).
+     *
+     * **Not in the handoff's token list**: the Spot Hub canvas writes both inline
+     * as `rgba(11,22,34,…)` (STOURIFY-292). The dark palette carries the same
+     * values, because what sits under them is a photograph, not the page.
+     */
+    overlay: 'rgba(11,22,34,0.42)',
+    overlayStrong: 'rgba(11,22,34,0.60)',
   },
   dark: {
     surface: '#0E1621',
@@ -109,6 +119,9 @@ export const palette = {
     hairline: 'rgba(255,255,255,0.10)',
     /** See the light palette's note. Darker, because the sheet above it is dark. */
     scrim: 'rgba(3,8,14,0.70)',
+    /** See the light palette's note. Identical: it darkens a photo, not the page. */
+    overlay: 'rgba(11,22,34,0.42)',
+    overlayStrong: 'rgba(11,22,34,0.60)',
   },
 } as const
 

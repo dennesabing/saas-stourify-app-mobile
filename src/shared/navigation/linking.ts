@@ -21,6 +21,8 @@ import type { RootStackParamList } from './types'
  *
  * `stourify://spot/<uuid>`                 → the Spot Hub
  * `stourify://spot/<uuid>?tab=about`       → the Spot Hub, opened on About
+ * `stourify://spot/<uuid>?tab=photos`      → …opened on Photos (`posts` still works)
+ * `stourify://spot/<uuid>?tab=reviews`     → …opened on Reviews
  * `stourify://spot/<uuid>/photos`          → the photo gallery
  * `stourify://spot/<uuid>/reviews`         → the reviews list
  *
@@ -37,12 +39,26 @@ import type { RootStackParamList } from './types'
  */
 const PREFIXES = ['stourify://']
 
-/** `?tab=about` is what a human types; `'About'` is what the screen's state is. */
-function parseTab(value: string): 'Posts' | 'About' {
-  return value.toLowerCase() === 'about' ? 'About' : 'Posts'
+/**
+ * `?tab=about` is what a human types; `'About'` is what the screen's state is.
+ *
+ * `posts` is the Photos tab's name from before STOURIFY-292. A link written
+ * then still means that shelf of photos, so it lands there rather than
+ * somewhere new. Anything else lands on About, the tab the page opens on.
+ */
+function parseTab(value: string): 'About' | 'Photos' | 'Reviews' {
+  switch (value.toLowerCase()) {
+    case 'photos':
+    case 'posts':
+      return 'Photos'
+    case 'reviews':
+      return 'Reviews'
+    default:
+      return 'About'
+  }
 }
 
-function stringifyTab(value: 'Posts' | 'About'): string {
+function stringifyTab(value: 'About' | 'Photos' | 'Reviews'): string {
   return value.toLowerCase()
 }
 

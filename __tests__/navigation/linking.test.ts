@@ -46,10 +46,31 @@ describe('deep link table', () => {
     expect(route?.params).toEqual({ spotId: 'abc-123', tab: 'About' })
   })
 
-  it('treats any other tab value as Posts rather than passing it through', () => {
+  // The page has three tabs since STOURIFY-292, and each has a link of its own.
+  it('opens the Photos tab when the link asks for it', () => {
+    const route = leafRoute('spot/abc-123?tab=photos')
+
+    expect(route?.params).toEqual({ spotId: 'abc-123', tab: 'Photos' })
+  })
+
+  it('opens the Reviews tab when the link asks for it', () => {
+    const route = leafRoute('spot/abc-123?tab=reviews')
+
+    expect(route?.params).toEqual({ spotId: 'abc-123', tab: 'Reviews' })
+  })
+
+  // "Posts" was the tab's name until STOURIFY-292. A link written then still
+  // means the same shelf of photos, so it must not quietly land somewhere else.
+  it('still opens the photos for a link written when the tab was called Posts', () => {
+    const route = leafRoute('spot/abc-123?tab=posts')
+
+    expect(route?.params).toEqual({ spotId: 'abc-123', tab: 'Photos' })
+  })
+
+  it('treats any other tab value as About, the tab the page opens on', () => {
     const route = leafRoute('spot/abc-123?tab=nonsense')
 
-    expect(route?.params).toEqual({ spotId: 'abc-123', tab: 'Posts' })
+    expect(route?.params).toEqual({ spotId: 'abc-123', tab: 'About' })
   })
 
   it('opens the photo gallery', () => {
