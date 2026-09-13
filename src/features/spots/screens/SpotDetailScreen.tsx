@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Pressable,
   ScrollView,
+  Share,
   View,
   type ViewToken,
 } from 'react-native'
@@ -181,6 +182,26 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
     if (isSaved) return
     await createLocalWishlistItem(database, { spotId: null, spotUuid: spotId, spot })
   }, [database, isSaved, spotId, spot])
+
+  /**
+   * The spot's public web page, which is what Share hands out (STOURIFY-301).
+   *
+   * `stourify://spot/<uuid>` opens only on a phone that already has the app;
+   * this link opens a readable page on any phone, with a way to get the app.
+   * The server sends `null` for a spot with no public page — a draft, or a
+   * private account's — and the button is then not drawn at all, because a
+   * link that opens a 404 is worse than no button.
+   */
+  const shareUrl = typeof spot?.share_url === 'string' ? spot.share_url : null
+
+  // `message` carries the link as well as `url`: Android's share sheet sends
+  // only `message`, and without the link in it the friend would get a name and
+  // nothing to tap.
+  const onShare = useCallback(() => {
+    if (!shareUrl) return
+    const name = spot?.title ?? 'A spot on Stourify'
+    void Share.share({ title: name, message: `${name} ${shareUrl}`, url: shareUrl })
+  }, [shareUrl, spot?.title])
 
   const renderThumb = (item: Post) => (
     <Pressable
@@ -384,8 +405,9 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
               that works right up until a platform decides otherwise
               (STOURIFY-197).
 
-              The canvas also draws Share beside Save. A spot has no public web
-              address to share, so it is left out (STOURIFY-301 owns it).
+              The canvas also draws Share beside Save. It lives once, in the
+              action row below, rather than twice: two Save marks are already one
+              action drawn twice, and a third disc here would crowd the photo.
             */}
             <View
               pointerEvents="box-none"
@@ -521,8 +543,9 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
           )}
 
           {/*
-            Save and Directions, the canvas's `.sp-act` row. Its middle button,
-            Share, is left out for the reason on the photo above.
+            Save, Share and Directions, the canvas's `.sp-act` row. Share is
+            drawn only when the spot has a public web page to hand out
+            (STOURIFY-301) — see `shareUrl` above.
 
             Save here and the mark on the photo are one action drawn twice, so
             they write the same wishlist row and both read "saved" from the same
@@ -550,6 +573,15 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                 disabled={isSaved}
                 onPress={onSave}
               />
+              {shareUrl ? (
+                <ActionButton
+                  testID="spot-share"
+                  icon="share"
+                  label="Share"
+                  accessibilityHint="Opens your phone's share sheet with a link to this spot"
+                  onPress={onShare}
+                />
+              ) : null}
               {coordinate ? (
                 <ActionButton
                   testID="spot-directions"

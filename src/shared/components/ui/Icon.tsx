@@ -34,6 +34,7 @@ import {
   Search,
   Send,
   Settings,
+  Share2,
   Star,
   ThumbsUp,
   Ticket,
@@ -126,6 +127,8 @@ const GLYPHS = {
   settings: Settings,
   /** A web address — the website under a profile's bio. */
   link: Link,
+  /** Hand something to another app — the spot page's Share (STOURIFY-301). */
+  share: Share2,
   /** A grid of photos — the profile's Spots tab. */
   grid: LayoutGrid,
   /** Your saved spots — the profile's Wishlist tab. */

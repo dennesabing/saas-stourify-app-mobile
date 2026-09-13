@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Share a spot from its page (STOURIFY-301).** A Share button now sits between Save and
+  Directions. It opens the phone's own share sheet with the spot's name and its public web link,
+  which opens a readable page on any phone, with or without the app. It appears only when the
+  server sends a `share_url`, so a draft or a private account's spot has no button, and nobody is
+  handed a link to "this spot isn't public". `docs/what-the-spot-page-leaves-out.md` no longer lists
+  Share as missing.
+
 - **PNG photos lose their hidden metadata before they leave the phone (STOURIFY-45).** A PNG, which
   is what a screenshot is, can carry the same GPS label a camera JPEG does, in an `eXIf` card.
   `stripImageMetadata` now removes the `eXIf`, `iTXt` (XMP), `tEXt`, `zTXt` and `tIME` cards, and any

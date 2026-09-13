@@ -106,6 +106,13 @@ export interface Spot {
   latitude?: number
   longitude?: number
   address?: string
+  /**
+   * The spot's public web page, for the Share button — or `null` when it has
+   * none: not published, or contributed by a private account. Optional as well
+   * as nullable, because a server older than STOURIFY-301 does not send it, and
+   * the answer then is the same: no Share button, rather than a link to a 404.
+   */
+  share_url?: string | null
   status: SpotStatus
   /**
    * Whether a moderator has vouched for this spot — the "✓ Verified" tag on
