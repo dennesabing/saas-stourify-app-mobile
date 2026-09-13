@@ -200,6 +200,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   STOURIFY-169: Settings wrote 17 colour literals and stayed dark on a light phone. The
   delete-account dialog follows the theme too. New token `dangerBg`; new meanings in `Icon`.
 
+### Fixed
+
+- **A spot you just saved shows in your saved spots straight away, marked "Queued ↑", instead of
+  the screen saying you have saved nothing (STOURIFY-207).** Saving is written on the phone and sent
+  by the sync a minute or two later, and both saved-spots lists (the Wishlist screen and the Wishlist
+  tab on your profile) only asked the server. So for that gap they said "Nothing saved yet" while the
+  spot page showed the save. Both lists now add the phone's unsent saves on top of the server's list,
+  matched by spot so a save never shows twice once it sends, and ask the server again the moment it
+  does. To name a save of somebody else's spot before it sends, the save now keeps a small copy of the
+  spot (name, categories, address, one thumbnail) in a new phone-only column. It arrives with an
+  additive schema v6 migration and is never sent to the server. If the server's list can't load, your
+  unsent saves still show, with a line saying the rest couldn't load or will load once you're back
+  online.
+
 ## [0.11.0] - 2026-09-12
 
 ### Fixed

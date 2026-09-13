@@ -40,7 +40,7 @@ export type SyncedTable = (typeof SYNCED_TABLES)[number]
  *    clobbers them.
  */
 export const stourifySchema: AppSchema = appSchema({
-  version: 5,
+  version: 6,
   tables: [
     tableSchema({
       name: 'sto_spots',
@@ -108,6 +108,18 @@ export const stourifySchema: AppSchema = appSchema({
         { name: 'city_id', type: 'number', isOptional: true },
         { name: 'note', type: 'string', isOptional: true },
         { name: 'is_downloaded_offline', type: 'boolean' },
+        // Local only, like `spot_uuid` above, and JSON text like a draft's
+        // `media`: a small copy of the saved spot — title, categories,
+        // address, one thumbnail — kept when you tap Save (STOURIFY-207).
+        //
+        // It exists because the Saved list reads the server, and a save of
+        // somebody else's spot has no spot row on this phone. Without it the
+        // list could not name a save until the sync had sent it. It is never
+        // pushed (`pushService.ts` builds the payload field by field) and a
+        // pull never clears it (the sanitizer skips a column the server did
+        // not send). Empty on every save written before v6 and on every save
+        // the pull brings down.
+        { name: 'spot_snapshot', type: 'string', isOptional: true },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
       ],

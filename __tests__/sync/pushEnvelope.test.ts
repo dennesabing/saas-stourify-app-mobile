@@ -167,6 +167,43 @@ describe('serializeForPush', () => {
     })
   })
 
+  /**
+   * STOURIFY-207 gave a save a phone-only copy of its spot, for the Saved list
+   * to draw before the save has been sent. The server has the spot already and
+   * `WishlistStoreRequest` does not accept one; this pins that the push still
+   * sends exactly the fields it always did.
+   */
+  it('never sends the copy of the spot a save keeps for the Saved list', async () => {
+    const database = createTestDatabase()
+    const item = await database.write(async () =>
+      database.get<WishlistItem>('sto_wishlist_items').create((row: any) => {
+        row._raw.id = 'wishlist-2'
+        row._raw.uuid = 'wishlist-2'
+        row._raw.spot_id = null
+        row._raw.spot_uuid = 'spot-elsewhere'
+        row._raw.note = null
+        row._raw.is_downloaded_offline = false
+        row._raw.spot_snapshot = JSON.stringify({
+          uuid: 'spot-elsewhere',
+          title: 'Hidden Falls',
+          categories: [],
+          address: null,
+          thumb_url: null,
+        })
+        row._raw.created_at = 1
+        row._raw.updated_at = 1
+      }),
+    )
+
+    const row = await serializeForPush(database, 'sto_wishlist_items', item)
+
+    expect(row).toEqual({
+      uuid: 'wishlist-2',
+      spot_uuid: 'spot-elsewhere',
+      is_downloaded_offline: false,
+    })
+  })
+
   it('sends user_uuid for a follow, from the local-only followee_uuid column (FollowStoreRequest.php:34)', async () => {
     const database = createTestDatabase()
     const follow = await database.write(async () =>

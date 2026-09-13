@@ -173,10 +173,14 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
     void openInMaps(coordinate.latitude, coordinate.longitude, spot?.title)
   }
 
+  // The spot goes along so the save can keep a small copy of it: the Saved
+  // list reads the server, and until the sync sends this save, the copy is
+  // the only thing on the phone that can name somebody else's spot
+  // (STOURIFY-207).
   const onSave = useCallback(async () => {
     if (isSaved) return
-    await createLocalWishlistItem(database, { spotId: null, spotUuid: spotId })
-  }, [database, isSaved, spotId])
+    await createLocalWishlistItem(database, { spotId: null, spotUuid: spotId, spot })
+  }, [database, isSaved, spotId, spot])
 
   const renderThumb = (item: Post) => (
     <Pressable

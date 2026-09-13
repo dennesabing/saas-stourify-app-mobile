@@ -1,9 +1,12 @@
 import { AxiosError, type AxiosResponse } from 'axios'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react-native'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { Database } from '@nozbe/watermelondb'
+import { act, render, screen, waitFor, fireEvent } from '@testing-library/react-native'
+import { onlineManager } from '@tanstack/react-query'
 import SavedSpotsScreen from '@/features/spots/screens/SavedSpotsScreen'
+import type WishlistItem from '@/db/models/WishlistItem'
 import { getWishlist } from '@/shared/api/wishlist'
-import { trackQueryClient } from '../support/queryClients'
+import { createTestDatabase, markSynced, seedSpot } from '../support/testDatabase'
+import { TestProviders } from '../support/TestProviders'
 
 jest.mock('@/shared/api/wishlist', () => ({
   WISHLIST_QUERY_KEY: ['wishlist'],
@@ -13,15 +16,11 @@ jest.mock('@/shared/api/wishlist', () => ({
 const mockGetWishlist = getWishlist as jest.MockedFunction<typeof getWishlist>
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
 
-function renderScreen() {
-  const qc = trackQueryClient(
-    new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
-  )
-
+function renderScreen(database: Database = createTestDatabase()) {
   return render(
-    <QueryClientProvider client={qc}>
+    <TestProviders database={database}>
       <SavedSpotsScreen navigation={navigation} route={{} as any} />
-    </QueryClientProvider>,
+    </TestProviders>,
   )
 }
 
@@ -191,5 +190,244 @@ describe('the Wishlist layout', () => {
     expect(await screen.findByText('Quiet Pier')).toBeTruthy()
     expect(screen.queryByTestId('saved-spot-photo')).toBeNull()
     expect(screen.getByTestId('saved-spot-photo-empty')).toBeTruthy()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// A save still on the phone (STOURIFY-207)
+// ---------------------------------------------------------------------------
+
+/**
+ * Saving is a local write that the sync sends later, and this screen reads the
+ * server. For the couple of minutes in between, the save existed only where
+ * this screen did not look: it said "Nothing saved yet" while the spot page
+ * showed the save with its queued mark. These tests seed the phone's own row —
+ * the thing the old tests never had, because they mocked the server and so had
+ * no drain to be early for.
+ */
+describe('a save the phone has not sent yet', () => {
+  /** What the spot page keeps on the save when you tap it (STOURIFY-207). */
+  const HIDDEN_FALLS = {
+    uuid: 'spot-9',
+    title: 'Hidden Falls',
+    categories: ['Nature'],
+    address: "Lake Sebu, T'boli",
+    thumb_url: 'https://cdn.example/falls-thumb.jpg',
+  }
+
+  async function seedSave(
+    database: Database,
+    spotUuid: string,
+    snapshot: Record<string, unknown> | null,
+  ): Promise<WishlistItem> {
+    return database.write(async () =>
+      database.get<WishlistItem>('sto_wishlist_items').create((row: any) => {
+        row._raw.id = `local-${spotUuid}`
+        row._raw.uuid = `local-${spotUuid}`
+        row._raw.spot_id = null
+        row._raw.spot_uuid = spotUuid
+        row._raw.note = null
+        row._raw.is_downloaded_offline = false
+        row._raw.spot_snapshot = snapshot === null ? null : JSON.stringify(snapshot)
+        row._raw.created_at = 1_757_000_000_000
+        row._raw.updated_at = 1_757_000_000_000
+      }),
+    )
+  }
+
+  /** The server's copy of the same save, once it has arrived there. */
+  function serverCopy() {
+    return savedItem({
+      uuid: 'local-spot-9',
+      spot: {
+        uuid: 'spot-9',
+        title: 'Hidden Falls',
+        categories: ['Nature'],
+        address: "Lake Sebu, T'boli",
+        media: [{ thumb_url: 'https://cdn.example/falls-thumb.jpg' }],
+      },
+    })
+  }
+
+  it('lists it by name, marked queued, and does not say nothing is saved', async () => {
+    const database = createTestDatabase()
+    await seedSave(database, 'spot-9', HIDDEN_FALLS)
+    mockGetWishlist.mockResolvedValue([])
+
+    renderScreen(database)
+
+    expect(await screen.findByText('Hidden Falls')).toBeTruthy()
+    expect(screen.getByText('Nature')).toBeTruthy()
+    expect(screen.getByText("Lake Sebu, T'boli")).toBeTruthy()
+    expect(screen.getByTestId('saved-spot-queued')).toBeTruthy()
+    expect(screen.getByText('Queued ↑')).toBeTruthy()
+    expect(screen.queryByText('Nothing saved yet')).toBeNull()
+  })
+
+  it('opens the spot from the queued row, like any other', async () => {
+    const database = createTestDatabase()
+    await seedSave(database, 'spot-9', HIDDEN_FALLS)
+    mockGetWishlist.mockResolvedValue([])
+
+    renderScreen(database)
+
+    fireEvent.press(await screen.findByLabelText('Hidden Falls'))
+    expect(navigation.navigate).toHaveBeenCalledWith('SpotDetail', { spotId: 'spot-9' })
+  })
+
+  it('draws it above the saves the server already has', async () => {
+    const database = createTestDatabase()
+    await seedSave(database, 'spot-9', HIDDEN_FALLS)
+    mockGetWishlist.mockResolvedValue([savedItem()])
+
+    renderScreen(database)
+
+    await screen.findByText('Hidden Falls')
+    const titles = screen.getAllByRole('button').map((row) => row.props.accessibilityLabel)
+    expect(titles.indexOf('Hidden Falls')).toBeLessThan(titles.indexOf('Blue Cove'))
+  })
+
+  it('shows it once when the server has it too', async () => {
+    const database = createTestDatabase()
+    await seedSave(database, 'spot-9', HIDDEN_FALLS)
+    mockGetWishlist.mockResolvedValue([serverCopy()])
+
+    renderScreen(database)
+
+    await screen.findByText('Hidden Falls')
+    expect(screen.getAllByText('Hidden Falls')).toHaveLength(1)
+  })
+
+  it('asks the server again once it has sent, and then shows it once, no longer queued', async () => {
+    const database = createTestDatabase()
+    const save = await seedSave(database, 'spot-9', HIDDEN_FALLS)
+    mockGetWishlist.mockResolvedValue([])
+
+    renderScreen(database)
+    expect(await screen.findByText('Queued ↑')).toBeTruthy()
+    expect(mockGetWishlist).toHaveBeenCalledTimes(1)
+
+    // The sync sends it: the server now has it, and the phone's row is marked sent.
+    mockGetWishlist.mockResolvedValue([serverCopy()])
+    await act(() => markSynced(database, save))
+
+    await waitFor(() => expect(mockGetWishlist).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByText('Queued ↑')).toBeNull())
+    expect(screen.getAllByText('Hidden Falls')).toHaveLength(1)
+    expect(screen.queryByText('Nothing saved yet')).toBeNull()
+  })
+
+  /**
+   * Between "sent" and "the server's list has been fetched again" there is a
+   * gap. Dropping the row in that gap would make it blink out and back — the
+   * very disappearance this card is about, shortened.
+   */
+  it('stays listed between sending and the server list catching up', async () => {
+    const database = createTestDatabase()
+    const save = await seedSave(database, 'spot-9', HIDDEN_FALLS)
+    mockGetWishlist.mockResolvedValue([])
+
+    renderScreen(database)
+    expect(await screen.findByText('Queued ↑')).toBeTruthy()
+
+    let answer: (items: any[]) => void = () => {}
+    mockGetWishlist.mockReturnValue(new Promise((resolve) => (answer = resolve)))
+    await act(() => markSynced(database, save))
+
+    await waitFor(() => expect(screen.queryByText('Queued ↑')).toBeNull())
+    expect(screen.getByText('Hidden Falls')).toBeTruthy()
+    expect(screen.queryByText('Nothing saved yet')).toBeNull()
+
+    await act(async () => answer([serverCopy()]))
+    expect(screen.getAllByText('Hidden Falls')).toHaveLength(1)
+  })
+
+  it("borrows the phone's own spot row when the save carries no copy", async () => {
+    const database = createTestDatabase()
+    await seedSpot(database, { uuid: 'spot-mine', title: 'My Secret Pier' })
+    await seedSave(database, 'spot-mine', null)
+    mockGetWishlist.mockResolvedValue([])
+
+    renderScreen(database)
+
+    expect(await screen.findByText('My Secret Pier')).toBeTruthy()
+    expect(screen.getByTestId('saved-spot-queued')).toBeTruthy()
+  })
+
+  /**
+   * A save made before this change, of somebody else's spot: nothing on the
+   * phone can name it. It still gets a line, and the line says why it is
+   * plain, rather than borrowing the "no longer available" wording, which
+   * would be false.
+   */
+  it('shows a plain placeholder when nothing on the phone can name the spot', async () => {
+    const database = createTestDatabase()
+    await seedSave(database, 'spot-unknown', null)
+    mockGetWishlist.mockResolvedValue([])
+
+    renderScreen(database)
+
+    expect(await screen.findByTestId('saved-spot-pending')).toBeTruthy()
+    expect(screen.getByText(/details appear once it sends/i)).toBeTruthy()
+    expect(screen.getByTestId('saved-spot-queued')).toBeTruthy()
+    expect(screen.queryByTestId('saved-spot-missing')).toBeNull()
+    expect(screen.queryByText('Nothing saved yet')).toBeNull()
+  })
+
+  it('lists it under a notice when the rest could not be loaded', async () => {
+    const database = createTestDatabase()
+    await seedSave(database, 'spot-9', HIDDEN_FALLS)
+    mockGetWishlist.mockRejectedValue(new Error('offline'))
+
+    renderScreen(database)
+
+    expect(await screen.findByText("Couldn't load the rest of your saved spots")).toBeTruthy()
+    expect(screen.getByText('Hidden Falls')).toBeTruthy()
+    expect(screen.getByText('Try again')).toBeTruthy()
+    expect(screen.queryByText('Nothing saved yet')).toBeNull()
+
+    mockGetWishlist.mockResolvedValue([serverCopy(), savedItem()])
+    fireEvent.press(screen.getByText('Try again'))
+
+    expect(await screen.findByText('Blue Cove')).toBeTruthy()
+    expect(screen.queryByText("Couldn't load the rest of your saved spots")).toBeNull()
+  })
+
+  /**
+   * With no signal and no list read before, the request is not failing — it is
+   * waiting for a connection, and would wait forever. Saying "loading" there
+   * would be a promise the screen cannot keep.
+   */
+  it('says the rest will load once back online, when the phone is offline', async () => {
+    const database = createTestDatabase()
+    await seedSave(database, 'spot-9', HIDDEN_FALLS)
+    mockGetWishlist.mockResolvedValue([])
+    onlineManager.setOnline(false)
+
+    try {
+      renderScreen(database)
+
+      expect(await screen.findByText('Hidden Falls')).toBeTruthy()
+      expect(
+        screen.getByText(/rest of your saved spots will load when you're back online/i),
+      ).toBeTruthy()
+      expect(mockGetWishlist).not.toHaveBeenCalled()
+    } finally {
+      onlineManager.setOnline(true)
+    }
+  })
+
+  it('still says nothing is saved when nothing is saved and nothing is waiting', async () => {
+    const database = createTestDatabase()
+    const sent = await seedSave(database, 'spot-gone', null)
+    // A row the phone has already sent and that carries no copy is the
+    // server's to report, and the server says the list is empty.
+    await markSynced(database, sent)
+    mockGetWishlist.mockResolvedValue([])
+
+    renderScreen(database)
+
+    expect(await screen.findByText('Nothing saved yet')).toBeTruthy()
+    expect(screen.queryByTestId('saved-spot-queued')).toBeNull()
   })
 })

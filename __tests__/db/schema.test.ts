@@ -146,7 +146,14 @@ describe('the local schema against the server allowlist', () => {
   })
 
   it('declares no column the serializer does not emit, apart from the local-only set', () => {
-    const localOnly = new Set(['server_id', 'city_uuid', 'spot_uuid', 'followee_uuid'])
+    const localOnly = new Set([
+      'server_id',
+      'city_uuid',
+      'spot_uuid',
+      'followee_uuid',
+      // What a save keeps of its spot for the Saved list (STOURIFY-207).
+      'spot_snapshot',
+    ])
     for (const [table, serverColumns] of Object.entries(SERVER_COLUMNS)) {
       for (const column of columnNames(table)) {
         if (localOnly.has(column)) continue
@@ -162,12 +169,24 @@ describe('the local schema against the server allowlist', () => {
     )
   })
 
-  it('is at schema version 5, carrying every migration listed in migrations.ts', () => {
+  it('is at schema version 6, carrying every migration listed in migrations.ts', () => {
     // Pinned rather than derived. The adapter refuses to open a schema at
     // version N without migrations covering up to N, so a bump made without a
     // matching migration fails at app start on every existing install and
     // nowhere else. This line is the cheap place to find that out.
-    expect(stourifySchema.version).toBe(5)
+    expect(stourifySchema.version).toBe(6)
+  })
+
+  /**
+   * A save of somebody else's spot has no spot row on the phone, so the Saved
+   * list could not name it until the sync sent it (STOURIFY-207). The save now
+   * keeps a small copy of the spot. Optional, because every save written before
+   * this, and every save the pull brings down, has none.
+   */
+  it('lets a wishlist save keep a copy of its spot, as optional JSON text', () => {
+    expect(stourifySchema.tables.sto_wishlist_items.columns.spot_snapshot).toEqual(
+      expect.objectContaining({ type: 'string', isOptional: true }),
+    )
   })
 
   it('declares the local-only post_outbox table, which is not synced', () => {

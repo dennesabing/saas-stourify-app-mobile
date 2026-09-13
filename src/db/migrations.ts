@@ -5,7 +5,8 @@ import { addColumns, createTable, schemaMigrations } from '@nozbe/watermelondb/S
  * adds `post_drafts`, the local-only store of posts somebody started and has
  * not shared; v3 -> v4 adds `post_outbox`, the local-only queue of posts
  * somebody pressed Share on with no signal (all three described in
- * `schema.ts`). This MUST be a migration, never a
+ * `schema.ts`); v4 -> v5 and v5 -> v6 each add one optional column (see the
+ * steps below). This MUST be a migration, never a
  * destructive schema-version bump: a reset (`unsafeResetDatabase`) would wipe every un-drained offline
  * write on an existing install — precisely the data this project exists to
  * protect. `stepsForMigration.js`/the adapter's `validateAdapter` refuses to
@@ -14,6 +15,20 @@ import { addColumns, createTable, schemaMigrations } from '@nozbe/watermelondb/S
  */
 export const stourifyMigrations = schemaMigrations({
   migrations: [
+    {
+      // v5 -> v6 lets a wishlist save keep a small copy of its spot, so the
+      // Saved list can name a save the sync has not sent yet (STOURIFY-207).
+      // Additive and optional, exactly like v5: every existing save simply has
+      // no copy, and a save still waiting to send keeps waiting -- which is the
+      // row a destructive bump would have lost.
+      toVersion: 6,
+      steps: [
+        addColumns({
+          table: 'sto_wishlist_items',
+          columns: [{ name: 'spot_snapshot', type: 'string', isOptional: true }],
+        }),
+      ],
+    },
     {
       // v4 -> v5 gives a spot somewhere to keep the photo that represents it in
       // a list. Additive and optional, so every existing row simply has none
