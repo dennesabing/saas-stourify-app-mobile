@@ -20,7 +20,7 @@ it('syncing outranks everything', () => {
     now: NOW,
   })
 
-  expect(state.tone).toBe('primary')
+  expect(state.tone).toBe('info')
   expect(state.title).toBe('Syncing…')
   expect(state.subtitle).toBe('3 changes to send')
 })
@@ -38,22 +38,27 @@ it('syncing with an empty queue says it is checking', () => {
   expect(state.subtitle).toBe('Checking for updates')
 })
 
-it('offline outranks a pending queue, because pending while offline is normal', () => {
+/**
+ * The design leads with the count (STOURIFY-294). Offline is the normal reason
+ * a queue exists, so it is said on the second line rather than replacing the
+ * number a person opened this screen to read.
+ */
+it('offline with a queue still leads with the count', () => {
   const state = resolveBannerState({
     phase: 'idle',
     offline: true,
     pending: 2,
     failed: 0,
-    lastSyncedAt: NOW,
+    lastSyncedAt: NOW - 12 * 60_000,
     now: NOW,
   })
 
-  expect(state.tone).toBe('muted')
-  expect(state.title).toBe("You're offline")
-  expect(state.subtitle).toBe("2 changes waiting · they'll send when you reconnect")
+  expect(state.tone).toBe('info')
+  expect(state.title).toBe('2 changes waiting to sync')
+  expect(state.subtitle).toBe("You're offline · last synced 12m ago")
 })
 
-it('offline with nothing queued says so', () => {
+it('offline with nothing queued is still synced', () => {
   const state = resolveBannerState({
     phase: 'idle',
     offline: true,
@@ -63,10 +68,11 @@ it('offline with nothing queued says so', () => {
     now: NOW,
   })
 
-  expect(state.subtitle).toBe('Nothing waiting to send')
+  expect(state.title).toBe('Everything is synced')
+  expect(state.subtitle).toBe("You're offline · last synced just now")
 })
 
-it('failures outrank a plain pending queue', () => {
+it('failures outrank a plain pending queue, and say how many need a retry', () => {
   const state = resolveBannerState({
     phase: 'idle',
     offline: false,
@@ -76,12 +82,12 @@ it('failures outrank a plain pending queue', () => {
     now: NOW,
   })
 
-  expect(state.tone).toBe('accent')
-  expect(state.title).toBe('1 change needs your attention')
-  expect(state.subtitle).toBe('3 waiting · last synced 12 minutes ago')
+  expect(state.tone).toBe('danger')
+  expect(state.title).toBe('1 change needs a retry')
+  expect(state.subtitle).toBe('3 waiting · last synced 12m ago')
 })
 
-it('pluralizes the attention title', () => {
+it('pluralizes the retry title', () => {
   const state = resolveBannerState({
     phase: 'idle',
     offline: false,
@@ -91,7 +97,7 @@ it('pluralizes the attention title', () => {
     now: NOW,
   })
 
-  expect(state.title).toBe('2 changes need your attention')
+  expect(state.title).toBe('2 changes need a retry')
 })
 
 it('a plain pending queue', () => {
@@ -104,7 +110,7 @@ it('a plain pending queue', () => {
     now: NOW,
   })
 
-  expect(state.tone).toBe('primary')
+  expect(state.tone).toBe('info')
   expect(state.title).toBe('1 change waiting to sync')
   expect(state.subtitle).toBe('Last synced just now')
 })
@@ -115,13 +121,13 @@ it('an empty, online, idle queue is fully synced', () => {
     offline: false,
     pending: 0,
     failed: 0,
-    lastSyncedAt: NOW,
+    lastSyncedAt: NOW - 3 * 60 * 60_000,
     now: NOW,
   })
 
   expect(state.tone).toBe('success')
-  expect(state.title).toBe('All changes synced')
-  expect(state.subtitle).toBe('Last synced just now')
+  expect(state.title).toBe('Everything is synced')
+  expect(state.subtitle).toBe('Last synced 3h ago')
 })
 
 it('says so when it has never synced', () => {
@@ -146,6 +152,6 @@ it('renders the resolved state from the store', () => {
     </TestProviders>,
   )
 
-  expect(screen.getByText("You're offline")).toBeTruthy()
-  expect(screen.getByText("2 changes waiting · they'll send when you reconnect")).toBeTruthy()
+  expect(screen.getByText('2 changes waiting to sync')).toBeTruthy()
+  expect(screen.getByText("You're offline · not synced yet")).toBeTruthy()
 })

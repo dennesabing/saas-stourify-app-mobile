@@ -3,13 +3,14 @@ import { Alert } from 'react-native'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import type PendingMedia from '@/db/models/PendingMedia'
 import type Spot from '@/db/models/Spot'
+import { createLocalReview } from '@/features/reviews/api/createLocalReview'
 import SyncStatusScreen from '@/features/sync/screens/SyncStatusScreen'
 import type { SyncTrigger } from '@/sync/cycle'
 import { upsertSyncFailure } from '@/sync/pushService'
 import { resetSyncStatus, useSyncStatusStore } from '@/sync/status'
 import { syncNow } from '@/sync/scheduler'
 import { resetSyncOnOpen } from '@/sync/openTrigger'
-import { createTestDatabase, seedSpot } from '../support/testDatabase'
+import { createTestDatabase, markSynced, seedSpot } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
 
 jest.mock('@/sync/scheduler', () => ({ syncNow: jest.fn(async () => undefined) }))
@@ -150,6 +151,55 @@ it('shows an offline write in the queue with no sync cycle having run', async ()
   })
 })
 
+/**
+ * Artboard 2 of the Offline & Sync design, with the work the card's live run
+ * makes: a new spot, a review on another spot, and a save of a third
+ * (STOURIFY-294). Each row reads as what the person did, carries a Queued
+ * pill, and the banner leads with the count even with the radio off.
+ */
+it('lists offline work the way the design draws it', async () => {
+  const database = createTestDatabase()
+  useSyncStatusStore.getState().setOffline(true)
+  await seedSpot(database, { uuid: 'spot-1', title: 'Hidden Cove' })
+  const reviewed = await seedSpot(database, { uuid: 'spot-2', title: 'Tuna Corner Grill' })
+  await markSynced(database, reviewed)
+  await createLocalReview(database, { spotId: null, spotUuid: 'spot-2', rating: 5, body: 'Yes.' })
+  await database.write(async () =>
+    database.get('sto_wishlist_items').create((row: any) => {
+      row._raw.id = 'save-1'
+      row._raw.uuid = 'save-1'
+      row._raw.spot_id = null
+      row._raw.spot_uuid = 'spot-3'
+      row._raw.is_downloaded_offline = false
+      row._raw.spot_snapshot = JSON.stringify({
+        uuid: 'spot-3',
+        title: 'Sunset Ridge Overlook',
+        categories: [],
+        address: null,
+        thumb_url: null,
+      })
+      row._raw.created_at = 1
+      row._raw.updated_at = 1
+    }),
+  )
+
+  render(
+    <TestProviders database={database}>
+      <SyncStatusScreen navigation={navigation} route={route} />
+    </TestProviders>,
+  )
+
+  await waitFor(() => {
+    expect(screen.getByText('3 changes waiting to sync')).toBeTruthy()
+    expect(screen.getByText('New spot · Hidden Cove')).toBeTruthy()
+    expect(screen.getByText('Review · Tuna Corner Grill')).toBeTruthy()
+    expect(screen.getByText('Saved · Sunset Ridge Overlook')).toBeTruthy()
+  })
+  expect(screen.getByText("You're offline · not synced yet")).toBeTruthy()
+  expect(screen.getAllByTestId('sync-row-queued')).toHaveLength(3)
+  expect(screen.getByRole('button', { name: 'Retry all now' })).toBeTruthy()
+})
+
 it('shows a rejection with the server error and both actions', async () => {
   const database = createTestDatabase()
   await seedSpot(database, { uuid: 'spot-1', title: 'Hidden Cove' })
@@ -270,7 +320,12 @@ it('hides retry-all when there is nothing queued', async () => {
   expect(screen.queryByText('Retry all now')).toBeNull()
 })
 
-it('shows the empty state when the queue is clean', async () => {
+/**
+ * The banner is the synced state now (STOURIFY-294). It used to say "All
+ * changes synced" with a second "Everything is synced" card under it — two
+ * sentences for one fact.
+ */
+it('says it once when the queue is clean', async () => {
   const database = createTestDatabase()
 
   render(
@@ -279,13 +334,12 @@ it('shows the empty state when the queue is clean', async () => {
     </TestProviders>,
   )
 
-  await waitFor(() => {
-    expect(screen.getByText('All changes synced')).toBeTruthy()
-    expect(screen.getByText('Everything is synced')).toBeTruthy()
-  })
+  await waitFor(() => expect(screen.getByText('Everything is synced')).toBeTruthy())
+  expect(screen.queryByText('All changes synced')).toBeNull()
+  expect(screen.queryByText('Pending uploads')).toBeNull()
 })
 
-it('shows a pending photo in its own Photos section', async () => {
+it('lists a pending photo under Pending uploads, beside the other waiting work', async () => {
   const database = createTestDatabase()
   await seedPendingMedia(database, { filename: 'beach.jpg' })
 
@@ -296,9 +350,10 @@ it('shows a pending photo in its own Photos section', async () => {
   )
 
   await waitFor(() => {
-    expect(screen.getByText('Photos')).toBeTruthy()
+    expect(screen.getByText('Pending uploads')).toBeTruthy()
     expect(screen.getByText('Photo · beach.jpg')).toBeTruthy()
   })
+  expect(screen.queryByText('Photos')).toBeNull()
 })
 
 it('discarding a photo deletes the local file as well as the row', async () => {
@@ -357,6 +412,8 @@ it('retrying a failed photo resets it to pending and runs a cycle', async () => 
 /**
  * Not "goes back to Settings": since STOURIFY-118 this screen is opened from
  * the Create menu as well, so the button returns to whichever screen sent you.
+ * It is the design's round back button now (STOURIFY-294), which says "Back"
+ * everywhere it appears — still no destination named.
  */
 it('goes back to wherever it was opened from', async () => {
   const database = createTestDatabase()
@@ -367,14 +424,14 @@ it('goes back to wherever it was opened from', async () => {
     </TestProviders>,
   )
 
-  fireEvent.press(screen.getByLabelText('Go back'))
+  fireEvent.press(screen.getByLabelText('Back'))
   expect(navigation.goBack).toHaveBeenCalled()
 })
 
 /**
- * STOURIFY-161. A post pressed Share on with no signal waits here, in its own
- * section — the same arrangement photos have, and for the same reason: it is
- * not a row edit and never participates in the skip-pull gate.
+ * STOURIFY-161. A post pressed Share on with no signal waits here. Since
+ * STOURIFY-294 it waits in the one Pending uploads list, beside everything
+ * else that is on its way, rather than in a section of its own.
  */
 async function seedQueuedPost(
   database: Database,
@@ -385,6 +442,7 @@ async function seedQueuedPost(
     attempts: number
     lastError: string | null
     mediaUri: string | null
+    spotTitle: string | null
   }> = {},
 ): Promise<void> {
   const seed = {
@@ -394,6 +452,7 @@ async function seedQueuedPost(
     attempts: 0,
     lastError: null as string | null,
     mediaUri: 'file:///document-dir/post-drafts/outbox-1-0.jpg' as string | null,
+    spotTitle: null as string | null,
     ...overrides,
   }
 
@@ -405,6 +464,7 @@ async function seedQueuedPost(
       row._raw.media =
         seed.mediaUri === null ? '[]' : JSON.stringify([{ uri: seed.mediaUri, fileName: 'a.jpg' }])
       row._raw.post_uuid = null
+      row._raw.spot_title = seed.spotTitle
       row._raw.state = seed.state
       row._raw.attempts = seed.attempts
       row._raw.last_error = seed.lastError
@@ -413,9 +473,9 @@ async function seedQueuedPost(
   )
 }
 
-it('shows a post waiting for a signal in its own Posts section', async () => {
+it('shows a post waiting for a signal under Pending uploads', async () => {
   const database = createTestDatabase()
-  await seedQueuedPost(database, { caption: 'Written in a tunnel' })
+  await seedQueuedPost(database, { caption: 'Written in a tunnel', spotTitle: 'Hidden Cove' })
 
   render(
     <TestProviders database={database}>
@@ -424,9 +484,11 @@ it('shows a post waiting for a signal in its own Posts section', async () => {
   )
 
   await waitFor(() => {
-    expect(screen.getByText('Posts')).toBeTruthy()
+    expect(screen.getByText('Pending uploads')).toBeTruthy()
     expect(screen.getByText('New post · Written in a tunnel')).toBeTruthy()
+    expect(screen.getByText('Hidden Cove · waiting for a signal')).toBeTruthy()
   })
+  expect(screen.queryByText('Posts')).toBeNull()
 })
 
 it('names a post with no caption by something other than nothing', async () => {
@@ -512,9 +574,10 @@ it('does not claim nothing is waiting while a post is', async () => {
   )
 
   await waitFor(() => {
-    expect(screen.getByText("1 change waiting · they'll send when you reconnect")).toBeTruthy()
+    expect(screen.getByText('1 change waiting to sync')).toBeTruthy()
   })
   expect(screen.queryByText('Nothing waiting to send')).toBeNull()
+  expect(screen.queryByText('Everything is synced')).toBeNull()
 })
 
 /**
@@ -592,9 +655,10 @@ it('does not claim nothing is waiting while a photo is', async () => {
   )
 
   await waitFor(() => {
-    expect(screen.getByText("1 change waiting · they'll send when you reconnect")).toBeTruthy()
+    expect(screen.getByText('1 change waiting to sync')).toBeTruthy()
   })
   expect(screen.queryByText('Nothing waiting to send')).toBeNull()
+  expect(screen.queryByText('Everything is synced')).toBeNull()
 })
 
 it('counts a queued photo and a queued post together', async () => {
@@ -610,7 +674,7 @@ it('counts a queued photo and a queued post together', async () => {
   )
 
   await waitFor(() => {
-    expect(screen.getByText("2 changes waiting · they'll send when you reconnect")).toBeTruthy()
+    expect(screen.getByText('2 changes waiting to sync')).toBeTruthy()
   })
 })
 
@@ -630,7 +694,7 @@ it('counts a failed photo among the failures', async () => {
   )
 
   await waitFor(() => {
-    expect(screen.getByText('1 change needs your attention')).toBeTruthy()
+    expect(screen.getByText('1 change needs a retry')).toBeTruthy()
   })
 })
 

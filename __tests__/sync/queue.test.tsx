@@ -5,6 +5,7 @@ import type PendingMedia from '@/db/models/PendingMedia'
 import type Spot from '@/db/models/Spot'
 import type SyncFailure from '@/db/models/SyncFailure'
 import type ExplorerProfile from '@/db/models/ExplorerProfile'
+import { createLocalReview } from '@/features/reviews/api/createLocalReview'
 import {
   discardMediaRow,
   discardRecord,
@@ -92,10 +93,105 @@ it('lists a locally created spot as a pending create', async () => {
     id: 'spot-1',
     tableName: 'sto_spots',
     op: 'created',
-    icon: '📍',
+    kind: 'spot',
     title: 'New spot · Hidden Cove',
-    meta: 'Queued to create',
+    meta: 'Waiting to send',
   })
+})
+
+/*
+  STOURIFY-294: the rows read the way the design's do. A row names what the
+  person made, in the words they would use for it, never the table it is
+  stored in — "Review · Tuna Corner Grill", not "sto_reviews · created".
+*/
+
+it('counts the photos a new spot is waiting to send with it', async () => {
+  const database = createTestDatabase()
+  await seedSpot(database, { uuid: 'spot-uuid-1', title: 'Hidden Cove' })
+  await seedPendingMedia(database, { id: 'media-1', hostUuid: 'spot-uuid-1' })
+  await seedPendingMedia(database, { id: 'media-2', hostUuid: 'spot-uuid-1' })
+  await seedPendingMedia(database, { id: 'media-3', hostUuid: 'another-spot' })
+
+  const rows = await listPendingQueue(database)
+
+  expect(rows[0].meta).toBe('2 photos · waiting to send')
+})
+
+it('names a waiting review by the spot it is about, with its stars', async () => {
+  const database = createTestDatabase()
+  const spot = await seedSpot(database, { uuid: 'spot-uuid-1', title: 'Tuna Corner Grill' })
+  await markSynced(database, spot)
+  await createLocalReview(database, {
+    spotId: null,
+    spotUuid: 'spot-uuid-1',
+    rating: 4,
+    body: 'Great tuna.',
+  })
+
+  const rows = await listPendingQueue(database)
+
+  expect(rows).toHaveLength(1)
+  expect(rows[0]).toMatchObject({
+    tableName: 'sto_reviews',
+    kind: 'review',
+    title: 'Review · Tuna Corner Grill',
+    meta: '★★★★ · waiting to send',
+  })
+})
+
+async function seedSave(
+  database: Database,
+  overrides: Partial<{ id: string; spotUuid: string; snapshotTitle: string | null }> = {},
+): Promise<void> {
+  const seed = { id: 'save-1', spotUuid: 'spot-uuid-9', snapshotTitle: null, ...overrides }
+
+  await database.write(async () =>
+    database.get('sto_wishlist_items').create((row: any) => {
+      row._raw.id = seed.id
+      row._raw.uuid = seed.id
+      row._raw.spot_id = null
+      row._raw.spot_uuid = seed.spotUuid
+      row._raw.is_downloaded_offline = false
+      row._raw.spot_snapshot =
+        seed.snapshotTitle === null
+          ? null
+          : JSON.stringify({
+              uuid: seed.spotUuid,
+              title: seed.snapshotTitle,
+              categories: [],
+              address: null,
+              thumb_url: null,
+            })
+      row._raw.created_at = 1
+      row._raw.updated_at = 1
+    }),
+  )
+}
+
+it('names a waiting save by the copy of its spot it kept (STOURIFY-207)', async () => {
+  const database = createTestDatabase()
+  await seedSave(database, { snapshotTitle: 'Hidden Cove' })
+
+  const rows = await listPendingQueue(database)
+
+  expect(rows[0]).toMatchObject({
+    tableName: 'sto_wishlist_items',
+    kind: 'wishlist',
+    title: 'Saved · Hidden Cove',
+    meta: 'Waiting to send',
+  })
+})
+
+it('names a save with no kept copy by the spot on this phone, else plainly', async () => {
+  const database = createTestDatabase()
+  const spot = await seedSpot(database, { uuid: 'spot-uuid-2', title: 'Brew & Bloom Café' })
+  await markSynced(database, spot)
+  await seedSave(database, { id: 'save-1', spotUuid: 'spot-uuid-2' })
+  await seedSave(database, { id: 'save-2', spotUuid: 'nowhere' })
+
+  const titles = (await listPendingQueue(database)).map((row) => row.title).sort()
+
+  expect(titles).toEqual(['Saved a spot', 'Saved · Brew & Bloom Café'])
 })
 
 it('ignores rows that are already synced', async () => {
@@ -121,7 +217,7 @@ it('lists an edited synced row as a pending update', async () => {
   expect(rows).toHaveLength(1)
   expect(rows[0].op).toBe('updated')
   expect(rows[0].title).toBe('Spot · New name')
-  expect(rows[0].meta).toBe('Queued to update')
+  expect(rows[0].meta).toBe('Edited · waiting to send')
 })
 
 it('lists a pending deletion even though the record is gone', async () => {
@@ -138,8 +234,9 @@ it('lists a pending deletion even though the record is gone', async () => {
   expect(rows[0]).toMatchObject({
     id: 'spot-1',
     op: 'deleted',
+    kind: 'spot',
     title: 'Deleted spot',
-    meta: 'Queued to delete',
+    meta: 'Waiting to send',
   })
 })
 
@@ -160,7 +257,7 @@ it('names a profile row by its username', async () => {
 
   const rows = await listPendingQueue(database)
   expect(rows[0].title).toBe('New profile · wanderer')
-  expect(rows[0].icon).toBe('🙍')
+  expect(rows[0].kind).toBe('profile')
 })
 
 it('lists failures with the server reason, attempts and message', async () => {
@@ -327,7 +424,12 @@ it('lists a pending photo in the media queue, separate from row changes', async 
   const rows = await listPendingMediaQueue(database)
 
   expect(rows).toHaveLength(1)
-  expect(rows[0]).toMatchObject({ id: 'media-1', tableName: 'pending_media' })
+  expect(rows[0]).toMatchObject({
+    id: 'media-1',
+    tableName: 'pending_media',
+    kind: 'photo',
+    meta: 'Waiting to upload',
+  })
   expect(rows[0].title).toContain('beach.jpg')
   expect(await listPendingQueue(database)).toHaveLength(0)
 })

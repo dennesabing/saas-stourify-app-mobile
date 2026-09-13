@@ -19,6 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Sync status follows the Offline & Sync design's artboard 2 (STOURIFY-294).** It has a round back
+  button, then a soft banner that leads with the count, "3 changes waiting to sync", with
+  "last synced 12m ago" under it. Offline is said on that second line rather than replacing the
+  count. When nothing is waiting, the banner reads "Everything is synced". When the server refused
+  something, it says how many need a retry. Everything on its way is in one "Pending uploads" list:
+  spots, reviews, saves, photos and posts. Each row has an icon by kind, says what you did in words
+  ("Review · Tuna Corner Grill", "Saved · Hidden Cove", "New spot · Hidden Cove" with
+  "2 photos · waiting to send") and has a "Queued" pill. Refused rows keep Retry and Discard under
+  "Needs your attention". The queue, retry, Retry all and sync-on-open work exactly as before. The
+  design's conflict card and its Offline Downloads screen are not built. The card says why.
+
 - **New Post offers photos only; no more videos (STOURIFY-45).** A video can hold the place it was
   recorded, nothing in the app can remove that, and no screen can play a video anyway. So picking
   one uploaded a location for a post nobody could watch. Video comes back together with playback

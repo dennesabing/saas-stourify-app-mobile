@@ -6,17 +6,27 @@ import type PostOutbox from '@/db/models/PostOutbox'
 import type Review from '@/db/models/Review'
 import type Spot from '@/db/models/Spot'
 import type SyncFailure from '@/db/models/SyncFailure'
+import type WishlistItem from '@/db/models/WishlistItem'
 import { clearSyncFailure } from './pushService'
 import { PUSHABLE_TABLES } from './syncConfig'
 
 export type QueueOp = 'created' | 'updated' | 'deleted'
+
+/**
+ * What a queued change IS, in the person's terms — which icon tile the Sync
+ * status screen draws beside it (STOURIFY-294). Not the table: a save and a
+ * review are different things to the person who made them, whatever they are
+ * stored as.
+ */
+export type QueueKind =
+  'spot' | 'review' | 'wishlist' | 'follow' | 'profile' | 'photo' | 'post' | 'change'
 
 export interface PendingQueueRow {
   /** The local record id — which is the row's uuid. */
   id: string
   tableName: string
   op: QueueOp
-  icon: string
+  kind: QueueKind
   title: string
   meta: string
 }
@@ -27,7 +37,7 @@ export interface FailedQueueRow {
   reason: string
   attempts: number
   lastError: string
-  icon: string
+  kind: QueueKind
   title: string
   meta: string
 }
@@ -46,53 +56,131 @@ export const QUEUE_TABLES: readonly string[] = [
 ]
 
 interface TableCopy {
-  icon: string
+  kind: QueueKind
   /** Lower-case, used mid-sentence: "New spot · …", "Deleted spot". */
   noun: string
 }
 
 const TABLE_COPY: Record<string, TableCopy> = {
-  sto_spots: { icon: '📍', noun: 'spot' },
-  sto_reviews: { icon: '✏️', noun: 'review' },
-  sto_wishlist_items: { icon: '🔖', noun: 'wishlist item' },
-  sto_follows: { icon: '👤', noun: 'follow' },
-  sto_explorer_profiles: { icon: '🙍', noun: 'profile' },
+  sto_spots: { kind: 'spot', noun: 'spot' },
+  sto_reviews: { kind: 'review', noun: 'review' },
+  sto_wishlist_items: { kind: 'wishlist', noun: 'wishlist item' },
+  sto_follows: { kind: 'follow', noun: 'follow' },
+  sto_explorer_profiles: { kind: 'profile', noun: 'profile' },
 }
 
-const FALLBACK_COPY: TableCopy = { icon: '📄', noun: 'change' }
+const FALLBACK_COPY: TableCopy = { kind: 'change', noun: 'change' }
 
 function copyFor(tableName: string): TableCopy {
   return TABLE_COPY[tableName] ?? FALLBACK_COPY
 }
 
-/** The human name of a record, when it has one worth showing. */
-function nameOf(tableName: string, record: Model): string | null {
-  if (tableName === 'sto_spots') return (record as Spot).title || null
-  if (tableName === 'sto_reviews') return `${(record as Review).rating}★`
-  if (tableName === 'sto_explorer_profiles') return (record as ExplorerProfile).username || null
-
-  // Follows and wishlist items reference a spot/user by id only; there is no
-  // local title to resolve without a join that would be wrong as often as it
-  // is right (the referenced row may not be synced down yet).
-  return null
+function rawOf(record: Model): Record<string, unknown> {
+  return record._raw as Record<string, unknown>
 }
 
-function titleFor(tableName: string, op: QueueOp, record: Model | null): string {
-  const { noun } = copyFor(tableName)
+/**
+ * A spot's title as this phone has it, or `null`. By uuid first — what a local
+ * write carries — then by the server's numeric id, which is all an older row
+ * may have. The spot can simply not be here yet (never opened, not synced
+ * down), and the caller then names the change without it.
+ */
+async function localSpotTitle(
+  database: Database,
+  spotUuid: string | null,
+  spotId: number | null,
+): Promise<string | null> {
+  const clause =
+    spotUuid !== null
+      ? Q.where('uuid', spotUuid)
+      : spotId !== null
+        ? Q.where('server_id', spotId)
+        : null
+  if (clause === null) return null
 
-  if (op === 'deleted') return `Deleted ${noun}`
+  const [spot] = await database.get<Spot>('sto_spots').query(clause).fetch()
+  return spot?.title || null
+}
 
-  const prefix = op === 'created' ? 'New ' : ''
-  const label = op === 'created' ? `${prefix}${noun}` : noun.charAt(0).toUpperCase() + noun.slice(1)
-  const name = record === null ? null : nameOf(tableName, record)
+/**
+ * The human name of a record, when it has one worth showing (STOURIFY-294).
+ *
+ * A review and a save are named by the SPOT they are about — "Review · Tuna
+ * Corner Grill" — because that is what the person remembers doing. A save uses
+ * the copy of its spot it kept when it was made (STOURIFY-207) before looking
+ * for the spot itself, because that copy is there precisely for when nothing
+ * else is.
+ */
+async function nameOf(
+  database: Database,
+  tableName: string,
+  record: Model,
+): Promise<string | null> {
+  switch (tableName) {
+    case 'sto_spots':
+      return (record as Spot).title || null
+    case 'sto_reviews': {
+      const review = record as Review
+      return localSpotTitle(database, review.spotUuid, review.spotId)
+    }
+    case 'sto_wishlist_items': {
+      const item = record as WishlistItem
+      const kept = item.spotSnapshot?.title
+      return kept ? kept : localSpotTitle(database, item.spotUuid, item.spotId)
+    }
+    case 'sto_explorer_profiles':
+      return (record as ExplorerProfile).username || null
+    default:
+      // A follow references a user by id only, and there is no local name to
+      // resolve without a join that would be wrong as often as it is right.
+      return null
+  }
+}
 
+function titleFor(tableName: string, op: QueueOp, name: string | null): string {
+  const { kind, noun } = copyFor(tableName)
+
+  if (op === 'deleted') return kind === 'wishlist' ? 'Removed a saved spot' : `Deleted ${noun}`
+
+  // The design's own wording for these two: what you did, then the spot.
+  if (kind === 'wishlist') return name === null ? 'Saved a spot' : `Saved · ${name}`
+  if (kind === 'review') {
+    if (name !== null) return `Review · ${name}`
+    return op === 'created' ? 'New review' : 'Review'
+  }
+
+  const label = op === 'created' ? `New ${noun}` : noun.charAt(0).toUpperCase() + noun.slice(1)
   return name === null ? label : `${label} · ${name}`
 }
 
-const OP_VERB: Record<QueueOp, string> = {
-  created: 'create',
-  updated: 'update',
-  deleted: 'delete',
+/**
+ * The muted line under a waiting row — the design's "3 photos · created
+ * offline", "★★★★★ · written offline".
+ *
+ * It says "waiting to send" rather than "offline": the app cannot tell whether
+ * a change was made with the radio off, and a write made with it on also waits
+ * for the next cycle (STOURIFY-316), so "offline" would sometimes be false.
+ */
+async function detailFor(
+  database: Database,
+  tableName: string,
+  op: QueueOp,
+  record: Model,
+): Promise<string> {
+  if (tableName === 'sto_spots') {
+    const photos = await database
+      .get<PendingMedia>('pending_media')
+      .query(Q.where('host_uuid', rawOf(record).uuid as string), Q.where('state', 'pending'))
+      .fetchCount()
+    if (photos > 0) return `${photos} photo${photos === 1 ? '' : 's'} · waiting to send`
+  }
+
+  if (tableName === 'sto_reviews') {
+    const rating = (record as Review).rating
+    if (rating > 0) return `${'★'.repeat(rating)} · waiting to send`
+  }
+
+  return op === 'updated' ? 'Edited · waiting to send' : 'Waiting to send'
 }
 
 /**
@@ -112,16 +200,16 @@ export async function listPendingQueue(database: Database): Promise<PendingQueue
       .fetch()
 
     for (const record of dirty) {
-      const op = ((record._raw as Record<string, unknown>)._status as QueueOp) ?? 'updated'
+      const op = (rawOf(record)._status as QueueOp) ?? 'updated'
 
       rows.push({
         id: record.id,
         tableName,
         op,
-        icon: copyFor(tableName).icon,
-        title: titleFor(tableName, op, record),
-        meta: `Queued to ${OP_VERB[op]}`,
-        sortKey: ((record._raw as Record<string, unknown>).created_at as number) ?? 0,
+        kind: copyFor(tableName).kind,
+        title: titleFor(tableName, op, await nameOf(database, tableName, record)),
+        meta: await detailFor(database, tableName, op, record),
+        sortKey: (rawOf(record).created_at as number) ?? 0,
       })
     }
 
@@ -130,9 +218,9 @@ export async function listPendingQueue(database: Database): Promise<PendingQueue
         id,
         tableName,
         op: 'deleted',
-        icon: copyFor(tableName).icon,
+        kind: copyFor(tableName).kind,
         title: titleFor(tableName, 'deleted', null),
-        meta: 'Queued to delete',
+        meta: 'Waiting to send',
         sortKey: 0,
       })
     }
@@ -187,9 +275,8 @@ export async function listFailedQueue(database: Database): Promise<FailedQueueRo
     }
 
     const op: QueueOp =
-      record === null
-        ? 'deleted'
-        : (((record._raw as Record<string, unknown>)._status as QueueOp) ?? 'updated')
+      record === null ? 'deleted' : ((rawOf(record)._status as QueueOp) ?? 'updated')
+    const name = record === null ? null : await nameOf(database, failure.tableName, record)
 
     rows.push({
       id: failure.recordId,
@@ -197,8 +284,8 @@ export async function listFailedQueue(database: Database): Promise<FailedQueueRo
       reason: failure.reason,
       attempts: failure.attempts,
       lastError: failure.lastError,
-      icon: copyFor(failure.tableName).icon,
-      title: titleFor(failure.tableName, op, record),
+      kind: copyFor(failure.tableName).kind,
+      title: titleFor(failure.tableName, op, name),
       meta: `Rejected: ${describeFailure(failure.lastError)} · ${failure.attempts} attempt${
         failure.attempts === 1 ? '' : 's'
       }`,
@@ -288,9 +375,9 @@ export async function listPendingMediaQueue(database: Database): Promise<Pending
       id: row.id,
       tableName: 'pending_media',
       op: 'created' as QueueOp,
-      icon: '📷',
+      kind: 'photo' as QueueKind,
       title: `Photo · ${row.filename}`,
-      meta: 'Queued to upload',
+      meta: 'Waiting to upload',
     }))
 }
 
@@ -306,7 +393,7 @@ export async function listFailedMediaQueue(database: Database): Promise<FailedQu
     reason: row.lastError ?? 'The server rejected this photo.',
     attempts: row.attempts,
     lastError: row.lastError ?? '',
-    icon: '📷',
+    kind: 'photo' as QueueKind,
     title: `Photo · ${row.filename}`,
     meta: `Rejected: ${row.lastError ?? 'The server rejected this photo.'} · ${row.attempts} attempt${
       row.attempts === 1 ? '' : 's'
@@ -387,9 +474,11 @@ export async function listPendingPostQueue(database: Database): Promise<PendingQ
       id: row.id,
       tableName: POST_OUTBOX_TABLE,
       op: 'created' as QueueOp,
-      icon: '📝',
+      kind: 'post' as QueueKind,
       title: titleForQueuedPost(row.caption),
-      meta: 'Waiting for a signal',
+      // The spot it is tagged at, when there is one — the one other thing
+      // somebody would recognise it by (STOURIFY-294).
+      meta: row.spotTitle ? `${row.spotTitle} · waiting for a signal` : 'Waiting for a signal',
     }))
 }
 
@@ -405,7 +494,7 @@ export async function listFailedPostQueue(database: Database): Promise<FailedQue
     reason: row.lastError ?? 'The server rejected this post.',
     attempts: row.attempts,
     lastError: row.lastError ?? '',
-    icon: '📝',
+    kind: 'post' as QueueKind,
     title: titleForQueuedPost(row.caption),
     meta: `Rejected: ${row.lastError ?? 'The server rejected this post.'} · ${row.attempts} attempt${
       row.attempts === 1 ? '' : 's'

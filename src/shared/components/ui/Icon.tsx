@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  CloudUpload,
   Compass,
   Contrast,
   Ellipsis,
@@ -37,6 +38,7 @@ import {
   ThumbsUp,
   Ticket,
   Trash2,
+  TriangleAlert,
   User,
   X,
 } from 'lucide-react-native'
@@ -90,6 +92,10 @@ const GLYPHS = {
   /** Change how a list is ordered or bounded — Nearby's radius chip. */
   sort: ArrowUpDown,
   sync: RefreshCw,
+  /** Changes on their way to the server — the Sync status banner (STOURIFY-294). */
+  upload: CloudUpload,
+  /** Something the server refused — the Sync status banner's retry state (STOURIFY-294). */
+  warning: TriangleAlert,
   /** You — Settings → Edit profile (STOURIFY-290). */
   account: User,
   /** Light or dark — Settings → Appearance. The design's half-filled circle. */

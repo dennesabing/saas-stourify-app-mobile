@@ -1,6 +1,7 @@
 import { View } from 'react-native'
-import { Button, Card, Text } from '@/shared/components/ui'
-import type { FailedQueueRow, PendingQueueRow } from '@/sync/queue'
+import { Button, Card, Icon, Text } from '@/shared/components/ui'
+import type { IconName } from '@/shared/components/ui/Icon'
+import type { FailedQueueRow, PendingQueueRow, QueueKind } from '@/sync/queue'
 import { useTheme } from '@/theme/ThemeProvider'
 
 export type SyncQueueRowProps =
@@ -21,33 +22,83 @@ export type SyncQueueRowProps =
   | { variant: 'pending'; row: PendingQueueRow; onDiscard?: () => void }
   | { variant: 'failed'; row: FailedQueueRow; onRetry: () => void; onDiscard: () => void }
 
+/** The design's `.q-row .ic` glyph for each kind of queued work (STOURIFY-294). */
+const KIND_ICON: Record<QueueKind, IconName> = {
+  spot: 'pin',
+  review: 'edit',
+  wishlist: 'bookmark',
+  follow: 'account',
+  profile: 'account',
+  photo: 'camera',
+  post: 'send',
+  change: 'sync',
+}
+
 /**
- * One queued change. The failed variant carries the server's own words and the
- * two actions that resolve it — a rejected row with no way out is what stalls
- * the whole pull gate (`cycle.ts:58-64`).
+ * One queued change, drawn as the design's `.q-row`: an icon tile by kind, the
+ * change in words, a muted detail, and a "Queued" pill (STOURIFY-294).
+ *
+ * The failed variant carries the server's own words and the two actions that
+ * resolve it — a rejected row with no way out is what stalls the whole pull
+ * gate (`cycle.ts:58-64`).
  */
 export default function SyncQueueRow(props: SyncQueueRowProps) {
   const theme = useTheme()
   const { row } = props
+  const failed = props.variant === 'failed'
 
   return (
-    <Card raised={false} style={{ gap: theme.spacing[3] }}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing[3] }}>
-        <Text style={{ fontSize: 20 }}>{row.icon}</Text>
+    <Card
+      raised={false}
+      padded={false}
+      style={{ borderRadius: 14, paddingVertical: 12, paddingHorizontal: 13, gap: 12 }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 10,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: failed ? theme.colors.dangerBg : theme.colors.badgeBg,
+          }}
+        >
+          <Icon name={KIND_ICON[row.kind]} size={18} color={failed ? 'danger' : 'primary'} />
+        </View>
 
-        <View style={{ flex: 1, gap: theme.spacing[1] }}>
-          <Text variant="body" color="ink">
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text
+            variant="body"
+            color="ink"
+            numberOfLines={2}
+            style={{ fontFamily: theme.fontFamily.bodySemiBold }}
+          >
             {row.title}
           </Text>
-          <Text variant="caption" color={props.variant === 'failed' ? 'accent' : 'muted'}>
+          <Text variant="caption" color={failed ? 'danger' : 'muted'}>
             {row.meta}
           </Text>
         </View>
 
         {props.variant === 'pending' ? (
-          <Text variant="micro" color="muted">
-            Queued
-          </Text>
+          <View
+            testID="sync-row-queued"
+            style={{
+              borderRadius: theme.radius.chip,
+              backgroundColor: theme.colors.badgeBg,
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+            }}
+          >
+            <Text
+              variant="caption"
+              color="badgeInk"
+              style={{ fontFamily: theme.fontFamily.bodySemiBold }}
+            >
+              Queued
+            </Text>
+          </View>
         ) : null}
       </View>
 

@@ -1,14 +1,16 @@
 import { View } from 'react-native'
-import { Text } from '@/shared/components/ui'
-import { formatRelativeTime } from '@/shared/utils/relativeTime'
+import { Icon, Text } from '@/shared/components/ui'
+import type { IconName } from '@/shared/components/ui/Icon'
+import { shortRelativeTime } from '@/shared/utils/relativeTime'
 import { useSyncStatusStore, type SyncPhase } from '@/sync/status'
 import { useTheme } from '@/theme/ThemeProvider'
+import type { ColorRole } from '@/theme/tokens'
 
-export type BannerTone = 'success' | 'primary' | 'accent' | 'muted'
+export type BannerTone = 'info' | 'success' | 'danger'
 
 export interface BannerState {
   tone: BannerTone
-  icon: string
+  icon: IconName
   title: string
   subtitle: string
 }
@@ -26,73 +28,84 @@ function changes(count: number): string {
   return `${count} change${count === 1 ? '' : 's'}`
 }
 
-function lastSyncedLine(lastSyncedAt: number | null, now: number): string {
-  return lastSyncedAt === null
-    ? 'Not synced yet'
-    : `Last synced ${formatRelativeTime(lastSyncedAt, now)}`
+/** "last synced 12m ago" — the design's line, in `shortRelativeTime`'s units. */
+function lastSyncedPhrase(lastSyncedAt: number | null, now: number): string {
+  if (lastSyncedAt === null) return 'not synced yet'
+
+  const ago = shortRelativeTime(lastSyncedAt, now)
+  return ago === 'just now' ? 'last synced just now' : `last synced ${ago} ago`
+}
+
+/** Joins the parts of a second line with the design's middle dot, capitalised once. */
+function line(parts: (string | null)[]): string {
+  const joined = parts.filter((part): part is string => part !== null).join(' · ')
+  return joined.charAt(0).toUpperCase() + joined.slice(1)
 }
 
 /**
  * First match wins, and the order is deliberate.
  *
- * `offline` outranks a pending queue because a queue while offline is the system
- * working as designed — showing it as a problem would train the user to ignore
- * the one banner that does mean something. Failures outrank a plain queue
- * because only they need an action.
+ * The title is always the count — the number somebody opened this screen to
+ * read, and the design's headline (STOURIFY-294). Being offline is said on the
+ * second line instead of replacing it: a queue while offline is the system
+ * working as designed, so it must not read as a different, alarming state.
+ * Failures outrank a plain queue because only they need a person to act.
  */
 export function resolveBannerState(input: BannerInput): BannerState {
   const { phase, offline, pending, failed, lastSyncedAt, now } = input
+  const where = offline ? "You're offline" : null
+  const when = lastSyncedPhrase(lastSyncedAt, now)
 
   if (phase !== 'idle') {
     return {
-      tone: 'primary',
-      icon: '🔄',
+      tone: 'info',
+      icon: 'sync',
       title: 'Syncing…',
       subtitle: pending > 0 ? `${changes(pending)} to send` : 'Checking for updates',
     }
   }
 
-  if (offline) {
-    return {
-      tone: 'muted',
-      icon: '📴',
-      title: "You're offline",
-      subtitle:
-        pending > 0
-          ? `${changes(pending)} waiting · they'll send when you reconnect`
-          : 'Nothing waiting to send',
-    }
-  }
-
   if (failed > 0) {
     return {
-      tone: 'accent',
-      icon: '⚠️',
-      title: `${changes(failed)} need${failed === 1 ? 's' : ''} your attention`,
-      subtitle: `${pending} waiting · ${lastSyncedLine(lastSyncedAt, now).toLowerCase()}`,
+      tone: 'danger',
+      icon: 'warning',
+      title: `${changes(failed)} need${failed === 1 ? 's' : ''} a retry`,
+      subtitle: line([where, pending > 0 ? `${pending} waiting` : null, when]),
     }
   }
 
   if (pending > 0) {
     return {
-      tone: 'primary',
-      icon: '⬆️',
+      tone: 'info',
+      icon: 'upload',
       title: `${changes(pending)} waiting to sync`,
-      subtitle: lastSyncedLine(lastSyncedAt, now),
+      subtitle: line([where, when]),
     }
   }
 
   return {
     tone: 'success',
-    icon: '✅',
-    title: 'All changes synced',
-    subtitle: lastSyncedLine(lastSyncedAt, now),
+    icon: 'check',
+    title: 'Everything is synced',
+    subtitle: line([where, when]),
   }
 }
 
 interface Props {
   pending: number
   failed: number
+}
+
+/**
+ * The design's `.sync-banner`, drawn as a soft wash rather than the canvas's
+ * solid gradient (STOURIFY-294). The canvas is light only; a solid slab is
+ * exactly what the dark palette avoids, and a tint from the theme's own tokens
+ * reads in both.
+ */
+const TONES: Record<BannerTone, { wash: ColorRole; edge: ColorRole; ink: ColorRole }> = {
+  info: { wash: 'infoBg', edge: 'infoLine', ink: 'primary' },
+  success: { wash: 'successBg', edge: 'hairline', ink: 'success' },
+  danger: { wash: 'dangerBg', edge: 'hairline', ink: 'danger' },
 }
 
 export default function SyncBanner({ pending, failed }: Props) {
@@ -109,32 +122,40 @@ export default function SyncBanner({ pending, failed }: Props) {
     lastSyncedAt,
     now: Date.now(),
   })
-
-  const background: Record<BannerTone, string> = {
-    success: theme.colors.success,
-    primary: theme.colors.primary,
-    accent: theme.colors.accent,
-    muted: theme.colors.button,
-  }
+  const tone = TONES[state.tone]
 
   return (
     <View
       accessibilityRole="summary"
+      testID={`sync-banner-${state.tone}`}
       style={{
-        backgroundColor: background[state.tone],
-        borderRadius: theme.radius.card,
+        backgroundColor: theme.colors[tone.wash],
+        borderColor: theme.colors[tone.edge],
+        borderWidth: 1,
+        borderRadius: 16,
         padding: theme.spacing[4],
         flexDirection: 'row',
         alignItems: 'center',
-        gap: theme.spacing[3],
+        gap: 13,
       }}
     >
-      <Text style={{ fontSize: 24 }}>{state.icon}</Text>
-      <View style={{ flex: 1, gap: theme.spacing[1] }}>
-        <Text variant="h2" color="onButton">
+      <View
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: theme.colors.card,
+        }}
+      >
+        <Icon name={state.icon} size={22} color={tone.ink} />
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text variant="body" color="ink" style={{ fontFamily: theme.fontFamily.bodySemiBold }}>
           {state.title}
         </Text>
-        <Text variant="caption" color="onButton">
+        <Text variant="caption" color="muted">
           {state.subtitle}
         </Text>
       </View>

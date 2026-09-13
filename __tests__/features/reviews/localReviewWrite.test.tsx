@@ -116,6 +116,9 @@ it('appears in the M2c sync queue, proving it drains through the existing push s
   expect(rows[0]).toMatchObject({
     tableName: 'sto_reviews',
     op: 'created',
-    title: 'New review · 5★',
+    kind: 'review',
+    // The spot is not on this phone, so there is no name to give it.
+    title: 'New review',
+    meta: '★★★★★ · waiting to send',
   })
 })
