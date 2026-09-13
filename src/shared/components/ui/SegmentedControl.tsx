@@ -35,6 +35,14 @@ export default function SegmentedControl<K extends string>({
   const theme = useTheme()
   const slop = (theme.minTouchTarget - SEGMENT_HEIGHT) / 2
 
+  // In the dark palette `card` and `surfaceAlt` are the same colour, so a
+  // "raised white card" segment disappears into its own track and neither side
+  // reads as chosen — found on the Followers / Following switch (STOURIFY-289).
+  // Dark fills the chosen segment with the button slate instead; light keeps
+  // the design's raised white card.
+  const dark = theme.scheme === 'dark'
+  const chosenBackground = dark ? theme.colors.button : theme.colors.card
+
   return (
     <View
       testID={testID}
@@ -66,12 +74,12 @@ export default function SegmentedControl<K extends string>({
                 justifyContent: 'center',
                 borderRadius: 9,
               },
-              selected ? [theme.elevation.raised, { backgroundColor: theme.colors.card }] : null,
+              selected ? [theme.elevation.raised, { backgroundColor: chosenBackground }] : null,
             ]}
           >
             <Text
               variant="caption"
-              color={selected ? 'ink' : 'muted'}
+              color={selected ? (dark ? 'onButton' : 'ink') : 'muted'}
               style={{ fontFamily: theme.fontFamily.bodySemiBold }}
             >
               {option.label}

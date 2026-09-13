@@ -38,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     phone, and rows with the avatar, name and handle. It used to write six colour literals and
     ignore the theme; it now takes every colour from it. A private account's list reads "This
     list is private" instead of an empty list, and any other failure offers "Try again".
+  - **The segmented switch now shows which side is chosen in the dark theme.** In the dark
+    palette the raised segment and its track were the same colour (`card` and `surfaceAlt` are
+    both `#16212E`), so neither side looked chosen. Found on the Followers / Following switch
+    on the emulator; Search's and Nearby's switches had it too. In dark the chosen segment is now
+    filled with the button slate; light is unchanged.
   - Deliberately not built, because nothing backs them yet: "Change photo" and an editable
     display name (STOURIFY-307), unsave (STOURIFY-303), grouping saves by city, "Download
     offline", distances, and a Follow button on every row. `docs/what-the-profile-screens-leave-out.md`
