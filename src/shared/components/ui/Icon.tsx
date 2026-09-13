@@ -14,6 +14,7 @@ import {
   EyeOff,
   FileText,
   Heart,
+  Info,
   KeyRound,
   LayoutGrid,
   Link,
@@ -95,6 +96,8 @@ const GLYPHS = {
   block: Ban,
   /** A published document — Terms & privacy policy. */
   document: FileText,
+  /** Something to read about the app itself — About Stourify (STOURIFY-291). */
+  info: Info,
   /** Privacy & security. */
   lock: Lock,
   /** Leave the account on this phone — Log out. */

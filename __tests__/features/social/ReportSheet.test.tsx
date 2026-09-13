@@ -13,14 +13,19 @@ const SAFE_AREA_METRICS: Metrics = {
 }
 
 /**
- * The report form (STOURIFY-37).
+ * The report form (STOURIFY-37), in the Settings design's artboard 5 dress
+ * (STOURIFY-291).
  *
- * The seam worth holding here is the "other needs an explanation" rule.
+ * Two things are held here. The look — the design's title, prompt, reason
+ * wording and "Report received" — may change. What a report SENDS may not:
+ * every `fileReport` assertion below is the one STOURIFY-37 wrote, unchanged,
+ * because moderation reads those rows.
+ *
+ * The seam worth holding hardest is the "other needs an explanation" rule.
  * `ReportStoreRequest` enforces it server-side, so a form that does not
  * enforce it locally works — it just makes the person wait for a round trip to
- * be told something the app already knew, and 422 messages are the least
- * friendly place to learn a rule. An implementation that drops the local check
- * fails here and nowhere else.
+ * be told something the app already knew. An implementation that drops the
+ * local check fails here and nowhere else.
  */
 
 jest.mock('@/shared/api/reports', () => {
@@ -56,23 +61,59 @@ function renderSheet(props: Partial<React.ComponentProps<typeof ReportSheet>> = 
 
 beforeEach(() => jest.clearAllMocks())
 
-test('the reasons the server accepts are the reasons offered', () => {
+test('it is the design’s "Report content", and says the report is anonymous', () => {
   renderSheet()
 
-  expect(screen.getByText('Spam or misleading')).toBeTruthy()
-  expect(screen.getByText('Inappropriate content')).toBeTruthy()
-  expect(screen.getByText('Wrong information')).toBeTruthy()
-  expect(screen.getByText('Harassment or bullying')).toBeTruthy()
-  expect(screen.getByText('Something else')).toBeTruthy()
+  expect(screen.getByText('Report content')).toBeTruthy()
+  // True, not decoration: `ReportResource` withholds `reporter_uuid` from
+  // everyone but moderators and the reporter (see the card's ASSUMPTION note).
+  expect(screen.getByText('Why are you reporting this? Your report is anonymous.')).toBeTruthy()
 })
 
-test('nothing is filed until a reason is chosen', () => {
+test('the reasons the server accepts are offered in the design’s words', () => {
   renderSheet()
 
-  fireEvent.press(screen.getByLabelText('Submit report'))
+  for (const label of [
+    'Spam or misleading',
+    'Inappropriate or offensive',
+    'Wrong or outdated info',
+    'Harassment or bullying',
+    'Something else',
+  ]) {
+    expect(screen.getByRole('radio', { name: label })).toBeTruthy()
+  }
+})
 
+test('picking a reason marks that one, and only that one', () => {
+  renderSheet()
+
+  fireEvent.press(screen.getByText('Spam or misleading'))
+  fireEvent.press(screen.getByText('Harassment or bullying'))
+
+  expect(
+    screen.getByRole('radio', { name: 'Harassment or bullying' }).props.accessibilityState,
+  ).toEqual(expect.objectContaining({ checked: true }))
+  expect(
+    screen.getByRole('radio', { name: 'Spam or misleading' }).props.accessibilityState,
+  ).toEqual(expect.objectContaining({ checked: false }))
+})
+
+test('nothing is filed until a reason is chosen: the submit is disabled', () => {
+  renderSheet()
+
+  const submit = screen.getByLabelText('Submit report')
+  expect(submit.props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }))
+
+  fireEvent.press(submit)
   expect(fileReport).not.toHaveBeenCalled()
-  expect(screen.getByText(/choose a reason/i)).toBeTruthy()
+})
+
+test('the details field is optional, until "Something else" makes it required', () => {
+  renderSheet()
+
+  expect(screen.getByText('Add details (optional)')).toBeTruthy()
+  fireEvent.press(screen.getByText('Something else'))
+  expect(screen.getByText('Add details (required)')).toBeTruthy()
 })
 
 test('choosing "something else" without describing the problem does not submit', () => {
@@ -122,6 +163,18 @@ test('an ordinary reason files without a description', async () => {
   )
 })
 
+test('the relabelled reasons still send the server’s own values', async () => {
+  ;(fileReport as jest.Mock).mockResolvedValue({ uuid: 'report-1' })
+  renderSheet()
+
+  fireEvent.press(screen.getByText('Wrong or outdated info'))
+  fireEvent.press(screen.getByLabelText('Submit report'))
+
+  await waitFor(() =>
+    expect(fileReport).toHaveBeenCalledWith(expect.objectContaining({ reason: 'wrong_info' })),
+  )
+})
+
 test('reporting a person sends the user token, not the post one', async () => {
   ;(fileReport as jest.Mock).mockResolvedValue({ uuid: 'report-2' })
   renderSheet({ reportableType: 'user', reportableUuid: 'user-other' })
@@ -136,14 +189,21 @@ test('reporting a person sends the user token, not the post one', async () => {
   )
 })
 
-test('a successful filing thanks the reporter rather than closing silently', async () => {
+test('a successful filing says "Report received", and Done closes the sheet', async () => {
   ;(fileReport as jest.Mock).mockResolvedValue({ uuid: 'report-1' })
-  renderSheet()
+  const onClose = jest.fn()
+  renderSheet({ onClose })
 
   fireEvent.press(screen.getByText('Spam or misleading'))
   fireEvent.press(screen.getByLabelText('Submit report'))
 
-  expect(await screen.findByText(/thank you/i)).toBeTruthy()
+  expect(await screen.findByText('Report received')).toBeTruthy()
+  expect(
+    screen.getByText('Thanks for helping keep Stourify safe. Our team will review it shortly.'),
+  ).toBeTruthy()
+
+  fireEvent.press(screen.getByLabelText('Done'))
+  expect(onClose).toHaveBeenCalled()
 })
 
 test('a second report of the same thing is success, not an error', async () => {
@@ -156,7 +216,7 @@ test('a second report of the same thing is success, not an error', async () => {
   fireEvent.press(screen.getByText('Spam or misleading'))
   fireEvent.press(screen.getByLabelText('Submit report'))
 
-  expect(await screen.findByText(/thank you/i)).toBeTruthy()
+  expect(await screen.findByText('Report received')).toBeTruthy()
 })
 
 test('a rejected filing says so and leaves the sheet open to retry', async () => {
@@ -180,4 +240,5 @@ test('a rejected filing says so and leaves the sheet open to retry', async () =>
 
   expect(await screen.findByText(/server error/i)).toBeTruthy()
   expect(screen.getByLabelText('Submit report')).toBeTruthy()
+  expect(screen.queryByText('Report received')).toBeNull()
 })

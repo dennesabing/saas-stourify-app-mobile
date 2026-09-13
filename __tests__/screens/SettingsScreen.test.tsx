@@ -146,6 +146,7 @@ describe('the Settings hub (artboard 1)', () => {
       'Appearance',
       'Offline & sync',
       'Terms & privacy policy',
+      'About Stourify',
       'Log out',
     ]) {
       expect(getByText(row)).toBeTruthy()
@@ -168,7 +169,6 @@ describe('the Settings hub (artboard 1)', () => {
       'Manage subscription',
       'Help center',
       'Contact support',
-      'About Stourify',
       'Two-factor authentication',
     ]) {
       expect(queryByText(row)).toBeNull()
@@ -187,6 +187,8 @@ describe('the Settings hub (artboard 1)', () => {
     ['Edit profile', 'EditProfile'],
     ['Privacy & security', 'PrivacySecurity'],
     ['Offline & sync', 'SyncStatus'],
+    // Artboard 8, under Legal where the design puts it (STOURIFY-291).
+    ['About Stourify', 'About'],
   ])('%s opens %s', async (row, route) => {
     const { getByText } = await renderSettings()
 

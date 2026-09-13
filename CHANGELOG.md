@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Settings → About Stourify (STOURIFY-291).** A new About page, artboard 8 of the Settings
+  design, under Settings → Legal. It shows the brand mark and wordmark, "Version X (build Y)" read
+  from the installed build's config through `expo-constants` (now a direct dependency, at the
+  version `expo` already ships, so no native rebuild), the mission line, "Made with care in General
+  Santos City." and a © line with the current year. The canvas's "Rate Stourify" button, social
+  links, Unsplash credit and "Inc." are left out because nothing backs them yet;
+  `docs/what-about-and-report-leave-out.md` says why. `src/features/profile/screens/AboutScreen.tsx`,
+  `src/shared/config/installedBuild.ts`.
+- **Report content matches the Settings design (STOURIFY-291).** The report sheet opened from a
+  post's or a profile's ⋯ menu now reads "Report content", asks "Why are you reporting this? Your
+  report is anonymous.", lists the reasons as radio rows, has an "Add details" box that says
+  "(required)" only for "Something else", keeps "Submit report" disabled until a reason is picked,
+  and ends on a "Report received" confirmation with Done. Two reason labels follow the design ("Inappropriate or
+  offensive", "Wrong or outdated info"). What a report sends to `POST /reports` has not changed.
 - **Settings → Appearance: System, Light or Dark (STOURIFY-290).** The app used to follow the
   phone, with no way to choose otherwise. A new Appearance row under Preferences opens a sheet with
   System (the default, which follows the phone), Light and Dark. The choice applies at once with no
