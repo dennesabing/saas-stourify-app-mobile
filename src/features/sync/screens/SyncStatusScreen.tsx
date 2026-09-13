@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
-import { Alert, Pressable, ScrollView, View } from 'react-native'
+import { Alert, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useDatabase } from '@nozbe/watermelondb/react'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
-import { Button, EmptyState, Text } from '@/shared/components/ui'
+import { BarHeader, Button, Text } from '@/shared/components/ui'
 import type { ProfileStackParamList } from '@/shared/navigation/types'
 import {
   discardMediaRow,
@@ -34,7 +34,9 @@ const POST_OUTBOX_TABLE = 'post_outbox'
 type Props = NativeStackScreenProps<ProfileStackParamList, 'SyncStatus'>
 
 /**
- * The offline-first app's honesty surface.
+ * The offline-first app's honesty surface, drawn as artboard 2 of the Offline &
+ * Sync design (STOURIFY-294): a banner that leads with the count, then every
+ * change on its way in one list a person can read.
  *
  * Queue rows come from the database (`useSyncQueue`), never from
  * `useSyncStatusStore.pendingCount` — that counter is only written inside a sync
@@ -65,14 +67,25 @@ export default function SyncStatusScreen({ navigation }: Props) {
     void syncOnScreenOpen(database)
   }, [database])
 
+  /*
+    THE BANNER COUNTS EXACTLY WHAT THIS SCREEN LISTS (STOURIFY-165).
+
+    A till receipt that leaves items off: every line on it is true, and the
+    total is wrong — and the total is the line people read. The banner has
+    twice said "Nothing waiting to send" directly above something that was:
+    once for posts (STOURIFY-161), then again for photos, because the instance
+    was fixed rather than the class.
+
+    Since STOURIFY-294 the class is fixed by construction: the six queues are
+    folded into the two lists below, and the banner is handed those lists'
+    lengths. A seventh queue has to join one of them to appear on screen at
+    all, and joining it is what counts it.
+  */
+  const attention = [...failed, ...postFailed, ...mediaFailed]
+  const waiting = [...pending, ...postPending, ...mediaPending]
+
   const isBusy = phase !== 'idle'
-  const hasQueue =
-    pending.length > 0 ||
-    failed.length > 0 ||
-    mediaPending.length > 0 ||
-    mediaFailed.length > 0 ||
-    postPending.length > 0 ||
-    postFailed.length > 0
+  const hasQueue = attention.length > 0 || waiting.length > 0
 
   const handleRetry = async (tableName: string, recordId: string) => {
     if (tableName === MEDIA_TABLE) {
@@ -85,7 +98,7 @@ export default function SyncStatusScreen({ navigation }: Props) {
     await syncNow(database, 'manual')
   }
 
-  const handleDiscard = (tableName: string, recordId: string, title: string) => {
+  const handleDiscard = (tableName: string, recordId: string) => {
     Alert.alert(
       'Discard this change?',
       'This permanently deletes it from this device. It was never saved to the server, so it cannot be recovered.',
@@ -112,7 +125,6 @@ export default function SyncStatusScreen({ navigation }: Props) {
       ],
       { cancelable: true },
     )
-    void title
   }
 
   const handleRetryAll = async () => {
@@ -122,162 +134,78 @@ export default function SyncStatusScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: theme.spacing[3],
-          paddingHorizontal: theme.gutter,
-          paddingVertical: theme.spacing[3],
-        }}
-      >
-        {/*
-          Labelled "Go back" rather than "Back to Settings": since STOURIFY-118
-          this screen is also opened from the Create menu, so naming one caller
-          would have a screen reader announce a destination the person is not
-          going to.
-        */}
-        <Pressable
-          onPress={() => navigation.goBack()}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          hitSlop={12}
-          style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }}
-        >
-          <Text variant="h2" color="primary">
-            ‹
-          </Text>
-        </Pressable>
-        <Text variant="h1">Sync status</Text>
-      </View>
+      {/*
+        The round back button says "Back", never "Back to Settings": since
+        STOURIFY-118 this screen is also opened from the Create menu, so naming
+        one caller would have a screen reader announce a destination the person
+        is not going to.
+      */}
+      <BarHeader title="Sync status" onBack={() => navigation.goBack()} />
 
       <ScrollView
         contentContainerStyle={{
           paddingHorizontal: theme.gutter,
+          paddingTop: theme.spacing[1],
           paddingBottom: theme.spacing[8],
           gap: theme.spacing[4],
         }}
       >
-        {/*
-          THE BANNER COUNTS EXACTLY WHAT THIS SCREEN LISTS. Every one of the six
-          lists rendered below contributes to these two numbers, and that is the
-          rule rather than an accident of what got added when (STOURIFY-165).
+        <SyncBanner pending={waiting.length} failed={attention.length} />
 
-          A till receipt that leaves items off: every line on it is true, and the
-          total is wrong — and the total is the line people read. The banner is
-          the first thing on this screen, so it must not say "Nothing waiting to
-          send" directly above something that is waiting.
-
-          It has said exactly that twice. Once the moment a queued post could
-          appear, fixed by STOURIFY-161 for posts alone; then again for photos,
-          which had the same problem all along and which that card deliberately
-          left because it had no coverage for them. Fixing the instance rather
-          than the class is what let it happen twice.
-
-          So if a seventh queue is ever added, add it here too — or, better, do
-          not let these two lines and the sections below drift apart at all.
-        */}
-        <SyncBanner
-          pending={pending.length + postPending.length + mediaPending.length}
-          failed={failed.length + postFailed.length + mediaFailed.length}
-        />
-
-        {failed.length > 0 ? (
-          <View style={{ gap: theme.spacing[3] }}>
+        {attention.length > 0 ? (
+          <View style={{ gap: 9 }}>
             <Text variant="micro" color="muted">
               Needs your attention
             </Text>
-            {failed.map((row) => (
+            {attention.map((row) => (
               <SyncQueueRow
                 key={`failed-${row.tableName}-${row.id}`}
                 variant="failed"
                 row={row}
                 onRetry={() => void handleRetry(row.tableName, row.id)}
-                onDiscard={() => handleDiscard(row.tableName, row.id, row.title)}
+                onDiscard={() => handleDiscard(row.tableName, row.id)}
               />
             ))}
           </View>
         ) : null}
 
-        {pending.length > 0 ? (
-          <View style={{ gap: theme.spacing[3] }}>
+        {waiting.length > 0 ? (
+          <View style={{ gap: 9 }}>
             <Text variant="micro" color="muted">
               Pending uploads
             </Text>
-            {pending.map((row) => (
+            {waiting.map((row) => (
               <SyncQueueRow
                 key={`pending-${row.tableName}-${row.id}`}
-                variant="pending"
-                row={row}
-              />
-            ))}
-          </View>
-        ) : null}
-
-        {postPending.length > 0 || postFailed.length > 0 ? (
-          <View style={{ gap: theme.spacing[3] }}>
-            <Text variant="micro" color="muted">
-              Posts
-            </Text>
-            {postFailed.map((row) => (
-              <SyncQueueRow
-                key={`post-failed-${row.id}`}
-                variant="failed"
-                row={row}
-                onRetry={() => void handleRetry(row.tableName, row.id)}
-                onDiscard={() => handleDiscard(row.tableName, row.id, row.title)}
-              />
-            ))}
-            {postPending.map((row) => (
-              <SyncQueueRow
-                key={`post-pending-${row.id}`}
                 variant="pending"
                 row={row}
                 // The one waiting row in the app that offers a way out, and
                 // deliberately so — see `SyncQueueRow`'s own note. A post that
                 // is on its way is going to be published; changing your mind
                 // has to be possible before that, not only if it fails.
-                onDiscard={() => handleDiscard(row.tableName, row.id, row.title)}
+                onDiscard={
+                  row.tableName === POST_OUTBOX_TABLE
+                    ? () => handleDiscard(row.tableName, row.id)
+                    : undefined
+                }
               />
-            ))}
-          </View>
-        ) : null}
-
-        {mediaPending.length > 0 || mediaFailed.length > 0 ? (
-          <View style={{ gap: theme.spacing[3] }}>
-            <Text variant="micro" color="muted">
-              Photos
-            </Text>
-            {mediaFailed.map((row) => (
-              <SyncQueueRow
-                key={`media-failed-${row.id}`}
-                variant="failed"
-                row={row}
-                onRetry={() => void handleRetry(row.tableName, row.id)}
-                onDiscard={() => handleDiscard(row.tableName, row.id, row.title)}
-              />
-            ))}
-            {mediaPending.map((row) => (
-              <SyncQueueRow key={`media-pending-${row.id}`} variant="pending" row={row} />
             ))}
           </View>
         ) : null}
 
         {hasQueue ? null : (
-          <EmptyState
-            icon="✅"
-            title="Everything is synced"
-            subtitle="Changes you make offline will appear here until they reach the server."
-          />
+          <Text variant="caption" color="muted" style={{ textAlign: 'center' }}>
+            Changes you make offline will appear here until they reach the server.
+          </Text>
         )}
       </ScrollView>
 
       {hasQueue ? (
         <View
           style={{
-            padding: theme.gutter,
-            borderTopWidth: 1,
-            borderTopColor: theme.colors.hairline,
+            paddingHorizontal: theme.gutter,
+            paddingTop: theme.spacing[3],
+            paddingBottom: theme.spacing[5],
             backgroundColor: theme.colors.surface,
           }}
         >
