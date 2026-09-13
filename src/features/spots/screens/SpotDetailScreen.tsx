@@ -340,7 +340,12 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                         color="onButton"
                         style={{ fontFamily: theme.fontFamily.bodySemiBold }}
                       >
-                        {`${heroIndex + 1} / ${media.length}`}
+                        {/*
+                          Clamped, because a link to another spot can reuse
+                          this screen with the last spot's index still in
+                          state — "4 / 1" is worse than no counter at all.
+                        */}
+                        {`${Math.min(heroIndex, media.length - 1) + 1} / ${media.length}`}
                       </Text>
                     </View>
                   </View>
