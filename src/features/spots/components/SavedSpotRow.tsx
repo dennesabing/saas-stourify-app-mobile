@@ -1,17 +1,28 @@
 import { Image } from 'expo-image'
 import { Pressable, View } from 'react-native'
-import { thumbFor } from '@/features/discover/api/exploreSpots'
-import type { WishlistItem } from '@/shared/api/wishlist'
+import type { SavedSpot } from '@/features/spots/hooks/useSavedSpots'
 import { Icon, Tag, Text } from '@/shared/components/ui'
 import { useTheme } from '@/theme/ThemeProvider'
 
 interface Props {
-  item: WishlistItem
+  item: SavedSpot
   onOpenSpot: (spotUuid: string) => void
 }
 
 /** The photo tile's width — the canvas's `.wcard .th`. */
 const PHOTO_WIDTH = 92
+
+/**
+ * The app's mark for a thing still on the phone — the same "Queued ↑" a review
+ * or a spot card carries (STOURIFY-207).
+ */
+function QueuedMark() {
+  return (
+    <View testID="saved-spot-queued">
+      <Tag label="Queued ↑" />
+    </View>
+  )
+}
 
 /**
  * One saved spot, the same row wherever your saves are listed.
@@ -25,10 +36,35 @@ const PHOTO_WIDTH = 92
  * category pill, the title in Fraunces and a pin with the address. The canvas
  * also draws a distance, an "offline" tick and an unsave button; none of them
  * has anything behind it yet, and the card's spec says why for each.
+ *
+ * A save the phone has not sent yet is drawn the same way with the queued mark
+ * under it (STOURIFY-207); `useSavedSpots` says where its details come from.
  */
 export default function SavedSpotRow({ item, onOpenSpot }: Props) {
   const theme = useTheme()
   const { spot } = item
+
+  // A save only this phone knows about, of a spot nothing on the phone can
+  // name. It is real and on its way, so it gets a line that says so — not the
+  // "no longer available" line below, which would be false.
+  if (!spot && item.isPending) {
+    return (
+      <View
+        testID="saved-spot-pending"
+        style={{
+          gap: theme.spacing[2],
+          padding: theme.spacing[3],
+          backgroundColor: theme.colors.surfaceAlt,
+          borderRadius: theme.radius.button,
+        }}
+      >
+        <Text variant="body" color="muted">
+          Saved on this phone. Details appear once it sends.
+        </Text>
+        {item.isQueued ? <QueuedMark /> : null}
+      </View>
+    )
+  }
 
   // A saved row whose spot is gone. Rendering nothing would silently shorten
   // the list, so it says what happened instead — the alternative is an
@@ -50,14 +86,15 @@ export default function SavedSpotRow({ item, onOpenSpot }: Props) {
     )
   }
 
-  const photo = thumbFor(spot)
-  const category = spot.categories?.[0]
+  const photo = spot.thumbUrl
+  const category = spot.categories[0]
 
   return (
     <Pressable
       onPress={() => onOpenSpot(spot.uuid)}
       accessibilityRole="button"
       accessibilityLabel={spot.title}
+      accessibilityHint={item.isQueued ? 'Saved on this phone, waiting to sync' : undefined}
       style={({ pressed }) => ({
         flexDirection: 'row',
         gap: theme.spacing[3],
@@ -122,6 +159,8 @@ export default function SavedSpotRow({ item, onOpenSpot }: Props) {
             </Text>
           </View>
         ) : null}
+
+        {item.isQueued ? <QueuedMark /> : null}
       </View>
     </Pressable>
   )

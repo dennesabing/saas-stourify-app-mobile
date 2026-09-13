@@ -1,12 +1,12 @@
 import { useCallback } from 'react'
 import { FlatList } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { ProfileStackParamList } from '@/shared/navigation/types'
 import { describeRequestFailure } from '@/shared/api/errorMessage'
-import { WISHLIST_QUERY_KEY, getWishlist, type WishlistItem } from '@/shared/api/wishlist'
 import SavedSpotRow from '@/features/spots/components/SavedSpotRow'
+import SavedSpotsNotice from '@/features/spots/components/SavedSpotsNotice'
+import { useSavedSpots, type SavedSpot } from '@/features/spots/hooks/useSavedSpots'
 import { BarHeader, EmptyState } from '@/shared/components/ui'
 import { useRefetchOnFocus } from '@/shared/hooks/useRefetchOnFocus'
 import { useTheme } from '@/theme/ThemeProvider'
@@ -25,15 +25,15 @@ type Props = NativeStackScreenProps<ProfileStackParamList, 'Wishlist'>
  *
  * It reads the server's list rather than the local one, and
  * `shared/api/wishlist.ts` explains why at length: saves are mostly of other
- * people's spots, and the offline sync only brings down your own.
+ * people's spots, and the offline sync only brings down your own. The saves
+ * this phone has not sent yet are laid on top (STOURIFY-207) — until they
+ * were, a spot saved a minute ago was missing here while the spot page showed
+ * it saved. `useSavedSpots` does both.
  */
 export default function SavedSpotsScreen({ navigation }: Props) {
   const theme = useTheme()
 
-  const { data, error, isPending, isError, refetch, isRefetching } = useQuery({
-    queryKey: WISHLIST_QUERY_KEY,
-    queryFn: getWishlist,
-  })
+  const { items, rest, error, isPending, isError, refetch, isRefetching } = useSavedSpots()
 
   /**
    * What the failure panel says, chosen from the failure that actually
@@ -53,11 +53,9 @@ export default function SavedSpotsScreen({ navigation }: Props) {
   // this screen stays mounted between visits (STOURIFY-200).
   useRefetchOnFocus(navigation, refetch)
 
-  const items = data ?? []
-
   // The row is shared with the Wishlist tab on your own profile (STOURIFY-288).
   const renderItem = useCallback(
-    ({ item }: { item: WishlistItem }) => (
+    ({ item }: { item: SavedSpot }) => (
       <SavedSpotRow
         item={item}
         onOpenSpot={(spotId) => navigation.navigate('SpotDetail', { spotId })}
@@ -67,8 +65,9 @@ export default function SavedSpotsScreen({ navigation }: Props) {
   )
 
   /**
-   * Only reached with nothing to show. The three cases are different situations
-   * with different remedies, so they get different words — the same rule
+   * Only reached with nothing to show — no save from the server and none
+   * waiting on the phone. The three cases are different situations with
+   * different remedies, so they get different words — the same rule
    * `DiscoverScreen` and `SearchScreen` follow, and for the same reason: a
    * reader told "you have saved nothing" when the request actually failed goes
    * away believing their saves were lost.
@@ -99,10 +98,11 @@ export default function SavedSpotsScreen({ navigation }: Props) {
 
       <FlatList
         data={items}
-        keyExtractor={(item) => item.uuid}
+        keyExtractor={(item) => item.key}
         renderItem={renderItem}
         onRefresh={() => void refetch()}
         refreshing={isRefetching}
+        ListHeaderComponent={<SavedSpotsNotice rest={rest} onRetry={() => void refetch()} />}
         ListEmptyComponent={empty}
         contentContainerStyle={
           items.length === 0

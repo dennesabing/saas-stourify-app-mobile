@@ -595,6 +595,53 @@ it('saves to the wishlist as a local write, never touching the network', async (
 })
 
 /**
+ * STOURIFY-207. Saved spots reads the server, and a save of somebody else's
+ * spot has no spot row on the phone — so until the sync sent it, nothing on the
+ * phone could name it there, and the list said "Nothing saved yet". The spot is
+ * on screen when you tap Save, so the save keeps a small copy of it, the way a
+ * queued post keeps its spot's title.
+ */
+it("keeps the spot's name, photo, categories and address on the save", async () => {
+  const database = createTestDatabase()
+  ;(getSpot as jest.Mock).mockResolvedValue(
+    makeSpot({
+      media: [
+        { uuid: 'm1', url: 'https://cdn.test/photo1.jpg', thumb_url: null },
+        {
+          uuid: 'm2',
+          url: 'https://cdn.test/photo2.jpg',
+          thumb_url: 'https://cdn.test/thumb2.jpg',
+        },
+      ],
+    }),
+  )
+  ;(getSpotPosts as jest.Mock).mockResolvedValue({
+    data: [],
+    links: {},
+    meta: { current_page: 1, last_page: 1, total: 0 },
+  })
+
+  renderScreen(database)
+
+  await waitFor(() => expect(screen.getAllByText('Blue Cove').length).toBeGreaterThan(0))
+  fireEvent.press(screen.getByTestId('spot-save'))
+
+  await waitFor(async () => {
+    expect(await database.get<WishlistItem>('sto_wishlist_items').query().fetchCount()).toBe(1)
+  })
+
+  const [item] = await database.get<WishlistItem>('sto_wishlist_items').query().fetch()
+  expect(item.spotSnapshot).toEqual({
+    uuid: 'spot-1',
+    title: 'Blue Cove',
+    categories: ['Nature', 'Viewpoint'],
+    address: 'Coastal Road',
+    // The first photo that HAS a thumbnail — the same rule the Saved row uses.
+    thumb_url: 'https://cdn.test/thumb2.jpg',
+  })
+})
+
+/**
  * The design's three tabs, opening on About (STOURIFY-292). The posts tab is
  * called Photos now -- the posts ARE the photos people shared here -- and the
  * page lands on About, which is where the map card lives, so a spot says where

@@ -11,6 +11,32 @@ import PendingMediaModel from '@/db/models/PendingMedia'
 import type PostDraft from '@/db/models/PostDraft'
 import PostDraftModel from '@/db/models/PostDraft'
 import type PostOutbox from '@/db/models/PostOutbox'
+import type WishlistItem from '@/db/models/WishlistItem'
+import WishlistItemModel from '@/db/models/WishlistItem'
+
+/**
+ * `sto_wishlist_items` as every shipped schema from v1 to v5 declared it. Each
+ * fixture below is cut down to the tables its own migration touches, but a real
+ * install has always had this one, and v6 adds a column to it (STOURIFY-207).
+ * A fixture migrated forward to the current schema without it fails to open at
+ * all ("driver is not set up"), so every one of them carries it.
+ */
+const wishlistItemsV1ToV5 = tableSchema({
+  name: 'sto_wishlist_items',
+  columns: [
+    { name: 'uuid', type: 'string', isIndexed: true },
+    { name: 'server_id', type: 'number', isOptional: true, isIndexed: true },
+    { name: 'organization_id', type: 'number', isOptional: true },
+    { name: 'user_id', type: 'number', isOptional: true },
+    { name: 'spot_id', type: 'number', isOptional: true },
+    { name: 'spot_uuid', type: 'string', isOptional: true },
+    { name: 'city_id', type: 'number', isOptional: true },
+    { name: 'note', type: 'string', isOptional: true },
+    { name: 'is_downloaded_offline', type: 'boolean' },
+    { name: 'created_at', type: 'number' },
+    { name: 'updated_at', type: 'number' },
+  ],
+})
 
 /**
  * The pre-migration schema: version 1, `pending_media` absent — a snapshot
@@ -19,6 +45,7 @@ import type PostOutbox from '@/db/models/PostOutbox'
 const schemaV1 = appSchema({
   version: 1,
   tables: [
+    wishlistItemsV1ToV5,
     tableSchema({
       name: 'sto_spots',
       columns: [
@@ -77,10 +104,10 @@ describe('v1 -> v2 migration (adds pending_media)', () => {
       useIncrementalIndexedDB: false,
       extraLokiOptions: { autosave: false },
     })
-    // A minimal Database over just the two tables schemaV1 declares — the
-    // real app's full `modelClasses` doesn't apply here, since this is
-    // standing in for a pre-migration install that only ever knew about
-    // `sto_spots` and `sync_failures`.
+    // A minimal Database over the two tables this test writes — the real
+    // app's full `modelClasses` doesn't apply here, since this is standing in
+    // for a pre-migration install. (schemaV1 also declares
+    // `sto_wishlist_items`, which every install has had, because v6 alters it.)
     const v1Database = new Database({
       adapter: v1Adapter,
       modelClasses: [SpotModel, SyncFailureModel],
@@ -167,6 +194,7 @@ describe('v1 -> v2 migration (adds pending_media)', () => {
 const schemaV2 = appSchema({
   version: 2,
   tables: [
+    wishlistItemsV1ToV5,
     tableSchema({
       name: 'sto_spots',
       columns: [
@@ -279,6 +307,7 @@ describe('v2 -> v3 migration (adds post_drafts)', () => {
 const schemaV3 = appSchema({
   version: 3,
   tables: [
+    wishlistItemsV1ToV5,
     tableSchema({
       name: 'sto_spots',
       columns: [
@@ -412,6 +441,7 @@ describe('v3 -> v4 migration (adds post_outbox)', () => {
 const schemaV4 = appSchema({
   version: 4,
   tables: [
+    wishlistItemsV1ToV5,
     tableSchema({
       name: 'sto_spots',
       columns: [
@@ -501,5 +531,78 @@ describe('v4 -> v5 migration (adds sto_spots.cover_photo_url)', () => {
       }),
     )
     expect(surviving[0].coverPhotoUrl).toBe('https://cdn.example/thumb.jpg')
+  })
+})
+
+/**
+ * The v5 schema as it shipped, cut down to the one table v6 changes:
+ * `sto_wishlist_items` without `spot_snapshot`.
+ */
+const schemaV5 = appSchema({
+  version: 5,
+  tables: [wishlistItemsV1ToV5],
+})
+
+describe('v5 -> v6 migration (adds sto_wishlist_items.spot_snapshot)', () => {
+  it('keeps a save the phone has not sent yet, still queued, with no copy of its spot', async () => {
+    const v5Adapter = new LokiJSAdapter({
+      schema: schemaV5,
+      useWebWorker: false,
+      useIncrementalIndexedDB: false,
+      extraLokiOptions: { autosave: false },
+    })
+    const v5Database = new Database({
+      adapter: v5Adapter,
+      modelClasses: [WishlistItemModel],
+    })
+
+    // A save tapped before the update and not yet sent. A destructive bump
+    // would drop exactly this row, and the server would never hear of it.
+    await v5Database.write(async () =>
+      v5Database.get<WishlistItem>('sto_wishlist_items').create((row: any) => {
+        row._raw.id = 'save-before-v6'
+        row._raw.uuid = 'save-before-v6'
+        row._raw.spot_uuid = 'spot-elsewhere'
+        row._raw.is_downloaded_offline = false
+        row._raw.created_at = 1_700_000_000_000
+        row._raw.updated_at = 1_700_000_000_000
+      }),
+    )
+
+    await new Promise<void>((resolve, reject) => {
+      const driver = (v5Adapter as any)._driver
+      driver.loki.saveDatabase((error: unknown) => (error ? reject(error) : resolve()))
+    })
+
+    const v6Adapter: any = await v5Adapter.testClone({
+      schema: stourifySchema,
+      migrations: stourifyMigrations,
+    })
+    const v6Database = createDatabase(v6Adapter)
+
+    const surviving = await v6Database.get<WishlistItem>('sto_wishlist_items').query().fetch()
+    expect(surviving).toHaveLength(1)
+    expect(surviving[0].spotUuid).toBe('spot-elsewhere')
+    expect(surviving[0].isQueued).toBe(true)
+
+    // No copy: the Saved list falls back for this row rather than breaking.
+    expect(surviving[0].spotSnapshot).toBeNull()
+
+    // And the column genuinely takes one.
+    await v6Database.write(async () =>
+      surviving[0].update((row: any) => {
+        row._setRaw(
+          'spot_snapshot',
+          JSON.stringify({
+            uuid: 'spot-elsewhere',
+            title: 'Hidden Falls',
+            categories: [],
+            address: null,
+            thumb_url: null,
+          }),
+        )
+      }),
+    )
+    expect(surviving[0].spotSnapshot?.title).toBe('Hidden Falls')
   })
 })

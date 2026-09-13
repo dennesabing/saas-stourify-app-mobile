@@ -10,9 +10,10 @@ import { getPosts, getUserPosts } from '@/shared/api/posts'
 import { follow, unfollow } from '@/shared/api/follows'
 import { blockUser } from '@/shared/api/blocks'
 import { extractApiError } from '@/shared/api/client'
-import { WISHLIST_QUERY_KEY, getWishlist, type WishlistItem } from '@/shared/api/wishlist'
 import ReportSheet from '@/features/social/components/ReportSheet'
 import SavedSpotRow from '@/features/spots/components/SavedSpotRow'
+import SavedSpotsNotice from '@/features/spots/components/SavedSpotsNotice'
+import { useSavedSpots, type SavedSpot } from '@/features/spots/hooks/useSavedSpots'
 import {
   Avatar,
   BackButton,
@@ -144,18 +145,15 @@ export default function ProfileScreen({ route, navigation }: Props) {
   })
 
   /**
-   * The Wishlist tab's list — the SAME query as the Saved spots screen, same
-   * key, so opening one after the other costs nothing (STOURIFY-288).
+   * The Wishlist tab's list — the SAME source as the Saved spots screen, same
+   * query key, so opening one after the other costs nothing (STOURIFY-288).
+   * That includes the saves this phone has not sent yet (STOURIFY-207).
    *
    * It waits for the tab to be opened. Most visits to a profile never look at
    * the saves, and a request per visit for a list nobody asked to see is the
    * kind of cost an offline-first app should not pay by default.
    */
-  const wishlistQuery = useQuery({
-    queryKey: WISHLIST_QUERY_KEY,
-    queryFn: getWishlist,
-    enabled: isOwn && activeTab === 'wishlist',
-  })
+  const wishlistQuery = useSavedSpots({ enabled: isOwn && activeTab === 'wishlist' })
 
   /**
    * A save made on a spot page has to be here when you come back, and this
@@ -292,7 +290,7 @@ export default function ProfileScreen({ route, navigation }: Props) {
   )
 
   const renderSaved = useCallback(
-    ({ item }: { item: WishlistItem }) => (
+    ({ item }: { item: SavedSpot }) => (
       <View style={{ paddingHorizontal: theme.gutter }}>
         <SavedSpotRow
           item={item}
@@ -597,8 +595,8 @@ export default function ProfileScreen({ route, navigation }: Props) {
         <FlatList
           key="wishlist"
           testID="profile-wishlist"
-          data={wishlistQuery.data ?? []}
-          keyExtractor={(item) => item.uuid}
+          data={wishlistQuery.items}
+          keyExtractor={(item) => item.key}
           renderItem={renderSaved}
           ListHeaderComponent={
             <>
@@ -609,7 +607,7 @@ export default function ProfileScreen({ route, navigation }: Props) {
                 the screen with no door. Gated like every other route here,
                 because this screen also renders inside stacks without it.
               */}
-              {canOpen('Wishlist') && (wishlistQuery.data?.length ?? 0) > 0 ? (
+              {canOpen('Wishlist') && wishlistQuery.items.length > 0 ? (
                 <Pressable
                   onPress={() => navigation.navigate('Wishlist')}
                   accessibilityRole="button"
@@ -625,6 +623,12 @@ export default function ProfileScreen({ route, navigation }: Props) {
                   </Text>
                 </Pressable>
               ) : null}
+              {/* Only the phone's unsent saves are showing: say what is
+                  missing, as the Wishlist screen does (STOURIFY-207). */}
+              <SavedSpotsNotice
+                rest={wishlistQuery.rest}
+                onRetry={() => void wishlistQuery.refetch()}
+              />
             </>
           }
           ListEmptyComponent={emptyWishlist}

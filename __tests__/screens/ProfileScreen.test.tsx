@@ -2,9 +2,13 @@ import { AxiosError, type AxiosResponse } from 'axios'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { SafeAreaProvider, type Metrics } from 'react-native-safe-area-context'
+import type { Database } from '@nozbe/watermelondb'
+import { DatabaseProvider } from '@nozbe/watermelondb/react'
 import ProfileScreen from '@/features/profile/screens/ProfileScreen'
 import { ThemeProvider } from '@/theme/ThemeProvider'
 import type { ExplorerProfile } from '@/shared/api/profiles'
+import type WishlistItem from '@/db/models/WishlistItem'
+import { createTestDatabase } from '../support/testDatabase'
 
 /**
  * The identity surface (STOURIFY-35).
@@ -158,7 +162,16 @@ const navigation = {
  */
 let resetSpy: jest.SpyInstance
 
-function renderProfile(userId?: string, queryClient?: QueryClient) {
+/**
+ * The Wishlist tab reads the phone's own saves as well as the server's list
+ * (STOURIFY-207), so the screen needs a database like the app gives it. A
+ * fresh, empty one unless a test seeds its own.
+ */
+function renderProfile(
+  userId?: string,
+  queryClient?: QueryClient,
+  database: Database = createTestDatabase(),
+) {
   const qc =
     queryClient ??
     trackQueryClient(new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }))
@@ -167,10 +180,12 @@ function renderProfile(userId?: string, queryClient?: QueryClient) {
     <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
       <ThemeProvider scheme="light">
         <QueryClientProvider client={qc}>
-          <ProfileScreen
-            navigation={navigation}
-            route={{ key: PROFILE_ROUTE_KEY, params: userId ? { userId } : undefined } as any}
-          />
+          <DatabaseProvider database={database}>
+            <ProfileScreen
+              navigation={navigation}
+              route={{ key: PROFILE_ROUTE_KEY, params: userId ? { userId } : undefined } as any}
+            />
+          </DatabaseProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </SafeAreaProvider>,
@@ -466,6 +481,46 @@ describe('the Wishlist tab on my own profile', () => {
     fireEvent.press(screen.getByLabelText('Wishlist'))
 
     expect(await screen.findByText('Gumasa Beach')).toBeTruthy()
+  })
+
+  /**
+   * STOURIFY-207. A save made on a spot page is written on the phone first and
+   * sent later, and this tab reads the server — so for a couple of minutes it
+   * said "Nothing saved yet" about a spot you had just saved.
+   */
+  test('lists a save the phone has not sent yet, marked queued', async () => {
+    routeNames = [...PROFILE_STACK_ROUTES, 'Wishlist']
+    const database = createTestDatabase()
+    await database.write(async () =>
+      database.get<WishlistItem>('sto_wishlist_items').create((row: any) => {
+        row._raw.id = 'local-save'
+        row._raw.uuid = 'local-save'
+        row._raw.spot_id = null
+        row._raw.spot_uuid = 'spot-7'
+        row._raw.note = null
+        row._raw.is_downloaded_offline = false
+        row._raw.spot_snapshot = JSON.stringify({
+          uuid: 'spot-7',
+          title: 'Hidden Falls',
+          categories: ['Nature'],
+          address: null,
+          thumb_url: null,
+        })
+        row._raw.created_at = 1
+        row._raw.updated_at = 1
+      }),
+    )
+    ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
+
+    renderProfile(undefined, undefined, database)
+
+    fireEvent.press(await screen.findByLabelText('Wishlist'))
+
+    expect(await screen.findByText('Hidden Falls')).toBeTruthy()
+    expect(screen.getByText('Queued ↑')).toBeTruthy()
+    expect(screen.queryByText('Nothing saved yet')).toBeNull()
+    // The list counts what it shows, so the way into the full screen is there.
+    expect(screen.getByText('See all')).toBeTruthy()
   })
 
   test("somebody else's profile has a Spots tab and no Wishlist tab", async () => {
