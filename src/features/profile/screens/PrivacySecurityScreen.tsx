@@ -23,10 +23,10 @@ type Props = NativeStackScreenProps<ProfileStackParamList, 'PrivacySecurity'>
  * it did there: the same saves, the same rollbacks, the same messages. Only
  * where they live and what they look like changed.
  *
- * The design also draws Change password, Two-factor authentication and
- * Download my data. None of them exists in the app yet (Change password has a
- * server endpoint and no screen), so they are left out rather than drawn as
- * rows that do nothing; the card's spec says so.
+ * The design also draws Two-factor authentication and Download my data. Neither
+ * exists in the app yet, so they are left out rather than drawn as rows that do
+ * nothing; STOURIFY-290's spec says so. Change password, drawn beside them, got
+ * its screen in STOURIFY-302.
  */
 export default function PrivacySecurityScreen({ navigation }: Props) {
   const theme = useTheme()
@@ -293,6 +293,15 @@ export default function PrivacySecurityScreen({ navigation }: Props) {
               {locationError}
             </Text>
           )}
+
+          {/* The design's "Account security" group, holding the one row it draws that the app can back (STOURIFY-302). */}
+          <SettingsGroup label="Account security">
+            <SettingsRow
+              icon="lock"
+              label="Change password"
+              onPress={() => navigation.navigate('ChangePassword')}
+            />
+          </SettingsGroup>
 
           {/*
             Blocked accounts is the only place a block can be lifted from. The

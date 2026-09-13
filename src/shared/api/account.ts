@@ -23,6 +23,29 @@ export async function deleteAccount(email: string, password: string): Promise<vo
   await client.delete('/me', { data: { email, password }, timeout: 60000 })
 }
 
+export interface ChangePasswordInput {
+  current_password: string
+  password: string
+  /** The server's `confirmed` rule reads exactly this name. */
+  password_confirmation: string
+}
+
+/**
+ * Change the signed-in account's password (STOURIFY-302).
+ *
+ * Sent straight to the server, never through the offline outbox the app's other
+ * writes use: the outbox is a table on the phone's disk, and a queued request
+ * would leave the password sitting there until it synced. It also needs an
+ * answer now — "that isn't your current password" is no use an hour later.
+ *
+ * On success the server revokes every OTHER sign-in token and keeps the one
+ * this request carried, so this phone stays signed in and nothing here needs
+ * tearing down. Rate-limited to five tries a minute (429 after that).
+ */
+export async function changePassword(input: ChangePasswordInput): Promise<void> {
+  await client.put('/me/password', input)
+}
+
 /**
  * DELETION_TIMEOUT_NOTE — why a timed-out deletion signs the user out anyway.
  *
