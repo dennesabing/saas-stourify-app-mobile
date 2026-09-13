@@ -629,6 +629,56 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Which tier a `release` build is for. The reasoning, and why silence means
+// production, sits with the production guard further down (STOURIFY-235); it is
+// declared up here only because the signing choice below needs it too.
+def releaseTierName = (findProperty("stourifyReleaseTier") ?: "production").toString()
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The private Stourify release key (STOURIFY-300)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// An APK's signature is a wax seal: a phone accepts an update only when the new
+// copy carries the same seal as the installed one. Until this card the public APK
+// was sealed with Android's DEBUG key, which every developer machine generates and
+// whose details are public, so anybody could forge an "update" to Stourify.
+//
+// The key and its passwords never enter the repository. They come from the
+// environment, or from a Gradle property of the same name for a machine that keeps
+// them in ~/.gradle/gradle.properties. docs/mobile-apk-build.md → Signing says where
+// the operator's copy lives and how it is backed up.
+//
+// Who gets which seal, and why:
+//   - a PRODUCTION `release` → this key, and a refusal if it is absent (below);
+//   - a dev-channel `release` (-PstourifyReleaseTier=dev) → the debug key, so a dev
+//     build aimed at a laptop can never install as an update over a user's copy;
+//   - `debug` and `releaseDev` → the debug key. The rig installs one over the other
+//     with `adb install -r`, which only works while they share ONE seal.
+def stourifyReleaseKeystore = (System.getenv("STOURIFY_RELEASE_KEYSTORE") ?: findProperty("STOURIFY_RELEASE_KEYSTORE"))?.toString()
+def stourifyReleaseStorePassword = (System.getenv("STOURIFY_RELEASE_STORE_PASSWORD") ?: findProperty("STOURIFY_RELEASE_STORE_PASSWORD"))?.toString()
+def stourifyReleaseKeyPassword = (System.getenv("STOURIFY_RELEASE_KEY_PASSWORD") ?: findProperty("STOURIFY_RELEASE_KEY_PASSWORD"))?.toString()
+def stourifyReleaseKeyAlias = (System.getenv("STOURIFY_RELEASE_KEY_ALIAS") ?: findProperty("STOURIFY_RELEASE_KEY_ALIAS") ?: "stourify-release").toString()
+
+// Why the key cannot be used, in words a refusal can quote — or null when it can.
+// Names and a path only: a password is never part of any message.
+def stourifyReleaseSigningProblem = null
+def stourifyReleaseMissing = []
+if (!stourifyReleaseKeystore) stourifyReleaseMissing << "STOURIFY_RELEASE_KEYSTORE"
+if (!stourifyReleaseStorePassword) stourifyReleaseMissing << "STOURIFY_RELEASE_STORE_PASSWORD"
+if (!stourifyReleaseKeyPassword) stourifyReleaseMissing << "STOURIFY_RELEASE_KEY_PASSWORD"
+if (stourifyReleaseMissing) {
+    stourifyReleaseSigningProblem = "not set: " + stourifyReleaseMissing.join(", ")
+} else if (!new File(stourifyReleaseKeystore).isFile()) {
+    stourifyReleaseSigningProblem = "STOURIFY_RELEASE_KEYSTORE names a file that does not exist: ${stourifyReleaseKeystore}"
+}
+def stourifyReleaseSigning = stourifyReleaseSigningProblem ? null : [
+    storeFile    : new File(stourifyReleaseKeystore),
+    storePassword: stourifyReleaseStorePassword,
+    keyAlias     : stourifyReleaseKeyAlias,
+    keyPassword  : stourifyReleaseKeyPassword,
+]
+def useStourifyReleaseKey = releaseTierName != "dev" && stourifyReleaseSigning != null
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -691,15 +741,27 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // Only declared when the key is really there, so a machine without it still
+        // configures: the debug build and the rig must keep working everywhere.
+        if (stourifyReleaseSigning != null) {
+            release {
+                storeFile stourifyReleaseSigning.storeFile
+                storePassword stourifyReleaseSigning.storePassword
+                keyAlias stourifyReleaseSigning.keyAlias
+                keyPassword stourifyReleaseSigning.keyPassword
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // The private Stourify key for a production build (STOURIFY-300). A
+            // production build WITHOUT the key is left on the debug config here only
+            // so that configuration succeeds; assertReleaseSigningIsPrivate refuses
+            // it before anything is compiled, and again at packageRelease.
+            signingConfig useStourifyReleaseKey ? signingConfigs.release : signingConfigs.debug
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
@@ -741,6 +803,11 @@ android {
         releaseDev {
             initWith release
             matchingFallbacks = ['release']
+            // Set explicitly, AFTER initWith, because `release` may now carry the
+            // private key (STOURIFY-300). The rig installs `debug` over this build
+            // with `adb install -r`, which needs one shared seal; and a build that
+            // accepts plain HTTP must never pass as an update to a user's copy.
+            signingConfig signingConfigs.debug
         }
     }
     packagingOptions {
@@ -889,7 +956,9 @@ tasks.configureEach { task ->
 // one now refuses. A caller who types -PstourifyReleaseTier=dev has said out loud
 // which tier they meant, and is then held to that tier's rules rather than to
 // none at all.
-def releaseTierName = (findProperty("stourifyReleaseTier") ?: "production").toString()
+//
+// (`releaseTierName` itself is declared above the `android` block, because the
+// signing choice there needs it as well.)
 
 // `dev` is the one value that is not a tier lookup. It means "this release build
 // is a test build for the local rig", and the rules for that already exist — they
@@ -901,6 +970,29 @@ def assertReleaseApiUrlIsSafe = {
         assertDevApiUrlIsSafe("release (dev channel)")
     } else {
         assertProdApiUrlIsSafe("release", releaseTierName)
+    }
+}
+
+// A production release with no private key refuses (STOURIFY-300).
+//
+// Falling back to the debug seal is exactly how the public APK came to carry it, so
+// "no key" is a stop, not a default. The dev tier is exempt: that build goes to the
+// private dev channel and is meant to keep the debug seal (see the signing block
+// above the `android` block).
+def assertReleaseSigningIsPrivate = {
+    if (releaseTierName == "dev") return
+    if (stourifyReleaseSigning == null) {
+        throw new GradleException(
+            "\n" +
+            "Refusing to build a ${releaseTierName} release: the private Stourify release key is\n" +
+            "  not available (${stourifyReleaseSigningProblem}).\n" +
+            "  Without it this APK would be sealed with Android's public debug key, and anyone\n" +
+            "  could forge an update to it (STOURIFY-300).\n" +
+            "\n" +
+            "  Set STOURIFY_RELEASE_KEYSTORE, STOURIFY_RELEASE_STORE_PASSWORD and\n" +
+            "  STOURIFY_RELEASE_KEY_PASSWORD in the environment or ~/.gradle/gradle.properties.\n" +
+            "  A build for the local rig says so instead: -PstourifyReleaseTier=dev.\n" +
+            "  See docs/mobile-apk-build.md -> Signing.\n")
     }
 }
 
@@ -917,6 +1009,12 @@ tasks.configureEach { task ->
     // nothing can bake an address into the JavaScript without running this task.
     if (task.name == "createBundleReleaseJsAndAssets") {
         task.doFirst { assertReleaseApiUrlIsSafe() }
+    }
+
+    // The seal is applied here, so this is the refusal that cannot be walked
+    // around (STOURIFY-300). The graph check below only makes it arrive sooner.
+    if (task.name == "packageRelease") {
+        task.doFirst { assertReleaseSigningIsPrivate() }
     }
 
     // …and the artifact check after packaging, which reads a fact rather than
@@ -952,6 +1050,7 @@ def releaseArtifactTasks = [
 def releaseAnchorPaths = releaseArtifactTasks.collect { "${project.path}:${it}".toString() } as Set
 gradle.taskGraph.whenReady { graph ->
     if (graph.allTasks.any { releaseAnchorPaths.contains(it.path) }) {
+        assertReleaseSigningIsPrivate()
         assertReleaseApiUrlIsSafe()
     }
 }

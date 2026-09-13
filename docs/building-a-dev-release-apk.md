@@ -134,6 +134,15 @@ same three rules a `releaseDev` build gets, rather than to none at all.
 `scripts\mobile-apk-builder.ps1` passes the flag for you on both of its dev paths, so if you build
 through it you will never type it.
 
+**A production-tier build also needs the private release key** (STOURIFY-300). Without the three
+`STOURIFY_RELEASE_*` variables, `./gradlew assembleRelease` refuses before it compiles, and so
+does `--dry-run`. The key only seals a production build:
+- a dev-tier `release` and a `releaseDev` build keep the debug seal, so the commands above never
+  need it;
+- `adb install -r` between `debug` and `releaseDev` keeps working.
+
+Where the key lives and why it matters: the root repository's `docs/mobile-apk-build.md` → Signing.
+
 #### A refusal you will hit if you build both variants by hand
 
 Gradle does not treat `.env` files as task inputs, so changing the address does **not** invalidate

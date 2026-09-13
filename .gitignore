@@ -12,6 +12,10 @@ expo-env.d.ts
 # Native
 *.orig.*
 *.jks
+# Any keystore. The release key lives outside the repo entirely (STOURIFY-300);
+# this is the backstop. debug.keystore is public and already tracked.
+*.keystore
+!android/app/debug.keystore
 *.p8
 *.p12
 *.key
