@@ -283,12 +283,29 @@ export interface SpotAbout {
   can: Record<string, boolean>
 }
 
+/**
+ * One person at either end of a follow edge — the module's `ExplorerResource`.
+ *
+ * Not a `User`: the server sends the explorer identity (`username`, `bio`,
+ * `is_private`) and no email. The follow list draws "@username" from it
+ * (STOURIFY-289); `avatar` stays optional because the resource does not send
+ * one yet, and the avatar falls back to initials.
+ */
+export interface FollowExplorer {
+  uuid: string
+  name: string
+  username?: string | null
+  bio?: string | null
+  is_private?: boolean
+  avatar?: string
+}
+
 export interface Follow {
   id: string
   uuid: string
   status: 'active' | 'pending'
-  follower?: User
-  followee?: User
+  follower?: FollowExplorer
+  followee?: FollowExplorer
   created_at: string
 }
 

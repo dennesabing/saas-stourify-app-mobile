@@ -600,7 +600,33 @@ export default function ProfileScreen({ route, navigation }: Props) {
           data={wishlistQuery.data ?? []}
           keyExtractor={(item) => item.uuid}
           renderItem={renderSaved}
-          ListHeaderComponent={header}
+          ListHeaderComponent={
+            <>
+              {header}
+              {/*
+                The only way into the Wishlist screen (STOURIFY-289). This tab
+                replaced the "Saved spots" button in STOURIFY-288, which left
+                the screen with no door. Gated like every other route here,
+                because this screen also renders inside stacks without it.
+              */}
+              {canOpen('Wishlist') && (wishlistQuery.data?.length ?? 0) > 0 ? (
+                <Pressable
+                  onPress={() => navigation.navigate('Wishlist')}
+                  accessibilityRole="button"
+                  hitSlop={theme.spacing[2]}
+                  style={{
+                    alignSelf: 'flex-end',
+                    paddingHorizontal: theme.gutter,
+                    paddingBottom: theme.spacing[3],
+                  }}
+                >
+                  <Text variant="caption" color="primary">
+                    See all
+                  </Text>
+                </Pressable>
+              ) : null}
+            </>
+          }
           ListEmptyComponent={emptyWishlist}
           ItemSeparatorComponent={() => <View style={{ height: theme.spacing[3] }} />}
           contentContainerStyle={{ paddingBottom: theme.spacing[6] }}

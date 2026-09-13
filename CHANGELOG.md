@@ -20,6 +20,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Edit Profile, the Wishlist and Followers / Following match the Profile design
+  (STOURIFY-289).** Same data and the same requests, laid out the way artboards 2, 3 and 5 draw
+  them, in the light and the dark theme:
+  - **Edit Profile** has a round back button, a text "Save" at the top right, your avatar and
+    name, then labelled fields: Username with an "@" already in front, Bio with a live "N / 150"
+    counter that stops at the server's limit, Home city, Website and Interests. "Save changes" is
+    pinned under the scroll. It still sends only what you changed, to `PATCH /profile`.
+    `Input` gained two optional props for this, `prefix` and `counter`; screens that pass neither
+    are unchanged.
+  - **The Wishlist** (the Saved spots screen) has a "Wishlist" back bar, and each saved spot is a
+    card: a photo tile, a category pill, the title in Fraunces and a pin with the address. The
+    Wishlist tab on your profile shares the same row, and gains a "See all" link: since
+    STOURIFY-288 nothing else opened this screen.
+  - **Followers / Following** is one screen with a switch ("12 Followers" / "7 Following")
+    instead of two entries, a search box that narrows the loaded list by name or @username on the
+    phone, and rows with the avatar, name and handle. It used to write six colour literals and
+    ignore the theme; it now takes every colour from it. A private account's list reads "This
+    list is private" instead of an empty list, and any other failure offers "Try again".
+  - Deliberately not built, because nothing backs them yet: "Change photo" and an editable
+    display name (STOURIFY-307), unsave (STOURIFY-303), grouping saves by city, "Download
+    offline", distances, and a Follow button on every row. `docs/what-the-profile-screens-leave-out.md`
+    says why for each.
 - **The Profile screen matches the Profile design, for your own profile and for anyone else's
   (STOURIFY-288).** Same data and the same actions, laid out the way artboards 1 and 6 draw them:
   - The header is left-aligned: your avatar, your name in Fraunces, "@username · home city", your

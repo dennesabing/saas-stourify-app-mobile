@@ -26,6 +26,17 @@ export interface InputProps {
    */
   icon?: IconName
   /**
+   * A fixed piece of text drawn inside the field, before what you type — the
+   * "@" in front of Edit Profile's username (STOURIFY-289). It is not part of
+   * the value, so the handle is saved without it.
+   */
+  prefix?: string
+  /**
+   * A short note at the right end of the label row — Edit Profile's
+   * "72 / 150" bio counter (STOURIFY-289). Shown only with a label.
+   */
+  counter?: string
+  /**
    * `lg` is the Auth & Entry field: 54 points tall, its label in small capitals
    * above it. `md`, the default, is every other field in the app, unchanged.
    */
@@ -36,6 +47,10 @@ export interface InputProps {
 /** The design's field icon: 18 points, then an 11-point gap before the text. */
 const ICON_SIZE = 18
 const ICON_GAP = 11
+
+/** Room kept for a one-character prefix such as "@", and the gap after it. */
+const PREFIX_WIDTH = 14
+const PREFIX_GAP = 4
 
 /**
  * The text-field primitive.
@@ -85,6 +100,8 @@ export default function Input({
   multiline = false,
   maxLength,
   icon,
+  prefix,
+  counter,
   size = 'md',
   testID,
 }: InputProps) {
@@ -97,19 +114,37 @@ export default function Input({
   // Applied only when the button is there, so every other field is untouched.
   const revealWidth = theme.spacing[4] * 4
 
+  // Where the typed text starts: after an icon, after a prefix, or at the edge.
+  const leading = icon
+    ? theme.spacing[4] + ICON_SIZE + ICON_GAP
+    : prefix
+      ? theme.spacing[4] + PREFIX_WIDTH + PREFIX_GAP
+      : theme.spacing[4]
+
+  const labelText = label ? (
+    large ? (
+      <Text variant="micro" color="muted" style={{ fontSize: 12, letterSpacing: 0.6 }}>
+        {label}
+      </Text>
+    ) : (
+      <Text variant="caption" color="muted">
+        {label}
+      </Text>
+    )
+  ) : null
+
   return (
     <View style={{ gap: large ? theme.spacing[2] : theme.spacing[1] }}>
-      {label ? (
-        large ? (
-          <Text variant="micro" color="muted" style={{ fontSize: 12, letterSpacing: 0.6 }}>
-            {label}
-          </Text>
-        ) : (
+      {labelText && counter !== undefined ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flex: 1 }}>{labelText}</View>
           <Text variant="caption" color="muted">
-            {label}
+            {counter}
           </Text>
-        )
-      ) : null}
+        </View>
+      ) : (
+        labelText
+      )}
 
       <View>
         <TextInput
@@ -131,7 +166,7 @@ export default function Input({
             borderRadius: theme.radius.button,
             borderWidth: 1,
             borderColor: hasError ? theme.colors.danger : theme.colors.hairline,
-            paddingLeft: icon ? theme.spacing[4] + ICON_SIZE + ICON_GAP : theme.spacing[4],
+            paddingLeft: leading,
             paddingRight: secureTextEntry ? revealWidth : theme.spacing[4],
             paddingVertical: theme.spacing[3],
             color: theme.colors.ink,
@@ -152,6 +187,21 @@ export default function Input({
             }}
           >
             <Icon name={icon} size={ICON_SIZE} color="muted" />
+          </View>
+        ) : prefix ? (
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: theme.spacing[4],
+              top: 0,
+              bottom: 0,
+              justifyContent: 'center',
+            }}
+          >
+            <Text variant="body" color="muted" style={large ? { fontSize: 16 } : undefined}>
+              {prefix}
+            </Text>
           </View>
         ) : null}
 

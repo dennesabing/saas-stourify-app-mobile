@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { FlatList, View } from 'react-native'
+import { FlatList } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
@@ -7,7 +7,7 @@ import type { ProfileStackParamList } from '@/shared/navigation/types'
 import { describeRequestFailure } from '@/shared/api/errorMessage'
 import { WISHLIST_QUERY_KEY, getWishlist, type WishlistItem } from '@/shared/api/wishlist'
 import SavedSpotRow from '@/features/spots/components/SavedSpotRow'
-import { EmptyState, Text } from '@/shared/components/ui'
+import { BarHeader, EmptyState } from '@/shared/components/ui'
 import { useRefetchOnFocus } from '@/shared/hooks/useRefetchOnFocus'
 import { useTheme } from '@/theme/ThemeProvider'
 
@@ -93,9 +93,9 @@ export default function SavedSpotsScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
-      <View style={{ padding: theme.gutter }}>
-        <Text variant="h1">Saved</Text>
-      </View>
+      {/* Artboard 3's back bar (STOURIFY-289). The canvas's map button at the
+          right end is not drawn: saves carry no map view to switch to. */}
+      <BarHeader title="Wishlist" onBack={() => navigation.goBack()} />
 
       <FlatList
         data={items}
