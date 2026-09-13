@@ -199,7 +199,9 @@ export default function ReportSheet({ visible, onClose, reportableType, reportab
         disabled={reason === null}
         loading={mutation.isPending}
       />
-      <Button label="Cancel" variant="ghost" fullWidth onPress={onClose} />
+      {/* No Cancel button, as artboard 5 draws it. The live run found one here
+          sitting past the sheet's scroll limit, showing as half a word; the
+          backdrop and Android's back gesture already close every sheet. */}
     </Sheet>
   )
 }
