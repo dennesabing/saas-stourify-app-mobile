@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { View } from 'react-native'
+import { Pressable, View } from 'react-native'
 import { useMutation } from '@tanstack/react-query'
-import { Button, Input, Sheet, SheetOption, Text } from '@/shared/components/ui'
+import { Button, Icon, Input, Sheet, Text } from '@/shared/components/ui'
 import { extractApiError } from '@/shared/api/client'
 import {
   REASON_REQUIRING_DETAILS,
@@ -23,6 +23,12 @@ interface Props {
 /**
  * The report form — one sheet, every reportable thing.
  *
+ * Dressed as the Settings design's artboard 5, "Report content" (STOURIFY-291):
+ * the reasons as radio rows, an optional details box, then a "Report received"
+ * confirmation. The canvas draws it as a full screen; it stays a sheet here
+ * because it is opened from the ⋯ menus on posts and profiles, and a full screen
+ * would change the flow for every caller. What a report sends did not change.
+ *
  * The same form serves a post and a person because the server's contract is the
  * same for both: a token, a uuid, a reason, and sometimes a description. Two
  * sheets would be two places to keep the reason list in step with
@@ -42,7 +48,8 @@ interface Props {
  *
  * Nothing here tells the reported party anything, and nothing can: no endpoint
  * would carry it, and `ReportResource` withholds `reporter_uuid` from everyone
- * but moderators and the reporter.
+ * but moderators and the reporter. That is what makes the sheet's "Your report
+ * is anonymous." true, and it is the condition for keeping it.
  */
 export default function ReportSheet({ visible, onClose, reportableType, reportableUuid }: Props) {
   const theme = useTheme()
@@ -53,7 +60,7 @@ export default function ReportSheet({ visible, onClose, reportableType, reportab
 
   // A sheet is mounted for the life of its screen and only toggled, so a second
   // report from the same screen would otherwise open onto the first one's
-  // "Thank you" and its filled-in reason.
+  // confirmation and its filled-in reason.
   useEffect(() => {
     if (!visible) {
       setReason(null)
@@ -77,6 +84,8 @@ export default function ReportSheet({ visible, onClose, reportableType, reportab
   function submit(): void {
     setLocalError(null)
 
+    // Unreachable through the button, which stays disabled until a reason is
+    // picked; kept because a guard that costs nothing outlives a style change.
     if (reason === null) {
       setLocalError('Please choose a reason.')
       return
@@ -93,29 +102,52 @@ export default function ReportSheet({ visible, onClose, reportableType, reportab
     mutation.mutate()
   }
 
-  const subject = reportableType === 'user' ? 'this explorer' : `this ${reportableType}`
-
   if (filed) {
     return (
-      <Sheet visible={visible} onClose={onClose} title="Thank you">
-        <Text variant="body" color="muted">
-          Our team will take a look. We will not tell them who reported it.
-        </Text>
-        <Button label="Done" onPress={onClose} />
+      <Sheet visible={visible} onClose={onClose}>
+        <View style={{ alignItems: 'center', gap: theme.spacing[2], paddingTop: 6 }}>
+          {/* The design's 66-point success disc: `success` on its own 14% tint,
+              the pair Forgot password's "Check your inbox" already uses. */}
+          <View
+            style={{
+              width: 66,
+              height: 66,
+              borderRadius: 33,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: theme.colors.successBg,
+              marginBottom: 6,
+            }}
+          >
+            <Icon name="check" size={32} color="success" strokeWidth={2.4} />
+          </View>
+          <Text
+            variant="h2"
+            style={{ fontFamily: theme.fontFamily.displayBold, fontSize: 20, textAlign: 'center' }}
+          >
+            Report received
+          </Text>
+          <Text variant="body" color="muted" style={{ textAlign: 'center' }}>
+            Thanks for helping keep Stourify safe. Our team will review it shortly.
+          </Text>
+        </View>
+        <Button label="Done" accessibilityLabel="Done" size="lg" fullWidth onPress={onClose} />
       </Sheet>
     )
   }
+
+  const needsDetails = reason === REASON_REQUIRING_DETAILS
 
   return (
     <Sheet
       visible={visible}
       onClose={onClose}
-      title={`Report ${subject}`}
-      subtitle="Tell us what is wrong. Reports are anonymous — they will not be told who reported them."
+      title="Report content"
+      subtitle="Why are you reporting this? Your report is anonymous."
     >
-      <View style={{ gap: theme.spacing[2] }}>
+      <View accessibilityRole="radiogroup" style={{ gap: 9 }}>
         {REPORT_REASONS.map((option) => (
-          <SheetOption
+          <ReasonRow
             key={option.value}
             label={option.label}
             selected={reason === option.value}
@@ -130,21 +162,21 @@ export default function ReportSheet({ visible, onClose, reportableType, reportab
       {/* Always present, not revealed by picking "other": a field that appears
           under your finger moves the button you were about to press. The label
           is what changes, so the requirement is still obvious. */}
-      <Input
-        testID="report-details"
-        label={
-          reason === REASON_REQUIRING_DETAILS
-            ? 'Describe the problem (required)'
-            : 'Anything else we should know? (optional)'
-        }
-        placeholder="What happened?"
-        value={details}
-        onChangeText={(text) => {
-          setDetails(text)
-          setLocalError(null)
-        }}
-        multiline
-      />
+      <View style={{ gap: theme.spacing[2] }}>
+        <Text variant="micro" color="muted" style={{ fontSize: 12, letterSpacing: 0.4 }}>
+          {needsDetails ? 'Add details (required)' : 'Add details (optional)'}
+        </Text>
+        <Input
+          testID="report-details"
+          placeholder="Tell us more so we can act faster…"
+          value={details}
+          onChangeText={(text) => {
+            setDetails(text)
+            setLocalError(null)
+          }}
+          multiline
+        />
+      </View>
 
       {localError !== null ? (
         <Text variant="caption" color="danger">
@@ -161,10 +193,81 @@ export default function ReportSheet({ visible, onClose, reportableType, reportab
       <Button
         label="Submit report"
         accessibilityLabel="Submit report"
+        size="lg"
+        fullWidth
         onPress={submit}
+        disabled={reason === null}
         loading={mutation.isPending}
       />
-      <Button label="Cancel" variant="ghost" onPress={onClose} />
+      <Button label="Cancel" variant="ghost" fullWidth onPress={onClose} />
     </Sheet>
+  )
+}
+
+interface ReasonRowProps {
+  label: string
+  selected: boolean
+  onPress: () => void
+}
+
+/**
+ * One reason — the design's `.reason`: a bordered row with a radio mark.
+ *
+ * A radio rather than `SheetOption`'s check, because the design draws one and
+ * because it says "pick one of these" before anything is picked. The mark is a
+ * filled disc with a dot, not colour alone, so the chosen row reads in either
+ * theme and to a screen reader (`checked`).
+ */
+function ReasonRow({ label, selected, onPress }: ReasonRowProps) {
+  const theme = useTheme()
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: selected }}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        minHeight: theme.minTouchTarget,
+        paddingVertical: 14,
+        paddingHorizontal: 15,
+        borderRadius: 12,
+        borderWidth: 1.5,
+        borderColor: selected ? theme.colors.primary : theme.colors.hairline,
+        backgroundColor: selected ? theme.colors.badgeBg : theme.colors.card,
+        opacity: pressed ? 0.85 : 1,
+      })}
+    >
+      <View
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: 11,
+          borderWidth: 2,
+          borderColor: selected ? theme.colors.primary : theme.colors.hairline,
+          backgroundColor: selected ? theme.colors.primary : 'transparent',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {selected ? (
+          <View
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: theme.colors.onButton,
+            }}
+          />
+        ) : null}
+      </View>
+
+      <Text variant="body" style={{ flex: 1, fontFamily: theme.fontFamily.bodyMedium }}>
+        {label}
+      </Text>
+    </Pressable>
   )
 }

@@ -223,6 +223,11 @@ export default function SettingsScreen({ navigation }: Props) {
               label="Terms & privacy policy"
               onPress={() => setShowingLegal(true)}
             />
+            <SettingsRow
+              icon="info"
+              label="About Stourify"
+              onPress={() => navigation.navigate('About')}
+            />
           </SettingsGroup>
 
           <View style={{ marginTop: 14 }}>

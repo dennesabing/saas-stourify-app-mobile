@@ -266,6 +266,11 @@ export type ProfileStackParamList = {
    */
   PrivacySecurity: undefined
   /**
+   * Which build this is and who made it — the design's artboard 8, reached
+   * from Settings → Legal (STOURIFY-291). Reads nothing from the server.
+   */
+  About: undefined
+  /**
    * The list of explorers I have blocked, reached from Privacy & security.
    *
    * It is here and not on the other-user profile because a block hides that

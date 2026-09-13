@@ -28,12 +28,14 @@ export type ReportReason = 'spam' | 'inappropriate' | 'wrong_info' | 'harassment
  * The reason rows, with the wording a person reads.
  *
  * Kept beside the type rather than inside the sheet so the wire values and the
- * labels cannot drift apart in two files.
+ * labels cannot drift apart in two files. The labels are the Settings design's
+ * artboard 5 wording (STOURIFY-291); the values are the server's and did not
+ * change with them.
  */
 export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
   { value: 'spam', label: 'Spam or misleading' },
-  { value: 'inappropriate', label: 'Inappropriate content' },
-  { value: 'wrong_info', label: 'Wrong information' },
+  { value: 'inappropriate', label: 'Inappropriate or offensive' },
+  { value: 'wrong_info', label: 'Wrong or outdated info' },
   { value: 'harassment', label: 'Harassment or bullying' },
   { value: 'other', label: 'Something else' },
 ]
