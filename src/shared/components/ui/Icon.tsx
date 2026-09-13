@@ -2,6 +2,7 @@ import {
   ArrowUpDown,
   Ban,
   Bell,
+  Bookmark,
   Camera,
   Check,
   ChevronLeft,
@@ -14,6 +15,8 @@ import {
   FileText,
   Heart,
   KeyRound,
+  LayoutGrid,
+  Link,
   List,
   LocateFixed,
   Lock,
@@ -23,10 +26,12 @@ import {
   MapPin,
   MessageCircle,
   Navigation,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
   Send,
+  Settings,
   Ticket,
   Trash2,
   User,
@@ -106,6 +111,16 @@ const GLYPHS = {
   key: KeyRound,
   /** An invitation — sign-up's Invitation code field. */
   ticket: Ticket,
+  /** The profile header's menu of your own settings (STOURIFY-288). */
+  settings: Settings,
+  /** A web address — the website under a profile's bio. */
+  link: Link,
+  /** A grid of photos — the profile's Spots tab. */
+  grid: LayoutGrid,
+  /** Your saved spots — the profile's Wishlist tab. */
+  bookmark: Bookmark,
+  /** Change something you wrote — the profile's Edit profile button. */
+  edit: Pencil,
 } as const
 
 export type IconName = keyof typeof GLYPHS

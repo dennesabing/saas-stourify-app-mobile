@@ -1,6 +1,6 @@
 import { AxiosError, type AxiosResponse } from 'axios'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { SafeAreaProvider, type Metrics } from 'react-native-safe-area-context'
 import ProfileScreen from '@/features/profile/screens/ProfileScreen'
 import { ThemeProvider } from '@/theme/ThemeProvider'
@@ -42,6 +42,13 @@ jest.mock('@/shared/api/reports', () => {
   return { ...actual, fileReport: jest.fn() }
 })
 
+jest.mock('@/shared/api/wishlist', () => ({
+  WISHLIST_QUERY_KEY: ['wishlist'],
+  getWishlist: jest.fn(),
+}))
+
+import { Linking } from 'react-native'
+import { getWishlist } from '@/shared/api/wishlist'
 import { getMyProfile, getProfile } from '@/shared/api/profiles'
 import { getPosts, getUserPosts } from '@/shared/api/posts'
 import { follow, unfollow } from '@/shared/api/follows'
@@ -93,14 +100,48 @@ function emptyPage() {
  * and only the Profile stack carries those. The default here is the Profile
  * stack; `renderProfile` takes an override for the others.
  */
-const PROFILE_STACK_ROUTES = ['Profile', 'FollowList', 'EditProfile', 'Settings', 'PostDetail']
+const PROFILE_STACK_ROUTES = [
+  'Profile',
+  'FollowList',
+  'EditProfile',
+  'Settings',
+  'PostDetail',
+  'Drafts',
+  'SyncStatus',
+  'SpotDetail',
+]
 
 let routeNames = PROFILE_STACK_ROUTES
+
+/**
+ * `stackIndex` decides whether the round back button is drawn: a profile
+ * pushed from the feed sits above something in its own stack (index 1+), the
+ * Profile tab's own root does not (index 0, the default).
+ *
+ * `canGoBack` is here to prove the screen does NOT ask it. On the emulator the
+ * tab bar above the Profile stack answered yes — it remembered the Home tab —
+ * and the Profile tab's root drew a Back button (STOURIFY-288).
+ */
+let stackIndex = 0
+let canGoBack = false
+
+/** The rendered screen's own route key — the last entry in the stack below. */
+const PROFILE_ROUTE_KEY = 'profile-route'
 
 const navigation = {
   navigate: jest.fn(),
   goBack: jest.fn(),
-  getState: () => ({ routeNames }),
+  canGoBack: () => canGoBack,
+  // The stack as React Navigation reports it: `stackIndex` routes below this
+  // screen, then this screen. The screen asks whether it is the FIRST route.
+  getState: () => ({
+    routeNames,
+    index: stackIndex,
+    routes: [
+      ...Array.from({ length: stackIndex }, (_, i) => ({ key: `below-${i}` })),
+      { key: PROFILE_ROUTE_KEY },
+    ],
+  }),
 } as any
 
 /**
@@ -128,7 +169,7 @@ function renderProfile(userId?: string, queryClient?: QueryClient) {
         <QueryClientProvider client={qc}>
           <ProfileScreen
             navigation={navigation}
-            route={{ params: userId ? { userId } : undefined } as any}
+            route={{ key: PROFILE_ROUTE_KEY, params: userId ? { userId } : undefined } as any}
           />
         </QueryClientProvider>
       </ThemeProvider>
@@ -139,6 +180,9 @@ function renderProfile(userId?: string, queryClient?: QueryClient) {
 beforeEach(() => {
   jest.clearAllMocks()
   routeNames = PROFILE_STACK_ROUTES
+  stackIndex = 0
+  canGoBack = false
+  ;(getWishlist as jest.Mock).mockResolvedValue([])
   useAuthStore.setState({
     user: { id: '1', uuid: ME_UUID, name: 'Ramil Santos', email: 'me@dev.local' },
   } as any)
@@ -205,38 +249,236 @@ test('an explorer who has not finished onboarding is told so, not shown a blank 
   expect(await screen.findByText(/no profile yet/i)).toBeTruthy()
 })
 
-test('my own profile offers Edit and Settings, never a Follow button', async () => {
-  ;(getMyProfile as jest.Mock).mockResolvedValue(
-    profileFixture({
-      user_uuid: ME_UUID,
-      viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null },
-    }),
-  )
+function mineFixture(over: Partial<ExplorerProfile> = {}): ExplorerProfile {
+  return profileFixture({
+    user_uuid: ME_UUID,
+    viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null },
+    ...over,
+  })
+}
+
+test('my own profile offers Edit profile, never a Follow button', async () => {
+  ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
 
   renderProfile()
 
-  expect(await screen.findByText('Edit Profile')).toBeTruthy()
-  expect(screen.getByText('Settings')).toBeTruthy()
+  // "Edit profile", lower-case p, as the design writes it — and on a button of
+  // its own, so it has the room to show the whole label (STOURIFY-269).
+  fireEvent.press(await screen.findByText('Edit profile'))
+
+  expect(navigation.navigate).toHaveBeenCalledWith('EditProfile')
   expect(screen.queryByText('Follow')).toBeNull()
+  // The Wishlist tab replaced this button (STOURIFY-288).
+  expect(screen.queryByText('Saved spots')).toBeNull()
+})
+
+/**
+ * The design keeps the page to identity and content and moves everything else
+ * behind the round button at the top (STOURIFY-288). Each of the three was a
+ * button on the page before, so each has to still arrive where it used to.
+ */
+test.each([
+  ['Settings', 'Settings'],
+  ['Drafts', 'Drafts'],
+  ['Offline & sync', 'SyncStatus'],
+])('my own profile menu offers %s, which opens %s', async (label, route) => {
+  ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
+
+  renderProfile()
+
+  fireEvent.press(await screen.findByLabelText('Profile menu'))
+  fireEvent.press(screen.getByText(label))
+
+  expect(navigation.navigate).toHaveBeenCalledWith(route)
+})
+
+test('my own profile menu never offers Block or Report', async () => {
+  ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
+
+  renderProfile()
+
+  fireEvent.press(await screen.findByLabelText('Profile menu'))
+
+  expect(screen.queryByText('Block')).toBeNull()
+  expect(screen.queryByText('Report')).toBeNull()
 })
 
 test('my own profile inside the feed stack hides actions that stack cannot reach', async () => {
   // Tapping my own post in the feed opens MY profile on the Home stack, which
-  // registers no EditProfile or Settings. Offering the buttons there navigates
-  // to a route that does not exist and throws.
+  // registers no EditProfile, Settings, Drafts or SyncStatus. Offering them
+  // there navigates to a route that does not exist and throws.
   routeNames = ['Home', 'PostDetail', 'Profile', 'Comments']
-  ;(getMyProfile as jest.Mock).mockResolvedValue(
-    profileFixture({
-      user_uuid: ME_UUID,
-      viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null },
-    }),
-  )
+  ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
 
   renderProfile(ME_UUID)
 
-  await waitFor(() => expect(getMyProfile).toHaveBeenCalled())
-  expect(screen.queryByText('Edit Profile')).toBeNull()
-  expect(screen.queryByText('Settings')).toBeNull()
+  expect(await screen.findByText('@santos_grace')).toBeTruthy()
+  expect(screen.queryByText('Edit profile')).toBeNull()
+  expect(screen.queryByLabelText('Profile menu')).toBeNull()
+})
+
+// ---------------------------------------------------------------------------
+// The header and the tabs (STOURIFY-288)
+// ---------------------------------------------------------------------------
+
+test('the handle line carries the home city beside the username', async () => {
+  ;(getProfile as jest.Mock).mockResolvedValue(profileFixture())
+
+  renderProfile(OTHER_UUID)
+
+  // Two pieces on one line rather than one string, so the handle stays
+  // findable on its own the way every other test here finds it.
+  expect(await screen.findByText('@santos_grace')).toBeTruthy()
+  expect(screen.getByText('General Santos')).toBeTruthy()
+})
+
+test('the website is a link, and tapping it opens the address', async () => {
+  const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true)
+  ;(getProfile as jest.Mock).mockResolvedValue(profileFixture({ website: 'grace.example.com' }))
+
+  renderProfile(OTHER_UUID)
+
+  fireEvent.press(await screen.findByText('grace.example.com'))
+
+  // People type the address without a scheme, and a bare host is not
+  // something the phone knows how to open.
+  expect(open).toHaveBeenCalledWith('https://grace.example.com')
+  open.mockRestore()
+})
+
+test('a profile pushed from elsewhere has a back button', async () => {
+  // Pushed onto the Home stack from the feed: one route below it.
+  stackIndex = 1
+  canGoBack = true
+  ;(getProfile as jest.Mock).mockResolvedValue(profileFixture())
+
+  renderProfile(OTHER_UUID)
+
+  fireEvent.press(await screen.findByLabelText('Back'))
+
+  expect(navigation.goBack).toHaveBeenCalled()
+})
+
+test('the Profile tab itself has no back button, even when the tab bar could go back', async () => {
+  // Exactly what the emulator showed: arriving from the Home tab, the tab bar
+  // answers canGoBack() with yes. The Profile stack's own root still has
+  // nothing below it, and a Back button there would only switch tabs.
+  stackIndex = 0
+  canGoBack = true
+  ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
+
+  renderProfile()
+
+  expect(await screen.findByText('@santos_grace')).toBeTruthy()
+  expect(screen.queryByLabelText('Back')).toBeNull()
+})
+
+describe('the Wishlist tab on my own profile', () => {
+  const saved = [
+    {
+      uuid: 'wish-1',
+      note: null,
+      is_downloaded_offline: false,
+      created_at: '2026-09-01T00:00:00Z',
+      spot: {
+        uuid: 'spot-1',
+        title: 'Gumasa Beach',
+        categories: ['Nature'],
+        rating_average: 4.5,
+        reviews_count: 2,
+        address: 'Glan, Sarangani',
+        media: [],
+      },
+    },
+  ]
+
+  test('lists my saved spots, and only asks for them once the tab is opened', async () => {
+    ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
+    ;(getWishlist as jest.Mock).mockResolvedValue(saved)
+
+    renderProfile()
+
+    const tab = await screen.findByLabelText('Wishlist')
+    // Most visits never open the tab, so they should not pay for the request.
+    expect(getWishlist).not.toHaveBeenCalled()
+
+    fireEvent.press(tab)
+
+    fireEvent.press(await screen.findByText('Gumasa Beach'))
+    expect(getWishlist).toHaveBeenCalledTimes(1)
+    expect(navigation.navigate).toHaveBeenCalledWith('SpotDetail', { spotId: 'spot-1' })
+  })
+
+  test('says so when nothing is saved yet', async () => {
+    ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
+
+    renderProfile()
+
+    fireEvent.press(await screen.findByLabelText('Wishlist'))
+
+    expect(await screen.findByText('Nothing saved yet')).toBeTruthy()
+  })
+
+  /**
+   * The live run's third finding (STOURIFY-288). A spot saved on its own page
+   * did not appear here on the way back: this screen stays mounted between
+   * visits, and a tab that was already open never asked the server again. The
+   * Saved spots screen fixed exactly this in STOURIFY-200, and the tab now
+   * refetches on focus the same way.
+   */
+  test('a spot saved elsewhere appears when I come back to my profile', async () => {
+    const focusListeners: Array<() => void> = []
+    navigation.addListener = jest.fn((event: string, callback: () => void) => {
+      if (event === 'focus') focusListeners.push(callback)
+      return () => {}
+    })
+    const focus = () => act(() => focusListeners.forEach((callback) => callback()))
+    ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
+
+    try {
+      renderProfile()
+      // The screen's first focus, on arrival — the hook deliberately skips it.
+      focus()
+
+      fireEvent.press(await screen.findByLabelText('Wishlist'))
+      expect(await screen.findByText('Nothing saved yet')).toBeTruthy()
+
+      // Away to a spot page, the heart tapped there, and back again.
+      ;(getWishlist as jest.Mock).mockResolvedValue(saved)
+      focus()
+
+      expect(await screen.findByText('Gumasa Beach')).toBeTruthy()
+    } finally {
+      delete navigation.addListener
+    }
+  })
+
+  test('switching back to the Wishlist tab asks for the list again', async () => {
+    ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
+
+    renderProfile()
+
+    fireEvent.press(await screen.findByLabelText('Wishlist'))
+    expect(await screen.findByText('Nothing saved yet')).toBeTruthy()
+
+    fireEvent.press(screen.getByLabelText('Spots'))
+    ;(getWishlist as jest.Mock).mockResolvedValue(saved)
+    fireEvent.press(screen.getByLabelText('Wishlist'))
+
+    expect(await screen.findByText('Gumasa Beach')).toBeTruthy()
+  })
+
+  test("somebody else's profile has a Spots tab and no Wishlist tab", async () => {
+    // Your saves are yours. The server would refuse another explorer's list
+    // anyway; the tab is simply not offered.
+    ;(getProfile as jest.Mock).mockResolvedValue(profileFixture())
+
+    renderProfile(OTHER_UUID)
+
+    expect(await screen.findByLabelText('Spots')).toBeTruthy()
+    expect(screen.queryByLabelText('Wishlist')).toBeNull()
+    expect(getWishlist).not.toHaveBeenCalled()
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -551,7 +793,9 @@ test('another explorer offers block and report; my own profile does not', async 
   expect(screen.getByText('Report')).toBeTruthy()
 })
 
-test('my own profile has no overflow menu at all', async () => {
+test('my own profile has no block-and-report menu', async () => {
+  // It has a menu of its own since STOURIFY-288 — Settings, Drafts, Offline &
+  // sync — and that one is asserted above never to carry Block or Report.
   ;(getMyProfile as jest.Mock).mockResolvedValue(
     profileFixture({
       user_uuid: ME_UUID,
@@ -748,6 +992,9 @@ describe('a failed profile refresh does not throw away a profile already in hand
     renderProfile(undefined, qc)
     await refreshHasFailed(qc, MY_KEY)
 
+    // Behind the header's menu since STOURIFY-288 — still one tap from the
+    // saved copy, and still reached with no network at all.
+    fireEvent.press(screen.getByLabelText('Profile menu'))
     fireEvent.press(screen.getByText('Settings'))
 
     expect(navigation.navigate).toHaveBeenCalledWith('Settings')
