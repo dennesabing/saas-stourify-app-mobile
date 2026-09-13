@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The spot page follows the Spot Hub design's Spot Profile artboard (STOURIFY-292).**
+  - **The photo:** a 330-point photo with a "1 / N" counter where the dots were, and round dark
+    Back and Save buttons on it.
+  - **Under the photo:** category pills, the title in Fraunces, and "★ 4.5 · 12 reviews · address",
+    which still opens the reviews. It shows "No reviews yet" instead of "★ 0.0", following
+    `ratingFor`.
+  - **Save and Directions buttons.** Directions opens the phone's map app, and only when the spot
+    has a position.
+  - **About | Photos | Reviews tabs.** Posts is renamed Photos, and the page now opens on About:
+    - **About:** the description, a drawn map card with the address, the coordinates and "Get
+      directions", then the notes.
+    - **Photos:** the shared posts in rounded tiles, then "View all N photos".
+    - **Reviews:** the newest review and "Read all N reviews", sharing the reviews screen's cache.
+  - **Deep links:** `?tab=photos` and `?tab=reviews` open those tabs, and the old `?tab=posts` still
+    opens Photos.
+  - **What didn't change:** the queries, the offline Save, the hidden-location states and the error
+    panel. Share, opening hours, contributors, events and in-app navigation are left out;
+    `docs/what-the-spot-page-leaves-out.md` says why.
+  - **Files:** `src/features/spots/screens/SpotDetailScreen.tsx`,
+    `src/features/spots/components/SpotReviewsTab.tsx`, and
+    `src/shared/components/ui/OverlayButton.tsx`, plus the `overlay` and `overlayStrong` tokens.
 - **Settings → About Stourify (STOURIFY-291).** A new About page, artboard 8 of the Settings
   design, under Settings → Legal. It shows the brand mark and wordmark, "Version X (build Y)" read
   from the installed build's config through `expo-constants` (now a direct dependency, at the

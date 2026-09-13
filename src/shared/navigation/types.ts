@@ -112,7 +112,7 @@ export type HomeStackParamList = {
    * caller — every `navigate('SpotDetail', { spotId })` in the app — behaves
    * identically. See `shared/navigation/linking.ts` (STOURIFY-253).
    */
-  SpotDetail: { spotId: string; tab?: 'Posts' | 'About' }
+  SpotDetail: { spotId: string; tab?: 'About' | 'Photos' | 'Reviews' }
   PhotoGallery: { spotId: string }
   Reviews: { spotId: string }
   WriteReview: { spotId: string }
@@ -158,7 +158,7 @@ export type DiscoverStackParamList = {
    * caller — every `navigate('SpotDetail', { spotId })` in the app — behaves
    * identically. See `shared/navigation/linking.ts` (STOURIFY-253).
    */
-  SpotDetail: { spotId: string; tab?: 'Posts' | 'About' }
+  SpotDetail: { spotId: string; tab?: 'About' | 'Photos' | 'Reviews' }
   PostDetail: { postId: string }
   /**
    * Registered here, and on the Profile stack, because `SpotDetail` is — a
@@ -287,7 +287,7 @@ export type ProfileStackParamList = {
    * caller — every `navigate('SpotDetail', { spotId })` in the app — behaves
    * identically. See `shared/navigation/linking.ts` (STOURIFY-253).
    */
-  SpotDetail: { spotId: string; tab?: 'Posts' | 'About' }
+  SpotDetail: { spotId: string; tab?: 'About' | 'Photos' | 'Reviews' }
   /** Reached from a spot's About tab — see the Discover stack's note. */
   Comments: CommentThreadTarget
   PhotoGallery: { spotId: string }

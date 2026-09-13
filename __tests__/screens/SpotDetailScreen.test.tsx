@@ -22,9 +22,14 @@ jest.mock('@/shared/api/reactions', () => ({
   removeReaction: jest.fn(),
 }))
 
+jest.mock('@/shared/api/reviews', () => ({
+  getSpotReviews: jest.fn(),
+}))
+
 import { getSpot, getSpotPosts } from '@/shared/api/spots'
 import { createSpotAbout, getSpotAbouts } from '@/shared/api/spotAbouts'
 import { addReaction, removeReaction } from '@/shared/api/reactions'
+import { getSpotReviews } from '@/shared/api/reviews'
 import { trackQueryClient } from '../support/queryClients'
 
 const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
@@ -103,6 +108,8 @@ beforeEach(() => {
   // about the list overrides it; the rest would otherwise fail on a screen they
   // are not about.
   ;(getSpotAbouts as jest.Mock).mockResolvedValue(aboutPage([]))
+  // Only the Reviews tab asks, and only once it is opened. Same reasoning.
+  ;(getSpotReviews as jest.Mock).mockResolvedValue(aboutPage([]))
 })
 
 it('renders a real hero image, the rating and the review count', async () => {
@@ -265,12 +272,13 @@ it('shows no spot facts and no spot actions when the spot cannot be fetched', as
   expect(screen.queryByText('See all reviews')).toBeNull()
   expect(screen.queryByText('Write a review')).toBeNull()
   expect(screen.queryByText('Save')).toBeNull()
+  expect(screen.queryByText('Directions')).toBeNull()
   expect(screen.queryByText('✓ Verified')).toBeNull()
 
   // …and the presences are what keep this from quietly becoming the
   // whole-screen error panel that STOURIFY-64 rejected. The posts came from a
   // second, independent request that succeeded, so they stay.
-  expect(screen.getByText('Posts')).toBeTruthy()
+  expect(screen.getByText('Photos')).toBeTruthy()
   expect(screen.getByText('About')).toBeTruthy()
 })
 
@@ -572,45 +580,46 @@ it('saves to the wishlist as a local write, never touching the network', async (
 
   expect(fetchSpy).not.toHaveBeenCalled()
 
-  // The queued state is readable on the mark itself, so a save made offline
-  // does not look identical to one that has already gone.
+  // The queued state is readable on the page itself, so a save made offline
+  // does not look identical to one that has already gone: the action row
+  // shows the sync mark, and the mark on the photo says so to a screen reader.
   await waitFor(() => {
-    expect(screen.getByText('🔖 ↑')).toBeTruthy()
+    expect(screen.getByTestId('spot-save-queued')).toBeTruthy()
   })
+  expect(screen.getByLabelText('Saved, waiting to sync')).toBeTruthy()
+  expect(screen.getByText('Saved')).toBeTruthy()
 
   const [item] = await database.get<WishlistItem>('sto_wishlist_items').query().fetch()
   expect(item.spotUuid).toBe('spot-1')
   expect(item.isQueued).toBe(true)
 })
 
-it('preserves the Posts and About tabs', async () => {
+/**
+ * The design's three tabs, opening on About (STOURIFY-292). The posts tab is
+ * called Photos now -- the posts ARE the photos people shared here -- and the
+ * page lands on About, which is where the map card lives, so a spot says where
+ * it is before anybody taps anything.
+ */
+it('offers About, Photos and Reviews, and opens on About', async () => {
   ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
   ;(getSpotPosts as jest.Mock).mockResolvedValue({
-    data: [
-      {
-        uuid: 'post-1',
-        caption: 'x',
-        visibility: 'public',
-        is_published: true,
-        published_at: null,
-        likes_count: 0,
-        comments_count: 0,
-        created_at: '',
-        updated_at: '',
-        can: {},
-      },
-    ],
+    data: [],
     links: {},
-    meta: { current_page: 1, last_page: 1, total: 1 },
+    meta: { current_page: 1, last_page: 1, total: 0 },
   })
 
   renderScreen()
 
-  await waitFor(() => expect(screen.getByText('Posts')).toBeTruthy())
-  expect(screen.getByText('About')).toBeTruthy()
-
-  fireEvent.press(screen.getByText('About'))
+  // No tab press anywhere: the description is on screen because About is the
+  // tab the page opens on.
   await waitFor(() => expect(screen.getByText('A quiet cove.')).toBeTruthy())
+  expect(screen.getByText('About')).toBeTruthy()
+  expect(screen.getByText('Photos')).toBeTruthy()
+  expect(screen.getByText('Reviews')).toBeTruthy()
+  expect(screen.queryByText('Posts')).toBeNull()
+
+  const about = screen.getByRole('tab', { name: 'About' })
+  expect(about.props.accessibilityState.selected).toBe(true)
 
   // A spot that loaded shows its coordinates exactly as it always has. The
   // guard added for the failed state must not cost the working state anything.
@@ -1156,7 +1165,11 @@ describe('the hero pager', () => {
     expect(screen.getAllByTestId('spot-hero-image')).toHaveLength(2)
   })
 
-  it('shows a dot per photo when there is more than one', async () => {
+  /**
+   * The design's "1 / N" counter replaced the dots (STOURIFY-292). It says how
+   * many there are as a number, which dots stop doing at about six.
+   */
+  it('counts the photos, starting at the first', async () => {
     ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
     ;(getSpotPosts as jest.Mock).mockResolvedValue({
       data: [],
@@ -1166,14 +1179,30 @@ describe('the hero pager', () => {
 
     renderScreen()
 
-    await waitFor(() => expect(screen.getByTestId('spot-hero-dots')).toBeTruthy())
+    await waitFor(() => expect(screen.getByTestId('spot-hero-counter')).toBeTruthy())
+    expect(screen.getByText('1 / 2')).toBeTruthy()
+    expect(screen.queryByTestId('spot-hero-dots')).toBeNull()
+  })
+
+  it('draws no counter while there are no photos to count', async () => {
+    ;(getSpot as jest.Mock).mockResolvedValue(makeSpot({ media: [] }))
+    ;(getSpotPosts as jest.Mock).mockResolvedValue({
+      data: [],
+      links: {},
+      meta: { current_page: 1, last_page: 1, total: 0 },
+    })
+
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('No photos yet')).toBeTruthy())
+    expect(screen.queryByTestId('spot-hero-counter')).toBeNull()
   })
 
   /**
-   * A single dot under a single photo is a claim that there is something to
-   * swipe to. So is a hero that can be dragged when there is nowhere to drag.
+   * A hero that can be dragged when there is nowhere to drag reads as broken.
+   * The counter says "1 / 1", which is the truth and promises no second photo.
    */
-  it('draws no dots, and does not scroll, for a spot with one photo', async () => {
+  it('does not scroll, and counts one, for a spot with one photo', async () => {
     ;(getSpot as jest.Mock).mockResolvedValue(
       makeSpot({ media: [{ uuid: 'm1', url: 'https://cdn.test/photo1.jpg', thumb_url: null }] }),
     )
@@ -1187,7 +1216,7 @@ describe('the hero pager', () => {
 
     await waitFor(() => expect(screen.getByTestId('spot-hero-pager')).toBeTruthy())
 
-    expect(screen.queryByTestId('spot-hero-dots')).toBeNull()
+    expect(screen.getByText('1 / 1')).toBeTruthy()
     expect(screen.getByTestId('spot-hero-pager').props.scrollEnabled).toBe(false)
   })
 
@@ -1371,5 +1400,262 @@ describe('the failure it reports is the failure that happened', () => {
     await waitFor(() => expect(screen.getByTestId('spot-hero-error')).toBeTruthy())
 
     expect(screen.getByText(/check your connection/i)).toBeTruthy()
+  })
+})
+
+/**
+ * STOURIFY-292 — the page follows artboard 1 of the Spot Hub design.
+ *
+ * Same data and the same behaviour, rearranged the way the canvas draws it: the
+ * photo with a counter, the title block, a Save and a Directions button, and the
+ * About | Photos | Reviews tabs. What the canvas draws with nothing behind it --
+ * Share, opening hours, contributors, events -- is left out on purpose, and the
+ * last test here is what stops it creeping back.
+ */
+describe('the Spot Profile design', () => {
+  const noPosts = { data: [], links: {}, meta: { current_page: 1, last_page: 1, total: 0 } }
+
+  function post(uuid: string, url: string | null) {
+    return {
+      uuid,
+      caption: 'x',
+      visibility: 'public',
+      is_published: true,
+      published_at: null,
+      likes_count: 0,
+      comments_count: 0,
+      created_at: '',
+      updated_at: '',
+      can: {},
+      media: url ? [{ uuid: `${uuid}-m`, url, thumb_url: null }] : [],
+    }
+  }
+
+  function mockSpot(overrides: Partial<any> = {}, posts: any = noPosts) {
+    ;(getSpot as jest.Mock).mockResolvedValue(makeSpot(overrides))
+    ;(getSpotPosts as jest.Mock).mockResolvedValue(posts)
+  }
+
+  it('puts the address on the rating line, the way the canvas writes it', async () => {
+    mockSpot()
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-rating-row')).toBeEnabled())
+    const row = within(screen.getByTestId('spot-rating-row'))
+    expect(row.getByText('4.5')).toBeTruthy()
+    expect(row.getByText('· 12 reviews')).toBeTruthy()
+    expect(row.getByText('· Coastal Road')).toBeTruthy()
+  })
+
+  /**
+   * A spot nobody has reviewed comes back with `rating_average: 0`, and "★ 0.0"
+   * reads as "rated terribly" when the truth is "not rated yet". `ratingFor` is
+   * the one rule the rest of the app already follows for that (STOURIFY-259).
+   */
+  it('shows no rating on a spot nobody has reviewed yet', async () => {
+    mockSpot({ rating_average: 0, reviews_count: 0 })
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-rating-row')).toBeEnabled())
+    const row = within(screen.getByTestId('spot-rating-row'))
+    expect(row.getByText('No reviews yet')).toBeTruthy()
+    expect(row.queryByText('0.0')).toBeNull()
+  })
+
+  it('offers Save and Directions under the title', async () => {
+    mockSpot()
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-actions')).toBeTruthy())
+    const actions = within(screen.getByTestId('spot-actions'))
+    expect(actions.getByText('Save')).toBeTruthy()
+    expect(actions.getByText('Directions')).toBeTruthy()
+  })
+
+  it('opens the map app at the spot from Directions', async () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined as any)
+    mockSpot()
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-directions')).toBeTruthy())
+    fireEvent.press(screen.getByTestId('spot-directions'))
+
+    await waitFor(() => expect(openURL).toHaveBeenCalled())
+    expect(openURL.mock.calls[0][0]).toContain('6.1')
+    expect(openURL.mock.calls[0][0]).toContain('125.2')
+  })
+
+  /**
+   * A contributor who hides where their spot is has the coordinates withheld
+   * from everybody else (STOURIFY-185). Directions would open a map at nowhere,
+   * and a map card would draw a pin that is not there -- so neither is drawn.
+   */
+  it('offers no Directions and no map card when the coordinates are withheld', async () => {
+    mockSpot({ latitude: null, longitude: null })
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-location-static')).toBeTruthy())
+    expect(screen.queryByTestId('spot-directions')).toBeNull()
+    expect(screen.queryByText('Directions')).toBeNull()
+    expect(screen.queryByTestId('spot-location')).toBeNull()
+    expect(screen.queryByText('Get directions')).toBeNull()
+
+    // Save is still there. Hiding where a place is does not stop you keeping it.
+    expect(within(screen.getByTestId('spot-actions')).getByText('Save')).toBeTruthy()
+  })
+
+  it('draws a map card with the address and "Get directions" on About', async () => {
+    mockSpot()
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByTestId('spot-location')).toBeTruthy())
+    const card = within(screen.getByTestId('spot-location'))
+    expect(card.getByText('Coastal Road')).toBeTruthy()
+    expect(card.getByText('Get directions')).toBeTruthy()
+  })
+
+  /** Two ways to save, one wishlist row: they are the same action, drawn twice. */
+  it('saves from the action row exactly as from the mark on the photo', async () => {
+    const database = createTestDatabase()
+    mockSpot()
+    renderScreen(database)
+
+    await waitFor(() => expect(screen.getByTestId('spot-save-action')).toBeTruthy())
+    fireEvent.press(screen.getByTestId('spot-save-action'))
+
+    await waitFor(async () => {
+      expect(await database.get<WishlistItem>('sto_wishlist_items').query().fetchCount()).toBe(1)
+    })
+
+    // Saved once, both controls say so, and neither will save it a second time.
+    await waitFor(() => expect(screen.getByText('Saved')).toBeTruthy())
+    expect(screen.getByTestId('spot-save')).toBeDisabled()
+    expect(screen.getByTestId('spot-save-action')).toBeDisabled()
+  })
+
+  it('shows the shared photos on the Photos tab, and each opens its post', async () => {
+    mockSpot(
+      {},
+      {
+        data: [post('post-1', 'https://cdn.test/p1.jpg'), post('post-2', null)],
+        links: {},
+        meta: { current_page: 1, last_page: 1, total: 2 },
+      },
+    )
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Blue Cove')).toBeTruthy())
+    fireEvent.press(screen.getByText('Photos'))
+
+    await waitFor(() => expect(screen.getAllByTestId('spot-post-thumb')).toHaveLength(2))
+    fireEvent.press(screen.getAllByTestId('spot-post-thumb')[0])
+    expect(navigation.navigate).toHaveBeenCalledWith('PostDetail', { postId: 'post-1' })
+  })
+
+  it('ends the Photos tab with "View all N photos", which opens the gallery', async () => {
+    mockSpot()
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Blue Cove')).toBeTruthy())
+    fireEvent.press(screen.getByText('Photos'))
+
+    // The fixture's spot carries two photos.
+    await waitFor(() => expect(screen.getByText('View all 2 photos')).toBeTruthy())
+    fireEvent.press(screen.getByText('View all 2 photos'))
+    expect(navigation.navigate).toHaveBeenCalledWith('PhotoGallery', { spotId: 'spot-1' })
+  })
+
+  /**
+   * An empty tab with nothing on it reads as a screen that failed to draw. One
+   * sentence says what is true instead -- and no gallery button, because there
+   * is no gallery to open.
+   */
+  it('says nobody has shared a photo yet, rather than drawing an empty tab', async () => {
+    mockSpot({ media: [] })
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Blue Cove')).toBeTruthy())
+    fireEvent.press(screen.getByText('Photos'))
+
+    await waitFor(() => expect(screen.getByTestId('spot-photos-empty')).toBeTruthy())
+    expect(screen.queryByText(/View all/)).toBeNull()
+  })
+
+  it('shows the newest review on the Reviews tab, and leads to all of them', async () => {
+    mockSpot()
+    ;(getSpotReviews as jest.Mock).mockResolvedValue(
+      aboutPage([
+        {
+          uuid: 'r1',
+          rating: 5,
+          body: 'Worth the climb.',
+          helpful_count: 0,
+          author: { uuid: 'u1', name: 'Mila Reyes', username: 'mila', avatar_url: null },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          can: {},
+        },
+      ]),
+    )
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Blue Cove')).toBeTruthy())
+    fireEvent.press(screen.getByText('Reviews'))
+
+    await waitFor(() => expect(screen.getByText('Worth the climb.')).toBeTruthy())
+    fireEvent.press(screen.getByText('Read all 12 reviews'))
+    expect(navigation.navigate).toHaveBeenCalledWith('Reviews', { spotId: 'spot-1' })
+  })
+
+  /** A tab only asks for what it shows, once it is showing. */
+  it('asks for the reviews only once the Reviews tab is opened', async () => {
+    mockSpot()
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('A quiet cove.')).toBeTruthy())
+    expect(getSpotReviews).not.toHaveBeenCalled()
+  })
+
+  it('opens on the tab a link asked for', async () => {
+    mockSpot()
+    render(
+      <TestProviders database={createTestDatabase()}>
+        <SpotDetailScreen
+          navigation={navigation}
+          route={{ params: { spotId: 'spot-1', tab: 'Photos' } } as any}
+        />
+      </TestProviders>,
+    )
+
+    await waitFor(() => expect(screen.getByText('View all 2 photos')).toBeTruthy())
+    expect(screen.getByRole('tab', { name: 'Photos' }).props.accessibilityState.selected).toBe(true)
+    expect(screen.queryByText('A quiet cove.')).toBeNull()
+  })
+
+  it('goes back from the round back button on the photo', async () => {
+    mockSpot()
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('Blue Cove')).toBeTruthy())
+    fireEvent.press(screen.getByLabelText('Back'))
+    expect(navigation.goBack).toHaveBeenCalled()
+  })
+
+  /**
+   * Drawn on the canvas, backed by nothing in the app: a spot has no public web
+   * address to share, no opening hours, no list of contributors and no events.
+   * `mobile/docs/what-the-spot-page-leaves-out.md` says why for each. A button
+   * that leads nowhere is worse than no button.
+   */
+  it('draws none of the canvas features that have nothing behind them', async () => {
+    mockSpot()
+    renderScreen()
+
+    await waitFor(() => expect(screen.getByText('A quiet cove.')).toBeTruthy())
+    for (const absent of ['Share', 'Events', 'Contributors', 'Best time', 'Add your photo']) {
+      expect(screen.queryByText(absent)).toBeNull()
+      expect(screen.queryByLabelText(absent)).toBeNull()
+    }
+    expect(screen.queryByText('OPEN')).toBeNull()
   })
 })
