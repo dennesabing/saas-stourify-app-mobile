@@ -1279,3 +1279,64 @@ describe("somebody else's profile tells a failed request apart from an absent on
     expect(screen.queryByText("Couldn't load this profile")).toBeNull()
   })
 })
+
+// ---------------------------------------------------------------------------
+// The way into the Wishlist screen (STOURIFY-289)
+// ---------------------------------------------------------------------------
+
+describe('"See all" on the Wishlist tab', () => {
+  const saved = [
+    {
+      uuid: 'wish-1',
+      note: null,
+      is_downloaded_offline: false,
+      created_at: '2026-09-01T00:00:00Z',
+      spot: {
+        uuid: 'spot-1',
+        title: 'Gumasa Beach',
+        categories: ['Nature'],
+        rating_average: 4.5,
+        reviews_count: 2,
+        address: 'Glan, Sarangani',
+        media: [],
+      },
+    },
+  ]
+
+  test('opens the Wishlist screen, which nothing else in the app opens', async () => {
+    routeNames = [...PROFILE_STACK_ROUTES, 'Wishlist']
+    ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
+    ;(getWishlist as jest.Mock).mockResolvedValue(saved)
+
+    renderProfile()
+
+    fireEvent.press(await screen.findByLabelText('Wishlist'))
+    fireEvent.press(await screen.findByText('See all'))
+
+    expect(navigation.navigate).toHaveBeenCalledWith('Wishlist')
+  })
+
+  test('is not drawn on a stack that has no Wishlist screen', async () => {
+    ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
+    ;(getWishlist as jest.Mock).mockResolvedValue(saved)
+
+    renderProfile()
+
+    fireEvent.press(await screen.findByLabelText('Wishlist'))
+    await screen.findByText('Gumasa Beach')
+
+    expect(screen.queryByText('See all')).toBeNull()
+  })
+
+  test('is not drawn when nothing is saved', async () => {
+    routeNames = [...PROFILE_STACK_ROUTES, 'Wishlist']
+    ;(getMyProfile as jest.Mock).mockResolvedValue(mineFixture())
+
+    renderProfile()
+
+    fireEvent.press(await screen.findByLabelText('Wishlist'))
+    await screen.findByText('Nothing saved yet')
+
+    expect(screen.queryByText('See all')).toBeNull()
+  })
+})

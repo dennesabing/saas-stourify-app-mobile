@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { View } from 'react-native'
+import { KeyboardAvoidingView, Pressable, ScrollView, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
@@ -13,10 +13,18 @@ import {
 import { extractApiError, extractValidationErrors } from '@/shared/api/client'
 import { useCities } from '@/features/onboarding/hooks/useCities'
 import { INTEREST_OPTIONS } from '@/shared/constants/interests'
-import { Button, Chip, Input, KeyboardAwareScreen, Skeleton, Text } from '@/shared/components/ui'
+import { useAuthStore } from '@/shared/store/auth'
+import { Avatar, BarHeader, Button, Chip, Input, Skeleton, Text } from '@/shared/components/ui'
 import { useTheme } from '@/theme/ThemeProvider'
 
 type Props = NativeStackScreenProps<ProfileStackParamList, 'EditProfile'>
+
+/**
+ * The server's own cap on a bio (`ProfileUpdateRequest`: `max:150`). The field
+ * stops there and the counter counts towards it, so a long bio is never
+ * refused after it has been written.
+ */
+const BIO_MAX = 150
 
 /**
  * Editing the explorer identity — username, bio, website, home city, interests.
@@ -46,11 +54,20 @@ type Props = NativeStackScreenProps<ProfileStackParamList, 'EditProfile'>
  * Only changed fields are sent. `username` is `sometimes` on an established
  * profile precisely so a bio edit need not restate the handle — restating it
  * would let an unrelated uniqueness failure block a save that never touched it.
+ *
+ * **Laid out as artboard 2 of the Profile design** (STOURIFY-289): a back bar
+ * with a text "Save", the avatar, labelled fields, and "Save changes" pinned
+ * under the scroll. The canvas's "Change photo" and editable display name are
+ * not drawn — the app has no upload and no `PUT /me` client yet, and a control
+ * that does nothing reads as broken (STOURIFY-307). Home city stays chips from
+ * the synced city list rather than the canvas's text box, because the server
+ * stores a city, not a string.
  */
 export default function EditProfileScreen({ navigation }: Props) {
   const theme = useTheme()
   const queryClient = useQueryClient()
   const cities = useCities()
+  const { user: currentUser } = useAuthStore()
 
   const {
     data: profile,
@@ -142,7 +159,9 @@ export default function EditProfileScreen({ navigation }: Props) {
     return changes
   }
 
+  /** Both "Save" in the header and "Save changes" at the bottom land here. */
   function save(): void {
+    if (mutation.isPending) return
     setFormError('')
     setFieldErrors({})
     mutation.mutate(changedFields())
@@ -167,6 +186,23 @@ export default function EditProfileScreen({ navigation }: Props) {
     )
   }
 
+  const title = seeded && loaded === null ? 'Set up your profile' : 'Edit profile'
+  const displayName = profile?.name ?? currentUser?.name ?? ''
+
+  const saveLink = (
+    <Pressable
+      onPress={save}
+      disabled={!seeded || mutation.isPending}
+      accessibilityRole="button"
+      hitSlop={theme.spacing[2]}
+      style={{ opacity: !seeded || mutation.isPending ? 0.5 : 1 }}
+    >
+      <Text variant="button" color="primary" style={{ fontFamily: theme.fontFamily.bodyBold }}>
+        Save
+      </Text>
+    </Pressable>
+  )
+
   // The form does not exist until the read has landed and seeded it. Rendering
   // the inputs first and filling them in afterwards looks harmless and is not:
   // anything typed in that gap is silently overwritten the moment the profile
@@ -174,8 +210,9 @@ export default function EditProfileScreen({ navigation }: Props) {
   if (!seeded) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
+        <BarHeader title={title} onBack={() => navigation.goBack()} right={saveLink} />
         <View style={{ padding: theme.gutter, gap: theme.spacing[3] }}>
-          <Skeleton height={32} />
+          <Skeleton height={100} />
           <Skeleton height={56} />
           <Skeleton height={96} />
           <Skeleton height={56} />
@@ -190,124 +227,174 @@ export default function EditProfileScreen({ navigation }: Props) {
   const interestChoices = [...new Set([...INTEREST_OPTIONS, ...interests])]
 
   return (
-    <KeyboardAwareScreen edges={['top']} contentContainerStyle={{ gap: theme.spacing[5] }}>
-      <View style={{ gap: theme.spacing[2] }}>
-        <Text variant="h1">{loaded === null ? 'Set up your profile' : 'Edit profile'}</Text>
-        <Text variant="body" color="muted">
-          This is what other explorers see. Your login name and email live in Settings.
-        </Text>
-      </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.surface }} edges={['top']}>
+      <BarHeader title={title} onBack={() => navigation.goBack()} right={saveLink} />
 
-      <Input
-        testID="edit-profile-username"
-        label="USERNAME"
-        placeholder="lowercase, numbers, dots and underscores"
-        value={username}
-        onChangeText={(text) => {
-          setUsername(text)
-          clearFieldError('username')
-        }}
-        autoCapitalize="none"
-        error={firstError(fieldErrors, 'username')}
-      />
-
-      <Input
-        testID="edit-profile-bio"
-        label="BIO"
-        placeholder="A line or two about how you explore."
-        value={bio}
-        onChangeText={(text) => {
-          setBio(text)
-          clearFieldError('bio')
-        }}
-        multiline
-        error={firstError(fieldErrors, 'bio')}
-      />
-
-      <Input
-        testID="edit-profile-website"
-        label="WEBSITE"
-        placeholder="https://"
-        value={website}
-        onChangeText={(text) => {
-          setWebsite(text)
-          clearFieldError('website')
-        }}
-        autoCapitalize="none"
-        error={firstError(fieldErrors, 'website')}
-      />
-
-      <View style={{ gap: theme.spacing[2] }}>
-        <Text variant="caption" color="muted">
-          HOME CITY
-        </Text>
-
-        {cities.length === 0 ? (
-          <Text variant="body" color="muted">
-            Your cities are still syncing — this only takes a moment on a first launch.
-          </Text>
-        ) : (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing[2] }}>
-            {cities.map((city) => (
-              <Chip
-                key={city.uuid}
-                label={city.name}
-                selected={homeCityUuid === city.uuid}
-                // Tapping the selected city clears it — there is no other way
-                // to go back to having no home city once one is picked.
-                onPress={() => setHomeCityUuid(homeCityUuid === city.uuid ? null : city.uuid)}
-              />
-            ))}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <ScrollView
+          contentContainerStyle={{
+            paddingHorizontal: theme.gutter,
+            paddingBottom: theme.spacing[4],
+            gap: theme.spacing[4],
+          }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
+          <View
+            style={{ alignItems: 'center', gap: theme.spacing[2], paddingTop: theme.spacing[2] }}
+          >
+            <Avatar uri={currentUser?.avatar} name={displayName || username} size={100} />
+            {displayName ? (
+              <Text
+                variant="h2"
+                numberOfLines={1}
+                style={{ fontFamily: theme.fontFamily.displayBold }}
+              >
+                {displayName}
+              </Text>
+            ) : null}
+            <Text variant="caption" color="muted" style={{ textAlign: 'center' }}>
+              This is what other explorers see. Your login name and email live in Settings.
+            </Text>
           </View>
-        )}
 
-        {firstError(fieldErrors, 'home_city_uuid') ? (
-          <Text variant="caption" color="danger">
-            {firstError(fieldErrors, 'home_city_uuid')}
-          </Text>
-        ) : null}
-      </View>
+          <Input
+            testID="edit-profile-username"
+            label="Username"
+            size="lg"
+            prefix="@"
+            placeholder="lowercase, numbers, dots and underscores"
+            value={username}
+            onChangeText={(text) => {
+              setUsername(text)
+              clearFieldError('username')
+            }}
+            autoCapitalize="none"
+            error={firstError(fieldErrors, 'username')}
+          />
 
-      <View style={{ gap: theme.spacing[2] }}>
-        <Text variant="caption" color="muted">
-          INTERESTS
-        </Text>
+          <Input
+            testID="edit-profile-bio"
+            label="Bio"
+            size="lg"
+            counter={`${bio.length} / ${BIO_MAX}`}
+            placeholder="A line or two about how you explore."
+            value={bio}
+            onChangeText={(text) => {
+              setBio(text)
+              clearFieldError('bio')
+            }}
+            multiline
+            maxLength={BIO_MAX}
+            error={firstError(fieldErrors, 'bio')}
+          />
 
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing[2] }}>
-          {interestChoices.map((interest) => (
-            <Chip
-              key={interest}
-              label={interest}
-              selected={interests.includes(interest)}
-              onPress={() => toggleInterest(interest)}
-            />
-          ))}
+          <View style={{ gap: theme.spacing[2] }}>
+            <FieldLabel>Home city</FieldLabel>
+
+            {cities.length === 0 ? (
+              <Text variant="body" color="muted">
+                Your cities are still syncing — this only takes a moment on a first launch.
+              </Text>
+            ) : (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing[2] }}>
+                {cities.map((city) => (
+                  <Chip
+                    key={city.uuid}
+                    label={city.name}
+                    selected={homeCityUuid === city.uuid}
+                    // Tapping the selected city clears it — there is no other way
+                    // to go back to having no home city once one is picked.
+                    onPress={() => setHomeCityUuid(homeCityUuid === city.uuid ? null : city.uuid)}
+                  />
+                ))}
+              </View>
+            )}
+
+            {firstError(fieldErrors, 'home_city_uuid') ? (
+              <Text variant="caption" color="danger">
+                {firstError(fieldErrors, 'home_city_uuid')}
+              </Text>
+            ) : null}
+          </View>
+
+          <Input
+            testID="edit-profile-website"
+            label="Website"
+            size="lg"
+            icon="link"
+            placeholder="https://"
+            value={website}
+            onChangeText={(text) => {
+              setWebsite(text)
+              clearFieldError('website')
+            }}
+            autoCapitalize="none"
+            error={firstError(fieldErrors, 'website')}
+          />
+
+          <View style={{ gap: theme.spacing[2] }}>
+            <FieldLabel>Interests</FieldLabel>
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing[2] }}>
+              {interestChoices.map((interest) => (
+                <Chip
+                  key={interest}
+                  label={interest}
+                  selected={interests.includes(interest)}
+                  onPress={() => toggleInterest(interest)}
+                />
+              ))}
+            </View>
+
+            {firstError(fieldErrors, 'interests') ? (
+              <Text variant="caption" color="danger">
+                {firstError(fieldErrors, 'interests')}
+              </Text>
+            ) : null}
+          </View>
+
+          {formError ? (
+            <Text variant="body" color="danger">
+              {formError}
+            </Text>
+          ) : null}
+        </ScrollView>
+
+        {/* Pinned under the scroll, as the canvas's `.sticky` draws it. */}
+        <View
+          style={{
+            paddingHorizontal: theme.gutter,
+            paddingTop: theme.spacing[3],
+            paddingBottom: theme.spacing[4],
+            backgroundColor: theme.colors.surface,
+            borderTopWidth: 1,
+            borderTopColor: theme.colors.hairline,
+          }}
+        >
+          <Button
+            label="Save changes"
+            onPress={save}
+            loading={mutation.isPending}
+            disabled={mutation.isPending}
+            fullWidth
+          />
         </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  )
+}
 
-        {firstError(fieldErrors, 'interests') ? (
-          <Text variant="caption" color="danger">
-            {firstError(fieldErrors, 'interests')}
-          </Text>
-        ) : null}
-      </View>
-
-      {formError ? (
-        <Text variant="body" color="danger">
-          {formError}
-        </Text>
-      ) : null}
-
-      <View style={{ gap: theme.spacing[3] }}>
-        <Button
-          label="Save changes"
-          onPress={save}
-          loading={mutation.isPending}
-          disabled={mutation.isPending}
-          fullWidth
-        />
-        <Button label="Cancel" variant="ghost" onPress={() => navigation.goBack()} fullWidth />
-      </View>
-    </KeyboardAwareScreen>
+/**
+ * The label above a field that is not a text box — the canvas's
+ * `.field-label`, drawn exactly like `Input`'s `lg` label so every label on
+ * the screen matches.
+ */
+function FieldLabel({ children }: { children: string }) {
+  return (
+    <Text variant="micro" color="muted" style={{ fontSize: 12, letterSpacing: 0.6 }}>
+      {children}
+    </Text>
   )
 }
 
@@ -323,5 +410,5 @@ function omit(errors: Record<string, string[]>, field: string): Record<string, s
 
 /** Order-insensitive — reordering chips is not an edit worth sending. */
 function sameMembers(a: string[], b: string[]): boolean {
-  return a.length === b.length && [...a].sort().join(' ') === [...b].sort().join(' ')
+  return a.length === b.length && [...a].sort().join(' ') === [...b].sort().join(' ')
 }

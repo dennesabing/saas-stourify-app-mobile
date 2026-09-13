@@ -242,3 +242,65 @@ test('the first save from an empty form still goes to the same upsert endpoint',
 
   await waitFor(() => expect(updateMyProfile).toHaveBeenCalledWith({ username: 'brand_new' }))
 })
+
+// ---------------------------------------------------------------------------
+// Artboard 2 of the Profile design (STOURIFY-289)
+// ---------------------------------------------------------------------------
+
+describe('the Edit profile layout', () => {
+  test('a round-back header titled "Edit profile"', async () => {
+    await renderScreen()
+
+    expect(await screen.findByText('Edit profile')).toBeTruthy()
+
+    fireEvent.press(screen.getByLabelText(/back/i))
+    expect(navigation.goBack).toHaveBeenCalled()
+  })
+
+  test('the header "Save" saves exactly what "Save changes" saves', async () => {
+    await renderScreen()
+
+    fireEvent.changeText(await screen.findByTestId('edit-profile-bio'), 'Now chasing mountains.')
+    fireEvent.press(screen.getByText('Save'))
+
+    await waitFor(() =>
+      expect(updateMyProfile).toHaveBeenCalledWith({ bio: 'Now chasing mountains.' }),
+    )
+  })
+
+  test('your name sits under the avatar, and nothing offers to change the photo', async () => {
+    await renderScreen()
+
+    expect(await screen.findByText('Ramil Santos')).toBeTruthy()
+    // No upload exists in the app yet (STOURIFY-307).
+    expect(screen.queryByText('Change photo')).toBeNull()
+  })
+
+  test('an "@" is drawn in front of the username', async () => {
+    await renderScreen()
+
+    await screen.findByTestId('edit-profile-username')
+    expect(screen.getByText('@')).toBeTruthy()
+    expect(screen.getByTestId('edit-profile-username').props.value).toBe('santos_ramil')
+  })
+
+  test('the bio counter counts, and the bio stops at the server limit of 150', async () => {
+    await renderScreen()
+
+    const bio = await screen.findByTestId('edit-profile-bio')
+    expect(screen.getByText('19 / 150')).toBeTruthy()
+    expect(bio.props.maxLength).toBe(150)
+
+    fireEvent.changeText(bio, 'Short.')
+    expect(screen.getByText('6 / 150')).toBeTruthy()
+  })
+
+  test('the fields carry the design labels', async () => {
+    await renderScreen()
+
+    await screen.findByTestId('edit-profile-username')
+    for (const label of ['Username', 'Bio', 'Home city', 'Website', 'Interests']) {
+      expect(screen.getByText(label)).toBeTruthy()
+    }
+  })
+})

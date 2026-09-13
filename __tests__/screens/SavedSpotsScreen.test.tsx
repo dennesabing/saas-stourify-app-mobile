@@ -152,3 +152,44 @@ it('keeps a row for a saved spot that no longer exists', async () => {
     expect(screen.getByTestId('saved-spot-missing')).toBeTruthy()
   })
 })
+
+// ---------------------------------------------------------------------------
+// Artboard 3 of the Profile design (STOURIFY-289)
+// ---------------------------------------------------------------------------
+
+describe('the Wishlist layout', () => {
+  it('has a round-back header titled "Wishlist"', async () => {
+    mockGetWishlist.mockResolvedValue([savedItem()])
+
+    renderScreen()
+
+    expect(await screen.findByText('Wishlist')).toBeTruthy()
+    fireEvent.press(screen.getByLabelText(/back/i))
+    expect(navigation.goBack).toHaveBeenCalled()
+  })
+
+  it('draws a row as a photo, a category pill, the title and the address', async () => {
+    mockGetWishlist.mockResolvedValue([savedItem()])
+
+    renderScreen()
+
+    expect(await screen.findByText('Blue Cove')).toBeTruthy()
+    expect(screen.getByText('Coast')).toBeTruthy()
+    expect(screen.getByText('Sarangani')).toBeTruthy()
+    expect(screen.getByTestId('saved-spot-photo')).toBeTruthy()
+  })
+
+  it('still draws a row with no photo and no category, without a broken tile', async () => {
+    mockGetWishlist.mockResolvedValue([
+      savedItem({
+        spot: { uuid: 'spot-2', title: 'Quiet Pier', categories: [], address: null, media: [] },
+      }),
+    ])
+
+    renderScreen()
+
+    expect(await screen.findByText('Quiet Pier')).toBeTruthy()
+    expect(screen.queryByTestId('saved-spot-photo')).toBeNull()
+    expect(screen.getByTestId('saved-spot-photo-empty')).toBeTruthy()
+  })
+})
