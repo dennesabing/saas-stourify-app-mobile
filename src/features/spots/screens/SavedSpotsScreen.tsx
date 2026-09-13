@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { FlatList } from 'react-native'
+import { AccessibilityInfo, FlatList } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 import type { ProfileStackParamList } from '@/shared/navigation/types'
@@ -7,6 +7,7 @@ import { describeRequestFailure } from '@/shared/api/errorMessage'
 import SavedSpotRow from '@/features/spots/components/SavedSpotRow'
 import SavedSpotsNotice from '@/features/spots/components/SavedSpotsNotice'
 import { useSavedSpots, type SavedSpot } from '@/features/spots/hooks/useSavedSpots'
+import { useUnsaveSpot } from '@/features/spots/hooks/useUnsaveSpot'
 import { BarHeader, EmptyState } from '@/shared/components/ui'
 import { useRefetchOnFocus } from '@/shared/hooks/useRefetchOnFocus'
 import { useTheme } from '@/theme/ThemeProvider'
@@ -53,15 +54,34 @@ export default function SavedSpotsScreen({ navigation }: Props) {
   // this screen stays mounted between visits (STOURIFY-200).
   useRefetchOnFocus(navigation, refetch)
 
+  /**
+   * Artboard 3's filled bookmark at the end of each row (STOURIFY-303). The
+   * row goes at once; the server hears on the next sync. There is no toast in
+   * this app to say so, so a screen reader is told instead, and a sighted
+   * reader sees the row leave.
+   */
+  const unsave = useUnsaveSpot()
+  const onRemove = useCallback(
+    (item: SavedSpot) => {
+      void unsave({ saveUuid: item.key, spotUuid: item.spot?.uuid ?? null })
+      AccessibilityInfo.announceForAccessibility(
+        `Removed ${item.spot?.title ?? 'the spot'} from your wishlist`,
+      )
+    },
+    [unsave],
+  )
+
   // The row is shared with the Wishlist tab on your own profile (STOURIFY-288).
+  // Only this screen passes `onRemove`: artboard 1 draws the tab without one.
   const renderItem = useCallback(
     ({ item }: { item: SavedSpot }) => (
       <SavedSpotRow
         item={item}
         onOpenSpot={(spotId) => navigation.navigate('SpotDetail', { spotId })}
+        onRemove={() => onRemove(item)}
       />
     ),
-    [navigation],
+    [navigation, onRemove],
   )
 
   /**

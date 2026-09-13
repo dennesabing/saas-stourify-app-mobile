@@ -254,6 +254,71 @@ describe('applyPushResults', () => {
   })
 })
 
+/**
+ * STOURIFY-303. A save unsaved while the push carrying it was already on its
+ * way. The server has now created it, and only a delete can take it back, so
+ * the answer "created" must not overwrite the phone's "remove this", and must
+ * not count as finished: a finished drain lets the pull run, and the pull would
+ * bring the save straight back down.
+ */
+describe('a row removed while its push is in flight', () => {
+  it('stays marked for removal, is not counted as acked, and the next drain deletes it', async () => {
+    const database = createTestDatabase()
+    await database.write(async () =>
+      database.get('sto_wishlist_items').create((row: any) => {
+        row._raw.id = 'save-mid'
+        row._raw.uuid = 'save-mid'
+        row._raw.spot_uuid = 'spot-1'
+        row._raw.is_downloaded_offline = false
+        row._raw.created_at = 1
+        row._raw.updated_at = 1
+      }),
+    )
+
+    const post = jest.fn(async () => {
+      // The explorer taps Saved again while this request is on the wire.
+      const [row] = await database.get('sto_wishlist_items').query().fetch()
+      await database.write(async () => {
+        await row.markAsDeleted()
+      })
+
+      return {
+        data: {
+          results: [
+            {
+              table: 'sto_wishlist_items',
+              uuid: 'save-mid',
+              op: 'created',
+              status: 'ok',
+              record: {
+                id: 77,
+                uuid: 'save-mid',
+                spot_uuid: 'spot-1',
+                note: null,
+                is_downloaded_offline: false,
+              },
+            },
+          ],
+          server_time: '2026-09-14T00:00:00+00:00',
+        } as PushResponse,
+      }
+    })
+
+    const outcome = await drainOutbox(database, { post } as any)
+
+    expect(outcome.acked).toBe(0)
+    expect(outcome.fullyAcked).toBe(false)
+    expect(await database.adapter.getDeletedRecords('sto_wishlist_items')).toEqual(['save-mid'])
+
+    const next = await collectDirtyBatch(database, new Set())
+    expect(next.envelope.sto_wishlist_items).toEqual({
+      created: [],
+      updated: [],
+      deleted: ['save-mid'],
+    })
+  })
+})
+
 describe('drainOutbox', () => {
   it('does nothing and reports fullyAcked when there is nothing dirty', async () => {
     const database = createTestDatabase()

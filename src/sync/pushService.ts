@@ -387,9 +387,8 @@ export async function applyPushResults(
       continue
     }
 
-    acked += 1
-
     if (result.op === 'deleted') {
+      acked += 1
       // Idempotent on the server too: a uuid already gone is a successful no-op.
       await database.adapter.destroyDeletedRecords(result.table, [uuid])
       await clearSyncFailure(database, uuid)
@@ -397,13 +396,33 @@ export async function applyPushResults(
     }
 
     const record = batch.records.get(uuid)
-    if (record === undefined) continue
+    if (record === undefined) {
+      acked += 1
+      continue
+    }
 
     const raw = (result.record ?? {}) as Record<string, unknown>
     const fields = sanitize(result.table, raw)
     const serverId = typeof raw.id === 'number' ? raw.id : null
 
+    /**
+     * Removed while this push was on the wire — a save unsaved mid-flight
+     * (STOURIFY-303). The server has just created it, and only the removal the
+     * phone queued can take it back, so the "created" answer must not overwrite
+     * it with `synced`. Nor is it counted as acked: a fully-acked drain lets the
+     * pull run, and the pull would bring the save straight back down. The next
+     * drain sends the delete. Checked inside the writer, because writes are
+     * serialized: no unsave can land between this check and the update.
+     */
+    let removedInFlight = false
+
     await database.write(async () => {
+      const removed = await database.adapter.getDeletedRecords(result.table)
+      if (removed.includes(uuid)) {
+        removedInFlight = true
+        return
+      }
+
       await record.update((row: any) => {
         // Assigning `_raw` directly is what the engine itself does
         // (syncEngine.ts:55): it bypasses `_setRaw`, so no per-field change
@@ -415,6 +434,9 @@ export async function applyPushResults(
       })
     })
 
+    if (removedInFlight) continue
+
+    acked += 1
     await clearSyncFailure(database, uuid)
   }
 

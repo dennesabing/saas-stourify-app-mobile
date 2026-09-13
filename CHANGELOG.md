@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Unsave a spot (STOURIFY-303).** Saving used to be one-way. Now tapping the filled Saved button
+  on a spot page takes the save back, and so does a filled bookmark at the right end of each row on
+  the Wishlist screen (Profile artboard 3). The save disappears at once, even offline. A save the
+  phone never sent is simply thrown away, so no request is ever made for it. A save the server
+  already has is marked for removal, and the next sync sends the delete through the existing
+  `POST /stourify/sync/push`. There's no new endpoint and no server change. A save removed while a
+  sync is carrying it stays removed: the push's "created" answer no longer overwrites the removal,
+  and the next push deletes it. The Wishlist list keeps a removed save hidden across refreshes until
+  the server has heard. On Sync status, a waiting removal reads "Removed a saved spot". The spot
+  page's save controls are no longer disabled once saved; a screen reader hears that tapping removes
+  the save. See `docs/where-saved-spots-come-from.md`.
+
+  One older fault surfaced on the emulator and is fixed here too. When the server acknowledged a
+  delete (a removed save, spot, review or follow), an open Sync status screen kept showing it as
+  "Waiting to send" until you left and came back. The acknowledgement clears the removal mark in a
+  way the database doesn't announce, so the screen now also re-reads the queue whenever the sync
+  cycle publishes its result.
+
 - **Change your password from the app (STOURIFY-302).** Settings → Privacy & security now has an
   Account security group with a Change password row. The screen has three fields: current, new and
   confirm. It calls the server's existing `PUT /me/password`. A wrong current password is named
