@@ -74,6 +74,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The production release is signed with Stourify's own private key instead of Android's shared
+  debug key (STOURIFY-300).**
+  - **What users will see (carry this into the next release's
+    `changelogs/<version>.changelog.md`):** the first release signed with the new key cannot
+    install over v0.11.0 or any earlier build. Everyone must, once:
+    1. open the app while online, so offline work finishes syncing;
+    2. uninstall it;
+    3. install the new version.
+  - **Suggested wording:** "This version is signed with Stourify's own key, which keeps fake
+    updates off your phone. It can't install over the version you have: open Stourify once while
+    online, then uninstall it and install this one. You'll only need to do this once."
+  - **How:** `android/app/build.gradle` reads the key from `STOURIFY_RELEASE_KEYSTORE`,
+    `STOURIFY_RELEASE_STORE_PASSWORD` and `STOURIFY_RELEASE_KEY_PASSWORD`, from the environment
+    or from Gradle properties, never from a tracked file. It seals only a production-tier
+    `release` with that key.
+  - **No key, no build:** a production release without the key refuses before compiling. The
+    check sits on the task graph and again at `packageRelease`.
+  - **Unchanged on purpose:** `debug`, `releaseDev` (now set explicitly) and a dev-tier `release`
+    keep the debug seal. The rig's `adb install -r` between `debug` and `releaseDev` still works.
+  - **Tests:** `__tests__/android/releaseSigning.test.ts` pins all of it. `.gitignore` now also
+    ignores `*.keystore`.
+
 - **Edit Profile, the Wishlist and Followers / Following match the Profile design
   (STOURIFY-289).** Same data and the same requests, laid out the way artboards 2, 3 and 5 draw
   them, in the light and the dark theme:
