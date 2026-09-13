@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The spot's Photos, Reviews and Write a review screens follow the Spot Hub design's artboards 2,
+  3 and 4 (STOURIFY-293).**
+  - **Photos:** a round back bar reading "Photos · N" with the spot's name under it, then Most
+    recent / Top rated. The grid is justified, each photo at its own shape. It now holds the photos
+    people posted there as well as the spot's own. Tapping one opens a swipeable full-screen
+    lightbox showing who posted it and an "Open post" button. Top rated asks the server for the
+    most liked posts.
+  - **Reviews:** a summary with the big average, stars and "N reviews", then review cards with the
+    time since posting and stars. **"Helpful · N" now works**, online only, through the existing
+    reactions endpoint. A review still on the phone shows "Queued ↑" instead.
+  - **Write a review:** a round back bar, the spot's card with its address, five large stars with a
+    word for the rating, "Your review", the azure note about posting with no signal, and "Post
+    review" pinned at the bottom.
+  - **Left out, with reasons:** the star bars, star filters, Reply, photos on reviews and rank
+    labels. See `docs/what-the-spot-subscreens-leave-out.md`.
+  - **Shared pieces:** an optional second line on `BarHeader`, a header and footer on
+    `KeyboardAwareScreen`, the `star` and `thumbsUp` icons, and the `lightbox`, `lightboxControl`,
+    `infoBg` and `infoLine` tokens. `OverlayHeader` is removed; the gallery was its last user.
+
 - **The spot page follows the Spot Hub design's Spot Profile artboard (STOURIFY-292).**
   - **The photo:** a 330-point photo with a "1 / N" counter where the dots were, and round dark
     Back and Save buttons on it.

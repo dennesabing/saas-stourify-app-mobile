@@ -38,9 +38,10 @@ interface Props {
  * review pages (STOURIFY-209). Three reports of one thing is a pattern, which
  * is why this is a shared component rather than a fourth hand-rolled header.
  *
- * `OverlayHeader` is the sibling for screens whose content runs under the
- * header — a full-bleed photo. This one is for ordinary screens where the
- * header sits above the content.
+ * `BarHeader` is the design's one-line version of the same thing, with a round
+ * back button and an optional second line; the photo gallery and the reviews
+ * pages moved to it with the Spot Hub design (STOURIFY-293). This one stacks
+ * Back above the title, for screens not yet drawn from a canvas.
  */
 export default function ScreenHeader({ onBack, title, subtitle, testID }: Props) {
   const theme = useTheme()

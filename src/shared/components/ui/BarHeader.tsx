@@ -15,6 +15,12 @@ interface Props {
    * before.
    */
   right?: ReactNode
+  /**
+   * A smaller second line under the title — which spot a gallery or a reviews
+   * list belongs to (STOURIFY-293). Optional and additive: a caller that passes
+   * none gets the one-line bar it always had, and a `null` draws no empty line.
+   */
+  subtitle?: string | null
   testID?: string
 }
 
@@ -31,7 +37,7 @@ interface Props {
  * The disc is `BackButton` at its default 38 (`.bb .bk`), shared with the
  * sign-in screens since STOURIFY-286.
  */
-export default function BarHeader({ title, onBack, right, testID }: Props) {
+export default function BarHeader({ title, onBack, right, subtitle, testID }: Props) {
   const theme = useTheme()
 
   return (
@@ -48,13 +54,21 @@ export default function BarHeader({ title, onBack, right, testID }: Props) {
     >
       <BackButton onPress={onBack} />
 
-      <Text
-        variant="h2"
-        numberOfLines={1}
-        style={{ flexShrink: 1, flexGrow: 1, fontFamily: theme.fontFamily.displayBold }}
-      >
-        {title}
-      </Text>
+      <View style={{ flexShrink: 1, flexGrow: 1 }}>
+        <Text variant="h2" numberOfLines={1} style={{ fontFamily: theme.fontFamily.displayBold }}>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text
+            testID={testID ? `${testID}-subtitle` : undefined}
+            variant="caption"
+            color="muted"
+            numberOfLines={1}
+          >
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
 
       {right}
     </View>

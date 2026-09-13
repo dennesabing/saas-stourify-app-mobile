@@ -86,6 +86,24 @@ export const palette = {
      */
     overlay: 'rgba(11,22,34,0.42)',
     overlayStrong: 'rgba(11,22,34,0.60)',
+    /**
+     * The near-black ground behind one photo shown whole — the Spot Hub gallery's
+     * lightbox (`.lightbox`, `rgba(11,15,22,.96)`), and the pale wash of its
+     * "Open post" pill (`.op`, white at 16%).
+     *
+     * **Not in the handoff's token list**: the canvas writes both inline
+     * (STOURIFY-293). The same in both themes, because they frame a photograph.
+     */
+    lightbox: 'rgba(11,15,22,0.96)',
+    lightboxControl: 'rgba(255,255,255,0.16)',
+    /**
+     * The azure tint and outline of an information note — Write a review's
+     * "No signal? Your review queues…" (`.offline-note`). The canvas writes them
+     * inline as `accent2` at 10% and 30% (STOURIFY-293). Its words are drawn in
+     * `badgeInk`, which is the canvas's `#2E4A63` in light.
+     */
+    infoBg: 'rgba(63,167,196,0.10)',
+    infoLine: 'rgba(63,167,196,0.30)',
   },
   dark: {
     surface: '#0E1621',
@@ -122,6 +140,16 @@ export const palette = {
     /** See the light palette's note. Identical: it darkens a photo, not the page. */
     overlay: 'rgba(11,22,34,0.42)',
     overlayStrong: 'rgba(11,22,34,0.60)',
+    /** See the light palette's note. Identical: it frames a photo, not the page. */
+    lightbox: 'rgba(11,15,22,0.96)',
+    lightboxControl: 'rgba(255,255,255,0.16)',
+    /**
+     * See the light palette's note. The dark `accent2` at 14% and 30% — a touch
+     * heavier than light's 10%, matching `badgeBg`'s weight on this palette, so
+     * the note still reads as a note on a near-black page.
+     */
+    infoBg: 'rgba(92,184,212,0.14)',
+    infoLine: 'rgba(92,184,212,0.30)',
   },
 } as const
 
