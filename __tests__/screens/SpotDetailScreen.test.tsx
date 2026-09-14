@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { Linking } from 'react-native'
 import { QueryClient } from '@tanstack/react-query'
 import SpotDetailScreen from '@/features/spots/screens/SpotDetailScreen'
+import PhotoGalleryScreen from '@/features/spots/screens/PhotoGalleryScreen'
 import type WishlistItem from '@/db/models/WishlistItem'
 import { createTestDatabase } from '../support/testDatabase'
 import { TestProviders } from '../support/TestProviders'
@@ -1814,5 +1815,143 @@ describe('the Spot Profile design', () => {
       expect(screen.queryByLabelText(absent)).toBeNull()
     }
     expect(screen.queryByText('OPEN')).toBeNull()
+  })
+
+  /**
+   * STOURIFY-310. The button that opens the gallery counts what the gallery
+   * shows: the spot's own photos AND the photos people posted there, one tile
+   * per photo. It counted only the spot's own, so a page saying "View the
+   * photo" opened a gallery saying "Photos · 3", and a spot whose only photos
+   * were posted ones had no button at all.
+   *
+   * Photos, not posts: a post can carry several photos, or none.
+   */
+  describe('the gallery button counts what the gallery shows', () => {
+    function postWith(uuid: string, mediaUuids: string[]) {
+      return {
+        ...post(uuid, null),
+        media: mediaUuids.map((m) => ({
+          uuid: m,
+          url: `https://cdn.test/${m}.jpg`,
+          thumb_url: null,
+        })),
+      }
+    }
+
+    function pageOf(posts: any[]) {
+      return {
+        data: posts,
+        links: {},
+        meta: { current_page: 1, last_page: 1, total: posts.length },
+      }
+    }
+
+    async function openPhotosTab() {
+      await waitFor(() => expect(screen.getByText('Blue Cove')).toBeTruthy())
+      fireEvent.press(screen.getByText('Photos'))
+    }
+
+    it('says "View the photo" for a spot with one photo of its own and no posts', async () => {
+      mockSpot({ media: [{ uuid: 'm1', url: 'https://cdn.test/photo1.jpg', thumb_url: null }] })
+      renderScreen()
+      await openPhotosTab()
+
+      await waitFor(() => expect(screen.getByText('View the photo')).toBeTruthy())
+      expect(screen.queryByText(/View all/)).toBeNull()
+    })
+
+    it('appears for a spot whose only photos were posted, counting photos rather than posts', async () => {
+      mockSpot(
+        { media: [] },
+        pageOf([
+          postWith('post-1', ['p1a', 'p1b']),
+          postWith('post-2', ['p2a']),
+          post('post-3', null),
+        ]),
+      )
+      renderScreen()
+      await openPhotosTab()
+
+      // Three posts, but three PHOTOS for a different reason: one post has two,
+      // one has one, one has none.
+      await waitFor(() => expect(screen.getByText('View all 3 photos')).toBeTruthy())
+      fireEvent.press(screen.getByText('View all 3 photos'))
+      expect(navigation.navigate).toHaveBeenCalledWith('PhotoGallery', { spotId: 'spot-1' })
+      expect(screen.queryByTestId('spot-photos-empty')).toBeNull()
+    })
+
+    it('counts both kinds, and the number matches the gallery for the same data', async () => {
+      mockSpot({}, pageOf([postWith('post-1', ['p1a', 'p1b'])]))
+      const { unmount } = renderScreen()
+      await openPhotosTab()
+
+      // Two of the spot's own, plus two posted.
+      await waitFor(() => expect(screen.getByText('View all 4 photos')).toBeTruthy())
+      unmount()
+
+      // The same answers, opened in the gallery the button leads to.
+      render(
+        <TestProviders database={createTestDatabase()}>
+          <PhotoGalleryScreen
+            navigation={navigation}
+            route={{ params: { spotId: 'spot-1' } } as any}
+          />
+        </TestProviders>,
+      )
+      await waitFor(() => expect(screen.getByText('Photos · 4')).toBeTruthy())
+    })
+
+    it('counts a photo that is on the spot and on a post once, as the gallery shows it', async () => {
+      // m2 is one of the spot's own photos and also on a post.
+      mockSpot({}, pageOf([postWith('post-1', ['m2', 'p1a'])]))
+      renderScreen()
+      await openPhotosTab()
+
+      await waitFor(() => expect(screen.getByText('View all 3 photos')).toBeTruthy())
+    })
+
+    it('draws no button when there are no photos of either kind', async () => {
+      mockSpot({ media: [] }, pageOf([post('post-1', null)]))
+      renderScreen()
+      await openPhotosTab()
+
+      await waitFor(() => expect(screen.getAllByTestId('spot-post-thumb')).toHaveLength(1))
+      expect(screen.queryByText(/View all/)).toBeNull()
+      expect(screen.queryByText('View the photo')).toBeNull()
+      expect(screen.queryByText('View photos')).toBeNull()
+    })
+
+    /**
+     * While the posts are still on their way, the spot's own count would be a
+     * number that is wrong a moment later. The button stays, so the gallery is
+     * still reachable, but it claims no number (STOURIFY-310, ASSUMPTION note).
+     */
+    it('claims no number while the posted photos are still loading', async () => {
+      ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
+      ;(getSpotPosts as jest.Mock).mockReturnValue(new Promise(() => {}))
+      renderScreen()
+      await openPhotosTab()
+
+      await waitFor(() => expect(screen.getByText('View photos')).toBeTruthy())
+      expect(screen.queryByText(/View all/)).toBeNull()
+      expect(screen.queryByText('View the photo')).toBeNull()
+
+      fireEvent.press(screen.getByText('View photos'))
+      expect(navigation.navigate).toHaveBeenCalledWith('PhotoGallery', { spotId: 'spot-1' })
+    })
+
+    /**
+     * A posts request that failed has answered. The gallery then shows the
+     * spot's own photos, so the button counts those.
+     */
+    it("counts the spot's own photos when the posts request failed", async () => {
+      ;(getSpot as jest.Mock).mockResolvedValue(makeSpot())
+      ;(getSpotPosts as jest.Mock).mockRejectedValue(new Error('offline'))
+      renderScreen()
+      await openPhotosTab()
+
+      await waitFor(() => expect(screen.getByText('View all 2 photos')).toBeTruthy())
+      expect(screen.queryByText('View photos')).toBeNull()
+    })
   })
 })

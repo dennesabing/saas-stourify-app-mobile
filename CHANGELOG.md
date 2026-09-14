@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The spot page's "View all N photos" counts what the gallery shows (STOURIFY-310).** It counted
+  only the spot's own photos, while the gallery it opens has also held the photos people posted
+  there since STOURIFY-293. So Kalaklan Point's page said "View the photo" over a gallery of 3, and a
+  spot whose only photos were posted had no button at all. The gallery's rule for which photos it
+  holds moved into `features/spots/utils/galleryPhotos.ts`, and both screens now use it: the gallery
+  draws the list, and the button counts it. The button now appears for posted photos too. While the
+  posted photos are still loading, it reads "View photos" with no number. Nothing is restyled.
+
 - **Sign-in links go back instead of stacking duplicates (STOURIFY-305).** On Sign Up, "Log in" now
   goes back to the Log In underneath rather than laying a second Log In on top. On Log In, "Sign up"
   does the same for Sign Up, and a successful password reset does it for Log In. Before this, Back

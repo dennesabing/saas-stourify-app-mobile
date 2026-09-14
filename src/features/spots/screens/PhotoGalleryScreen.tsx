@@ -26,27 +26,22 @@ import {
   Text,
 } from '@/shared/components/ui'
 import type { SegmentOption } from '@/shared/components/ui'
-import type { Post } from '@/shared/api/types'
+import {
+  galleryPhotos,
+  type GalleryPhoto,
+  type GallerySort,
+} from '@/features/spots/utils/galleryPhotos'
 import { clampAspect, justifyRows } from '@/features/spots/utils/justifyRows'
 import { useTheme } from '@/theme/ThemeProvider'
 
 type Props = NativeStackScreenProps<HomeStackParamList, 'PhotoGallery'>
 
-type SortKey = 'recent' | 'top'
+type SortKey = GallerySort
 
 const SORT_OPTIONS: SegmentOption<SortKey>[] = [
   { key: 'recent', label: 'Most recent' },
   { key: 'top', label: 'Top rated' },
 ]
-
-/** One tile: a spot's own photo (`post: null`) or a photo from a post about it. */
-interface GalleryPhoto {
-  key: string
-  url: string
-  /** What the grid draws — the 400-point conversion, or the original until it exists. */
-  thumb: string
-  post: Post | null
-}
 
 /** The canvas's `.g-grid`: 12 points of padding and 4 between photos. */
 const GRID_PADDING = 12
@@ -114,30 +109,8 @@ export default function PhotoGalleryScreen({ route, navigation }: Props) {
   // hand rather than emptying the grid for a moment.
   const posts = (sort === 'top' ? (topQuery.data ?? recentQuery.data) : recentQuery.data)?.data
 
-  const photos = useMemo<GalleryPhoto[]>(() => {
-    const own: GalleryPhoto[] = (spot?.media ?? []).map((media) => ({
-      key: media.uuid,
-      url: media.url,
-      thumb: media.thumb_url ?? media.url,
-      post: null,
-    }))
-
-    const posted: GalleryPhoto[] = (posts ?? []).flatMap((post) =>
-      (post.media ?? []).map((media) => ({
-        key: media.uuid,
-        url: media.url,
-        thumb: media.thumb_url ?? media.url,
-        post,
-      })),
-    )
-
-    const ordered = sort === 'top' ? [...posted, ...own] : [...own, ...posted]
-
-    // One tile per photo, whichever list it arrived in first.
-    const byKey = new Map<string, GalleryPhoto>()
-    for (const photo of ordered) if (!byKey.has(photo.key)) byKey.set(photo.key, photo)
-    return Array.from(byKey.values())
-  }, [spot, posts, sort])
+  // The spot page's "View all N photos" counts this same list (STOURIFY-310).
+  const photos = useMemo(() => galleryPhotos(spot?.media, posts, sort), [spot, posts, sort])
 
   /**
    * The same four states the gallery has had since STOURIFY-89, asked in the
