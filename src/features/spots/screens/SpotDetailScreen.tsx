@@ -37,6 +37,7 @@ import { createLocalWishlistItem } from '@/features/spots/api/createLocalWishlis
 import { openInMaps } from '@/features/spots/api/openInMaps'
 import SpotAboutTab from '@/features/spots/components/SpotAboutTab'
 import SpotReviewsTab from '@/features/spots/components/SpotReviewsTab'
+import { galleryPhotos } from '@/features/spots/utils/galleryPhotos'
 import { useIsSpotSaved } from '@/features/spots/hooks/useIsSpotSaved'
 import { useUnsaveSpot } from '@/features/spots/hooks/useUnsaveSpot'
 import { useTheme } from '@/theme/ThemeProvider'
@@ -103,7 +104,7 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
     queryFn: () => getSpot(spotId),
   })
 
-  const { data: postsData } = useQuery({
+  const { data: postsData, isError: postsFailed } = useQuery({
     queryKey: ['spot-posts', spotId],
     queryFn: () => getSpotPosts(spotId),
   })
@@ -145,6 +146,30 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
   const media = spot?.media ?? []
   const categories = spot?.categories ?? []
   const title = spot?.title ?? '...'
+
+  /**
+   * What the Photos tab's gallery button says (STOURIFY-310).
+   *
+   * It counts the gallery's own list — the spot's photos and every photo posted
+   * here, one per photo — from the same two cached answers the gallery reads.
+   * It counted `media.length` before, so "View the photo" opened "Photos · 3",
+   * and a spot whose only photos were posted had no button at all.
+   *
+   * A number is given only once both requests have answered, a failure counting
+   * as an answer: until then the spot's own count is a number that is wrong a
+   * moment later. The button still shows, unnumbered, so the gallery stays
+   * reachable (STOURIFY-310, ASSUMPTION note).
+   */
+  const galleryCount = galleryPhotos(media, posts, 'recent').length
+  const galleryCounted = !isWaiting && (postsData !== undefined || postsFailed)
+  const galleryLabel =
+    galleryCount === 0
+      ? null
+      : !galleryCounted
+        ? 'View photos'
+        : galleryCount === 1
+          ? 'View the photo'
+          : `View all ${galleryCount} photos`
   /**
    * Stars only when somebody has actually reviewed the spot. The server sends
    * `rating_average: 0` for a spot nobody has rated, and "★ 0.0" reads as
@@ -754,7 +779,8 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
             /*
               The posts people shared here, in the canvas's rounded tiles — the
               tab was called Posts until STOURIFY-292, and to a visitor they are
-              the photos. Then the way into the spot's own photo gallery.
+              the photos. Then the way into the gallery, which holds these and
+              the spot's own photos — see `galleryLabel` above.
 
               "Nobody has shared a photo" is said only when there is truly
               nothing: no posts, and no photos on the spot either. With photos
@@ -781,9 +807,9 @@ export default function SpotDetailScreen({ route, navigation }: Props) {
                 </Text>
               ) : null}
 
-              {media.length > 0 ? (
+              {galleryLabel ? (
                 <Button
-                  label={media.length === 1 ? 'View the photo' : `View all ${media.length} photos`}
+                  label={galleryLabel}
                   variant="secondary"
                   fullWidth
                   onPress={() => navigation.navigate('PhotoGallery', { spotId })}
