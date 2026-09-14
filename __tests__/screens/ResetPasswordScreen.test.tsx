@@ -8,7 +8,7 @@ jest.mock('@/shared/api/auth', () => ({
   resetPassword: jest.fn(async () => ({ message: 'ok' })),
 }))
 
-const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
+const navigation = { navigate: jest.fn(), goBack: jest.fn(), popTo: jest.fn() } as any
 
 beforeEach(() => jest.clearAllMocks())
 
@@ -51,7 +51,10 @@ it('sends the user back to sign in once the password is reset', async () => {
   fireEvent.changeText(screen.getByPlaceholderText('Repeat your password'), 'newpassword1')
   fireEvent.press(screen.getByText('Reset password'))
 
-  await waitFor(() => expect(navigation.navigate).toHaveBeenCalledWith('Login'))
+  // `popTo`, so the Log In underneath is returned to rather than stacked
+  // again (STOURIFY-305).
+  await waitFor(() => expect(navigation.popTo).toHaveBeenCalledWith('Login'))
+  expect(navigation.navigate).not.toHaveBeenCalledWith('Login')
 })
 
 it('goes back from the round back button — STOURIFY-286', () => {

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Sign-in links go back instead of stacking duplicates (STOURIFY-305).** On Sign Up, "Log in" now
+  goes back to the Log In underneath rather than laying a second Log In on top. On Log In, "Sign up"
+  does the same for Sign Up, and a successful password reset does it for Log In. Before this, Back
+  could walk you through screens you had already left, such as Log In, Sign Up, then Log In again.
+  React Navigation 7's `navigate(name)` pushes a new copy unless that screen is on top, so these
+  three now call `popTo(name)`. When there's no such screen underneath, `popTo` swaps the current
+  screen for it. The new `__tests__/navigation/authStackReturns.test.tsx` drives a real stack for all
+  six cases. The same fault in Photo review and the camera is filed as STOURIFY-323.
+
 ### Added
 
 - **Unsave a spot (STOURIFY-303).** Saving used to be one-way. Now tapping the filled Saved button

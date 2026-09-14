@@ -299,7 +299,10 @@ export default function RegisterScreen({ navigation }: Props) {
       <AuthPromptLink
         prompt="Already have an account?"
         action="Log in"
-        onPress={() => navigation.navigate('Login')}
+        // `popTo`, not `navigate`: React Navigation 7's `navigate` stacks a
+        // second Log In on top of one already underneath (STOURIFY-305). With
+        // none underneath, `popTo` swaps this screen for Log In.
+        onPress={() => navigation.popTo('Login')}
       />
     </AuthScreen>
   )

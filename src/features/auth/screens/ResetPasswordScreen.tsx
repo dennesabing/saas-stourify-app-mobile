@@ -52,7 +52,10 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
         password: data.password,
         password_confirmation: data.password_confirmation,
       })
-      navigation.navigate('Login')
+      // `popTo`, not `navigate`: back down to the Log In underneath, clearing
+      // Forgot password on the way, rather than stacking a second Log In on
+      // top (STOURIFY-305). With none underneath, this screen becomes Log In.
+      navigation.popTo('Login')
     } catch (err) {
       // A 422 here means an expired or wrong code — surface it as a message,
       // never a crash.

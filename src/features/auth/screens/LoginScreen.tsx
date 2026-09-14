@@ -148,7 +148,10 @@ export default function LoginScreen({ navigation }: Props) {
       <AuthPromptLink
         prompt="New to Stourify?"
         action="Sign up"
-        onPress={() => navigation.navigate('Register')}
+        // `popTo`, not `navigate`: React Navigation 7's `navigate` stacks a
+        // second Sign Up on top of one already underneath (STOURIFY-305). With
+        // none underneath, `popTo` swaps this screen for Sign Up.
+        onPress={() => navigation.popTo('Register')}
       />
 
       <BuildIdentity />
