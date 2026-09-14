@@ -16,8 +16,6 @@ when you use it.
 
 | On the canvas | In the app | Why |
 |---|---|---|
-| "Change photo" and a camera badge on Edit Profile | Your avatar, with no link | The server takes a photo at `POST /me/avatar`, but nothing in the app picks one and sends it. STOURIFY-307 builds that. |
-| An editable "Display name" field | Your name under the avatar, as text | The display name belongs to the account and is written at `PUT /me`. The app has no client for it yet (also STOURIFY-307). A box that looks typable and isn't would be a trap. |
 | Home city as a text box | A row of city chips | The server stores a city from the synced list, not free text. Typed text would have to be guessed back into a city. |
 | No interests on Edit Profile | The interest chips stay | This work changed the look, not what you can edit. Removing them would take away the only place to change your interests. |
 | The wishlist grouped by city ("General Santos · 4 spots") | One list | A spot has no city field, only a free-text address. Guessing a city from an address would put spots under the wrong heading. |
@@ -27,6 +25,17 @@ when you use it.
 | A map button on the Wishlist's back bar | Not drawn | Saves have no map view to switch to. |
 | A Follow / Following button on every follower row | Not drawn | A follow row doesn't say whether *you* follow that person. Asking the server once per row is the slow one-request-per-row pattern STOURIFY-260 rejected. |
 | Labels like "Trailblazer" under each name | "@username" only | Explorers have no ranks. |
+
+"Change photo" and an editable "Display name" used to head this table. When STOURIFY-289 restyled
+the screen, the app had no way to send either one to the server, so both were left out. STOURIFY-307
+built them, and they're on Edit Profile now.
+
+- **Your photo** uploads to `POST /me/avatar` as soon as you pick it. The phone strips the photo's
+  hidden location label before it sends it.
+- **Your name** saves to `PUT /me` when you press Save.
+
+Both need a connection. The canvas draws no "Remove photo", but there's one beside "Change photo"
+whenever you have a photo, because otherwise a photo could never be taken down.
 
 ## Two things that were added, not taken away
 

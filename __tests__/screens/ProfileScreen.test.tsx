@@ -1395,3 +1395,39 @@ describe('"See all" on the Wishlist tab', () => {
     expect(screen.queryByText('See all')).toBeNull()
   })
 })
+
+// ---------------------------------------------------------------------------
+// The header photo (STOURIFY-307)
+// ---------------------------------------------------------------------------
+
+describe('the header photo', () => {
+  // Login answers with a user that carries no photo, so a header reading only
+  // the signed-in user drew initials for everybody, forever. The photo comes
+  // from the profile answer now, which every header already reads.
+  test('your own header draws the photo GET /profile carries', async () => {
+    ;(getMyProfile as jest.Mock).mockResolvedValue(
+      profileFixture({
+        user_uuid: ME_UUID,
+        name: 'Ramil Santos',
+        avatar_url: 'https://cdn.example/ramil-medium.jpg',
+        viewer: { is_self: true, is_following: false, follow_status: null, follow_uuid: null },
+      }),
+    )
+
+    renderProfile()
+
+    const avatar = await screen.findByLabelText("Ramil Santos's avatar")
+    expect(JSON.stringify(avatar.props.source)).toContain('https://cdn.example/ramil-medium.jpg')
+  })
+
+  test("another explorer's header draws their photo", async () => {
+    ;(getProfile as jest.Mock).mockResolvedValue(
+      profileFixture({ avatar_url: 'https://cdn.example/grace-medium.jpg' }),
+    )
+
+    renderProfile(OTHER_UUID)
+
+    const avatar = await screen.findByLabelText("Grace Santos's avatar")
+    expect(JSON.stringify(avatar.props.source)).toContain('https://cdn.example/grace-medium.jpg')
+  })
+})

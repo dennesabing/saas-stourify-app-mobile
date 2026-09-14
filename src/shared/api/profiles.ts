@@ -20,6 +20,12 @@ export interface ExplorerProfile {
    * `whenLoaded('user')` server-side.
    */
   name?: string
+  /**
+   * The explorer's photo — the same `medium` conversion `PostResource` sends as
+   * `author.avatar_url`. `null` when they have none. Optional only for the same
+   * `whenLoaded('user')` reason as `name` (STOURIFY-307).
+   */
+  avatar_url?: string | null
   username: string
   bio: string | null
   website: string | null

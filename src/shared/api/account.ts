@@ -47,6 +47,55 @@ export async function changePassword(input: ChangePasswordInput): Promise<void> 
 }
 
 /**
+ * Change the signed-in account's display name — the name on your profile and
+ * on every post (STOURIFY-307).
+ *
+ * `PUT /me`, never `PATCH /profile`: the display name belongs to the platform
+ * account, and the profile endpoint silently drops a `name` it is sent.
+ */
+export async function updateDisplayName(name: string): Promise<{ name: string }> {
+  const res = await client.put('/me', { name })
+  return { name: res.data.data.name }
+}
+
+/** A photo on this phone, ready to send — `features/profile/api/pickAvatar`. */
+export interface AvatarUpload {
+  uri: string
+  name: string
+  type: string
+}
+
+/**
+ * Replace the signed-in account's photo, and answer the URL it now has.
+ *
+ * Multipart, one part named `avatar` — the name `UserProfileController`
+ * validates. The Content-Type is set per request because the client's default
+ * is JSON, and axios serialises a FormData body AS JSON when the header says
+ * so: the photo would arrive as the text of an object. React Native adds the
+ * boundary itself.
+ *
+ * 60 seconds rather than the client's 15: this is the one request in the app
+ * that carries a photo through the API rather than straight to storage.
+ */
+export async function uploadAvatar(file: AvatarUpload): Promise<string | null> {
+  const body = new FormData()
+  // React Native's FormData sends a file by path from this shape; the cast is
+  // because the DOM typing only knows Blob.
+  body.append('avatar', file as unknown as Blob)
+
+  const res = await client.post('/me/avatar', body, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60000,
+  })
+  return res.data.data.profile_photo_url ?? null
+}
+
+/** Remove the signed-in account's photo. Your initials show in its place. */
+export async function removeAvatar(): Promise<void> {
+  await client.delete('/me/avatar')
+}
+
+/**
  * DELETION_TIMEOUT_NOTE — why a timed-out deletion signs the user out anyway.
  *
  * A request that returns an error and a request that returns nothing are not

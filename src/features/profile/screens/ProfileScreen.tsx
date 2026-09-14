@@ -543,7 +543,11 @@ export default function ProfileScreen({ route, navigation }: Props) {
       // renders it twice — once as the name and once as the handle — which
       // is what the header did before the server sent a name at all.
       displayName={profile?.name ?? (isOwn ? currentUser?.name : undefined) ?? ''}
-      avatarUri={isOwn ? currentUser?.avatar : undefined}
+      // The profile's own photo first, for everyone. Login never sends one,
+      // so the signed-in user's `avatar` is only an instant copy left by an
+      // upload on this phone — it is gone after the next sign-in, and it was
+      // never there for anybody else's header (STOURIFY-307).
+      avatarUri={profile?.avatar_url ?? (isOwn ? currentUser?.avatar : undefined)}
       isOwn={isOwn}
       canOpen={canOpen}
       onEdit={() => navigation.navigate('EditProfile')}

@@ -20,6 +20,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Change your photo and your display name on Edit Profile (STOURIFY-307).** Before this, the
+  screen showed both but couldn't change either.
+  - **"Change photo"** sits under the avatar, which now has a camera badge. It opens the gallery for
+    one photo, shows it straight away, and uploads it to `POST /me/avatar`.
+    - The phone strips the photo's hidden location label first (`features/profile/api/pickAvatar.ts`,
+      reusing `stripImageMetadata`). The server passes PNGs through untouched, so it can't be the
+      only guard.
+    - If the upload fails, the old photo comes back with a plain message.
+    - "Remove photo" appears whenever you have one.
+  - **"Display name"** is a field above Username. Save sends it to `PUT /me`, and only when it
+    changed. The rest still goes to `PATCH /profile`.
+  - **Offline**, both say they need a connection and send nothing.
+  - **The rest of the app catches up.** Afterwards the app refreshes your profile, your posts and
+    the feed, and the profile header now draws the photo from `GET /profile`'s new `avatar_url`.
+    Before this, your own header never showed a photo, because login sends none.
+  - New calls in `shared/api/account.ts`: `updateDisplayName`, `uploadAvatar`, `removeAvatar`.
+    Tests: `__tests__/api/accountProfile.test.ts`, `__tests__/features/profile/pickAvatar.test.ts`,
+    and new cases in the Edit Profile and Profile screen tests.
+
 - **Unsave a spot (STOURIFY-303).** Saving used to be one-way. Now tapping the filled Saved button
   on a spot page takes the save back, and so does a filled bookmark at the right end of each row on
   the Wishlist screen (Profile artboard 3). The save disappears at once, even offline. A save the
