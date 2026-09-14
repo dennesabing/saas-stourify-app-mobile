@@ -33,7 +33,7 @@ const { setToken: setTokenMock } = (
   }
 ).__authMocks
 
-const navigation = { navigate: jest.fn(), goBack: jest.fn() } as any
+const navigation = { navigate: jest.fn(), goBack: jest.fn(), popTo: jest.fn() } as any
 const route = {} as any
 
 function renderScreen() {
@@ -211,7 +211,10 @@ it('sends someone with an account to log in', () => {
   renderScreen()
 
   fireEvent.press(screen.getByText('Log in'))
-  expect(navigation.navigate).toHaveBeenCalledWith('Login')
+  // `popTo`, so a Log In already underneath is returned to rather than
+  // stacked again (STOURIFY-305).
+  expect(navigation.popTo).toHaveBeenCalledWith('Login')
+  expect(navigation.navigate).not.toHaveBeenCalledWith('Login')
 })
 
 it('goes back from the round back button', () => {

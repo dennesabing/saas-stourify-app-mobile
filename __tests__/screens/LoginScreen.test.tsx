@@ -19,7 +19,7 @@ import { onLogin } from '@/sync/session'
 const mockLogin = authApi.login as jest.Mock
 
 // Create a minimal navigation mock
-const mockNavigation = { navigate: jest.fn(), goBack: jest.fn() } as any
+const mockNavigation = { navigate: jest.fn(), goBack: jest.fn(), popTo: jest.fn() } as any
 
 beforeEach(() => {
   jest.clearAllMocks()
@@ -93,7 +93,11 @@ it('sends a newcomer to sign up from the line at the bottom', () => {
   renderLogin()
 
   fireEvent.press(screen.getByText('Sign up'))
-  expect(mockNavigation.navigate).toHaveBeenCalledWith('Register')
+  // `popTo`, so a Sign Up already underneath is returned to rather than
+  // stacked again (STOURIFY-305; the real-stack cases are in
+  // __tests__/navigation/authStackReturns.test.tsx).
+  expect(mockNavigation.popTo).toHaveBeenCalledWith('Register')
+  expect(mockNavigation.navigate).not.toHaveBeenCalledWith('Register')
 })
 
 it('goes back from the round back button', () => {
